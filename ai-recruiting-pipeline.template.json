@@ -1,0 +1,2960 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are an expert recruiter evaluating candidates for TalentRubric Growth Advisors.\n\n--- HIRING CRITERIA ---\nTarget Role: {{ $('Search Criteria').first().json['Target Role'] }}\nKey Skills & Requirements: {{ $('Search Criteria').first().json['Key Skills & Criteria'] }}\nExperience Range (Years): {{ $('Search Criteria').first().json['Experience Range (Years)'] }}\nGender Preference: {{ $('Search Criteria').first().json['Gender Preference'] }}\n\n--- FULL JOB DESCRIPTION (may be empty; if present, treat as the authoritative source of requirements) ---\n{{ $('Prep JD').first().json.jd_text || 'No job description was provided; use the criteria above only.' }}\n\n--- SCRAPED CANDIDATE CONTENT (each line is one candidate: Title | Snippet | URL) ---\n{{ $json.page_text }}\n\n--- INSTRUCTIONS ---\n--- SOURCING PLAYBOOK (expert best practices from Glen Cathey / Boolean Black Belt / SocialTalent — apply these) ---\n1. PERSON vs JOB POSTING (most important): A real candidate line names an INDIVIDUAL and describes THEIR experience (a personal name, \"Senior X at Y\", \"I built...\"). A JOB POSTING describes a role to be filled — signals include \"We are looking\", \"Responsibilities\", \"Apply\", \"job description\", \"N jobs in <city>\", salary ranges, and company careers/ATS URLs (careers.*, jobs.*, boards.greenhouse.io, lever.co, workday, indeed, glassdoor, naukri). Any job posting, ATS page, directory or aggregator listing MUST get candidate_name \"\" and fit_score 0 so it is excluded — never turn a job title into a fake candidate name.\n2. SEMANTIC INFERENCE: credit skills and seniority that are implied but not stated verbatim (e.g. \"led/mentored a team\" implies seniority; \"GAAP\" implies accounting; \"Kubernetes + Terraform\" implies DevOps/SRE; \"published research\" implies depth). Do not require exact keyword matches.\n3. TITLE VARIETY: the same role carries many titles across companies — judge on substance, not exact title match (SDE ≈ Software Engineer; SRE ≈ Platform/Infrastructure Engineer; Applied Scientist ≈ ML Engineer). Reward adjacent/synonymous titles that demonstrate the required capability.\n4. SIGNAL QUALITY: prefer candidates with concrete, verifiable evidence (specific technologies, measurable impact, named employers) over vague self-description.\n\nEvaluate EVERY candidate line in the scraped content against the HIRING CRITERIA above.\nIf a FULL JOB DESCRIPTION is provided above, weigh it heavily: match each candidate against the specific responsibilities, must-have skills and seniority described in it, and reference JD-specific requirements in the match_summary. If no job description was provided, rely on the hiring criteria fields only.\nIf a line is NOT an individual person (e.g. a job posting, a company page, or a hiring announcement), give it fit_score 0 so it can be filtered out.\nCRITICAL EXPERIENCE MINIMUM (hard filter): The requested Experience Range defines a MINIMUM number of years of professional experience. Map the lower bound as: '0-2 years' => 0, '3-5 years' => 3, '5-8 years' => 5, '8+ years' => 8. Estimate each candidate's total years of professional experience from their title, snippet and seniority. ANY candidate whose estimated experience is clearly BELOW this minimum MUST be given fit_score 0 (so they are excluded), no matter how well their skills match. Interns, students, fresh graduates and recent grads must get fit_score 0 unless the minimum is 0. Only assign a fit_score of 1 or higher to candidates who meet or exceed the minimum years.\nAlso factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.\nReturn a JSON ARRAY where each element is one candidate object with exactly these fields:\n1. candidate_name (string) - the person's ACTUAL full name exactly as it appears in the source line. If the line does NOT contain an identifiable personal name (e.g. a Hacker News monthly hiring thread, a job posting, a directory or company page), set candidate_name to an empty string \"\" and give it fit_score 0 so it is excluded. NEVER invent a name such as 'Candidate from July 2019'.\n2. current_role (string)\n3. fit_score (number 1-10 based on match with target role, skills, experience range & gender preference; use 0 for non-candidates)\n4. match_summary (string, 2 sentences explaining fit)\n5. key_skills (array of strings)\n6. profile_url (string, the LinkedIn/GitHub/source URL for that candidate taken from the URL at the end of their scraped line)\nSort the array by fit_score descending."
+            },
+            {
+              "role": "system",
+              "content": "You are a JSON generator. Return ONLY a valid, raw JSON array of candidate objects without any markdown code blocks, conversational text, or formatting."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "6351adcd-44a2-4605-a2b8-c19c3a94ea89",
+      "name": "Message a model",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        -48
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "n8n credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  let raw;\n  if (item.json.output && item.json.output[0] && item.json.output[0].content && item.json.output[0].content[0]) {\n    raw = item.json.output[0].content[0].text;\n  } else if (typeof item.json.text === 'string') {\n    raw = item.json.text;\n  } else {\n    raw = '[]';\n  }\n  let parsed;\n  try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }\n  if (!Array.isArray(parsed)) { parsed = [parsed]; }\n  for (const c of parsed) {\n    out.push({ json: {\n      candidate_name: c.candidate_name || '',\n      current_role: c.current_role || '',\n      fit_score: typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0,\n      match_summary: c.match_summary || '',\n      key_skills: Array.isArray(c.key_skills) ? c.key_skills : [],\n      profile_url: c.profile_url || ''\n    } });\n  }\n}\nreturn out;"
+      },
+      "id": "0f3ce84b-7362-43fd-b910-b7ac5879941a",
+      "name": "Split Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "aa11bb22-0001-4a00-9000-000000000021",
+              "leftValue": "={{ $json.fit_score }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fae204ac-23a0-442b-980c-4a2352b6ace7",
+      "name": "Filter Candidates",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1456,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(function(it, idx) { return { json: it.json, pairedItem: { item: idx } }; });\nitems.sort(function(a, b) { return (Number(b.json.fit_score) || 0) - (Number(a.json.fit_score) || 0); });\nconst top = items.slice(0, 10);\nreturn top.map(function(it, i) { return { json: Object.assign({}, it.json, { rank: i + 1 }), pairedItem: it.pairedItem }; });"
+      },
+      "id": "1e1eb982-537e-4c39-9f3d-19711cd6b778",
+      "name": "Rank Top 10",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/api/v1/people/match",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.candidate_name }}"
+            },
+            {
+              "name": "linkedin_url",
+              "value": "={{ /linkedin\\.com/i.test($json.profile_url) ? $json.profile_url : '' }}"
+            },
+            {
+              "name": "reveal_personal_emails",
+              "value": "false"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b3830fe7-35b7-44c4-b97f-7fc40e903d68",
+      "name": "Apollo Enrich",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1872,
+        -192
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TIi2uzcD3iLfehno",
+          "name": "Header Auth account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cand = $('Rank Top 10').item.json;\nconst resp = $json || {};\nconst p = resp.person || null;\n\nfunction s(v) { return (typeof v === 'string') ? v : ''; }\n\nlet email = '';\nlet email_status = '';\nlet location = '';\nlet current_company = '';\nlet verified_title = '';\nlet work_history = '';\nlet linkedin = cand.profile_url || '';\n\nif (p) {\n  const e = s(p.email);\n  if (e && e.toLowerCase().indexOf('not_unlocked') === -1 && e.toLowerCase().indexOf('domain.com') === -1) {\n    email = e;\n  }\n  email_status = s(p.email_status);\n  verified_title = s(p.title);\n  if (p.organization && p.organization.name) { current_company = s(p.organization.name); }\n  location = [s(p.city), s(p.state), s(p.country)].filter(Boolean).join(', ');\n  if (p.linkedin_url) { linkedin = s(p.linkedin_url); }\n  if (Array.isArray(p.employment_history)) {\n    work_history = p.employment_history.slice(0, 3).map(function(h) {\n      const t = s(h.title);\n      const o = s(h.organization_name);\n      let line = t;\n      if (o) line += ' @ ' + o;\n      return line;\n    }).filter(Boolean).join(' | ');\n  }\n}\n\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: cand.profile_url || '',\n  verified_gender: '',\n  current_company: current_company,\n  verified_title: verified_title,\n  location: location,\n  pdl_skills: '',\n  github_url: '',\n  email: email,\n  email_status: email_status,\n  phone: '',\n  work_history: work_history,\n  education: '',\n  verified_linkedin: linkedin,\n  enrichment_status: p ? 'enriched' : 'not found'\n} };"
+      },
+      "id": "c0dfdff4-a6d3-410d-b9f3-50279caa0def",
+      "name": "Combine Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"q\": \"\\\"{{ $json.candidate_name }}\\\" (resume OR cv OR curriculum vitae) (filetype:pdf OR filetype:doc OR filetype:docx OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:notion.site) {{ $json.current_role }} {{ $('Search Criteria').first().json['Location'].split('-')[0].trim() }}\"\n}",
+        "options": {}
+      },
+      "id": "82c323f6-9362-4f40-a1d6-65c8b18932cd",
+      "name": "Resume Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "QxVulPihxQdPXYA5",
+          "name": "Header Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cand = $('Enriched Candidates').item.json;\nconst resp = $json || {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // must reference the person's name somewhere to count strongly\n  const nameHit = tokens.length > 0 && tokens.some(function(t){ return blob.indexOf(t) !== -1; });\n  if (nameHit) score += 50;\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: nameHit };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// only accept a resume link if it clears a confidence threshold (name + a format/host or keyword signal)\nif (best && best.score >= 60) {\n  merged.resume_link = best.link;\n  merged.resume_status = best.score >= 90 ? 'likely (name + format match)' : 'possible (unverified)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };"
+      },
+      "id": "9d9b0af8-a857-4609-9d0c-092804ae6e90",
+      "name": "Attach Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Rank": "={{ $json.rank }}",
+            "Name": "={{ $json.candidate_name }}",
+            "Role": "={{ $json.current_role }}",
+            "Fit Score": "={{ $json.fit_score }}",
+            "Summary": "={{ $json.match_summary }}",
+            "Key Skills": "={{ $json.key_skills }}",
+            "Verified Gender": "={{ $json.verified_gender }}",
+            "Current Company": "={{ $json.current_company }}",
+            "Verified Title": "={{ $json.verified_title }}",
+            "Location": "={{ $json.location }}",
+            "PDL Skills": "={{ $json.pdl_skills }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "GitHub": "={{ $json.github_url }}",
+            "Work History": "={{ $json.work_history }}",
+            "Education": "={{ $json.education }}",
+            "LinkedIn": "={{ $json.verified_linkedin }}",
+            "Resume Link": "={{ $json.drive_cv_link || $json.resume_link }}",
+            "Date Added": "={{ $json.date_added }}",
+            "Source Platform": "={{ $json.source_platform }}",
+            "Resume Source": "={{ $json.resume_source }}",
+            "Contact Source": "={{ $json.contact_source }}",
+            "Search Role": "={{ $json.search_role }}",
+            "Search Location": "={{ $json.search_location }}",
+            "Pipeline Status": "={{ $json.pipeline_status }}",
+            "Outreach Status": "={{ $json.outreach_status }}",
+            "Dedupe Key": "={{ $json.dedupe_key }}",
+            "Send Email?": "FALSE",
+            "Confidence": "={{ $json.confidence }}"
+          },
+          "matchingColumns": [
+            "Dedupe Key"
+          ],
+          "schema": [
+            {
+              "id": "Rank",
+              "displayName": "Rank",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Fit Score",
+              "displayName": "Fit Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Key Skills",
+              "displayName": "Key Skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Verified Gender",
+              "displayName": "Verified Gender",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Current Company",
+              "displayName": "Current Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Verified Title",
+              "displayName": "Verified Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "PDL Skills",
+              "displayName": "PDL Skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "GitHub",
+              "displayName": "GitHub",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Work History",
+              "displayName": "Work History",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Education",
+              "displayName": "Education",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "LinkedIn",
+              "displayName": "LinkedIn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Resume Link",
+              "displayName": "Resume Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date Added",
+              "displayName": "Date Added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Source Platform",
+              "displayName": "Source Platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Resume Source",
+              "displayName": "Resume Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Contact Source",
+              "displayName": "Contact Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Search Role",
+              "displayName": "Search Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Search Location",
+              "displayName": "Search Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pipeline Status",
+              "displayName": "Pipeline Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Outreach Status",
+              "displayName": "Outreach Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Dedupe Key",
+              "displayName": "Dedupe Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Send Email?",
+              "displayName": "Send Email?",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c83ecf93-0598-4d05-8cbf-0d64071eaafc",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3232,
+        -208
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#recruitment-alerts",
+          "mode": "name"
+        },
+        "text": "=🎯 *New Candidate Sourced!*  (Rank #{{ $json.rank }} of top 10)\n\n*Name:* {{ $json.candidate_name }}\n*Role:* {{ $json.current_role }}\n*Fit Score:* {{ $json.fit_score }}/10\n*Confidence:* {{ $json.confidence }}\n\n*Summary:* {{ $json.match_summary }}\n\n*Key Skills:* {{ $json.key_skills }}\n*Sourced from:* {{ $json.source_platform }}\n\n*— Verified (Apollo) —*\n*Current Company:* {{ $json.current_company || 'n/a' }}\n*Verified Title:* {{ $json.verified_title || 'n/a' }}\n*Location:* {{ $json.location || 'n/a' }}\n*Email:* {{ $json.email || 'not available' }}\n*Email Status:* {{ $json.email_status || 'n/a' }}\n*Work History:* {{ $json.work_history || 'n/a' }}\n*Enrichment:* {{ $json.enrichment_status }}\n\n*LinkedIn:* {{ $json.verified_linkedin }}\n*Resume:* {{ $json.drive_cv_link || $json.resume_link || 'none found' }} ({{ $json.drive_cv_link ? 'saved to Drive' : $json.resume_status }})",
+        "otherOptions": {}
+      },
+      "id": "742560ca-04de-4573-8a3f-4e40e49235fc",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        3232,
+        -48
+      ],
+      "webhookId": "ce25a298-8997-4df7-a850-0ffe7f962d0b",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "TcUGlwEQ7yhL1HyO",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "=Exciting {{ $json['Search Role'] }} opportunity at TalentRubric Growth Advisors",
+        "message": "=<p>Hi {{ $json.Name && !/candidate from/i.test($json.Name) ? $json.Name.split(' ')[0] : 'there' }},</p>\n<p>I came across your profile and was really impressed by your background as <b>{{ $json.Role }}</b>{{ $json['Current Company'] ? ' at ' + $json['Current Company'] : '' }}. Your experience with {{ $json['Key Skills'] }} stood out to us.</p>\n<p>We're currently helping a client hire for a <b>{{ $json['Search Role'] }}</b> role ({{ $json['Search Location'] }}) and I believe your skills could be a strong match.</p>\n<p>Would you be open to a quick 15-minute chat this week to explore whether it's a fit? If so, just reply to this email with a couple of time slots that work for you.</p>\n<p>Best regards,<br/>TalentRubric Growth Advisors</p>",
+        "options": {
+          "appendAttribution": true
+        }
+      },
+      "id": "80062dea-5ebc-46cd-82bd-dff3dbb39231",
+      "name": "Send Outreach Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        624
+      ],
+      "webhookId": "0db43689-b419-4111-a8d3-b0e76641c2b2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "nO9PGd8GvFY2VaRj",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "TalentRubric Sourcing Request",
+        "formDescription": "Describe your ideal candidate in plain English in the Natural Language Search box, OR fill in the structured fields below (or both — filled fields always take priority). Fields marked * are required only if you are not using natural-language search. See the examples at the bottom.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Natural Language Search",
+              "fieldType": "textarea",
+              "placeholder": "e.g. \"Senior backend engineer in Bangalore with 5+ years of Java, Spring Boot and Kafka. Exclude interns. Search LinkedIn and GitHub.\"  —  just describe the person in plain English and the AI fills the fields below."
+            },
+            {
+              "fieldLabel": "Target Role",
+              "placeholder": "e.g. Backend Engineer"
+            },
+            {
+              "fieldLabel": "Key Skills & Criteria",
+              "fieldType": "textarea",
+              "placeholder": "e.g. Java, Spring Boot, Kafka, Microservices"
+            },
+            {
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea",
+              "placeholder": "Paste the full job description here, or upload it as a file below (PDF, Word .doc/.docx, TXT, RTF, HTML or MD)."
+            },
+            {
+              "fieldLabel": "Job Description File (PDF, Word, TXT, RTF, HTML, MD)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf,.doc,.docx,.txt,.md,.markdown,.rtf,.html,.htm,.csv"
+            },
+            {
+              "fieldLabel": "Location",
+              "placeholder": "e.g. Bangalore"
+            },
+            {
+              "fieldLabel": "Preferred Industry",
+              "placeholder": "e.g. Fintech, SaaS, E-commerce"
+            },
+            {
+              "fieldLabel": "Current Employer",
+              "placeholder": "e.g. Flipkart"
+            },
+            {
+              "fieldLabel": "Keywords to Exclude",
+              "placeholder": "e.g. intern, recruiter, freelance"
+            },
+            {
+              "fieldLabel": "Education",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Any"
+                  },
+                  {
+                    "option": "Bachelors / Degree"
+                  },
+                  {
+                    "option": "Masters"
+                  },
+                  {
+                    "option": "PhD"
+                  },
+                  {
+                    "option": "MBA"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Expand Job Title Synonyms",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "No"
+                  },
+                  {
+                    "option": "Yes"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Experience Range (Years)",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Auto (from description)"
+                  },
+                  {
+                    "option": "0-2 years"
+                  },
+                  {
+                    "option": "3-5 years"
+                  },
+                  {
+                    "option": "5-8 years"
+                  },
+                  {
+                    "option": "8+ years"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Gender Preference",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Auto (from description)"
+                  },
+                  {
+                    "option": "Any"
+                  },
+                  {
+                    "option": "Female"
+                  },
+                  {
+                    "option": "Male"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Target Platforms",
+              "fieldType": "checkbox",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "LinkedIn"
+                  },
+                  {
+                    "option": "Github"
+                  },
+                  {
+                    "option": "X (Twitter)"
+                  },
+                  {
+                    "option": "Stack Overflow"
+                  },
+                  {
+                    "option": "Dribbble"
+                  },
+                  {
+                    "option": "Behance"
+                  },
+                  {
+                    "option": "Hacker News"
+                  },
+                  {
+                    "option": "Google / Open Web"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Search Region (Geography)",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Global (all regions)"
+                  },
+                  {
+                    "option": "India"
+                  },
+                  {
+                    "option": "United States"
+                  },
+                  {
+                    "option": "United Kingdom"
+                  },
+                  {
+                    "option": "Canada"
+                  },
+                  {
+                    "option": "Australia"
+                  },
+                  {
+                    "option": "Germany"
+                  },
+                  {
+                    "option": "France"
+                  },
+                  {
+                    "option": "Netherlands"
+                  },
+                  {
+                    "option": "Singapore"
+                  },
+                  {
+                    "option": "United Arab Emirates"
+                  },
+                  {
+                    "option": "Ireland"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldType": "html",
+              "elementName": "examples_guide",
+              "html": "<div style=\"border:1px solid #cfe3ff;border-radius:8px;padding:12px 14px;background:#f2f8ff;font-size:13px;line-height:1.6;color:#222;margin-bottom:12px\"><b>&#128173; Natural Language Search &mdash; example prompts (copy &amp; edit)</b><ul style=\"margin:8px 0 0 18px;padding:0\"><li><i>Find a senior backend engineer in Bangalore who knows Java, Spring Boot and Kafka.</i></li><li><i>Senior data engineer in Pune, 5+ years, Spark + Airflow + AWS. Exclude interns and consultants. Search LinkedIn and GitHub.</i></li><li><i>Product designer in Bengaluru with Figma and design-systems experience, 3&ndash;5 years. Search Dribbble, Behance and LinkedIn.</i></li><li><i>Lead DevOps / SRE, 8+ years, strong Kubernetes, Terraform and AWS, currently at a product company, in Hyderabad. Prefer GitHub and LinkedIn.</i></li><li><i>Machine learning engineer at a fintech in Mumbai, Master's or PhD, 5+ years with PyTorch and LLMs. Exclude recruiters.</i></li></ul><div style=\"margin-top:8px;padding-top:6px;border-top:1px dashed #b8d4ff\"><b>Tips:</b> mention <b>role, skills, location, experience/seniority, exclusions and platforms</b>. Naming <b>LinkedIn / GitHub</b> finds real people; &ldquo;Google / open web&rdquo; tends to return job posts. Anything you set in the fields below <b>overrides</b> the AI.</div></div><div style=\"border:1px solid #e2e2e2;border-radius:8px;padding:14px 16px;background:#fafafa;font-size:13px;line-height:1.6;color:#333\"><b>How to fill this form &mdash; examples</b><p style=\"margin:6px 0\"><b>Natural Language Search</b> (easiest): just describe the role in plain English &mdash; e.g. <i>\"Senior data engineer in Pune, 5+ yrs, Spark + Airflow + AWS, exclude consultants, search LinkedIn + GitHub\"</i>. The AI fills the fields below for you. Anything you set explicitly below overrides the AI.</p><ul style=\"margin:8px 0 0 18px;padding:0\"><li><b>Target Role</b>: the job title you are hiring for &mdash; <i>Backend Engineer</i>, <i>Data Scientist</i>, <i>Product Manager</i></li><li><b>Key Skills &amp; Criteria</b>: comma-separated must-have skills &mdash; <i>Java, Spring Boot, Kafka</i></li><li><b>Job Description</b> (optional, recommended): paste the full JD text <i>or</i> upload the JD as a PDF, Word (.doc/.docx), TXT, RTF, HTML or Markdown file below &mdash; the AI scores each candidate against it and pulls extra keywords from it</li><li><b>Location</b>: city or region &mdash; <i>Bangalore</i> (use the city before any dash)</li><li><b>Current Employer</b> (optional): only people at this company &mdash; <i>Flipkart</i></li><li><b>Keywords to Exclude</b> (optional): comma-separated terms to filter out &mdash; <i>intern, recruiter, freelance</i></li><li><b>Education</b> (optional): minimum qualification &mdash; <i>Bachelors / Degree</i>, <i>Masters</i></li><li><b>Expand Job Title Synonyms</b>: choose <i>Yes</i> to also match similar titles (e.g. SDE, Software Developer) &mdash; recommended for a wider search</li><li><b>Experience Range</b>: the MINIMUM experience required &mdash; picking <i>8+ years</i> excludes anyone below 8 years</li><li><b>Target Platforms</b>: where to search &mdash; tick <i>LinkedIn</i> + <i>GitHub</i> for best results, or <i>Google / Open Web</i> for a broad search</li></ul><div style=\"margin-top:10px;padding-top:8px;border-top:1px dashed #ddd\"><b>Example search:</b> Target Role = <i>Backend Engineer</i>, Skills = <i>Java, Spring, Kafka</i>, Location = <i>Bangalore</i>, Exclude = <i>intern</i>, Experience = <i>3-5 years</i>, Platforms = <i>LinkedIn, GitHub</i></div></div>"
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "✅ Your sourcing request has been received and is now processing. Live status is shown in the Google Sheet 'Search Log' tab — it flips from 🔄 Processing to ✅ Complete (with the candidate count and row range) when the run finishes, usually within a few minutes. Ranked candidates also post to the recruitment Slack channel. You can safely close this page."
+            }
+          }
+        }
+      },
+      "id": "5c16cc59-5ba4-4612-8179-ca9f993b847a",
+      "name": "On form submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        48
+      ],
+      "webhookId": "YOUR_FORM_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8deb0899-6669-44d5-8287-0ab0b702f8b7",
+              "leftValue": "={{ $json.Serper_Used }}",
+              "rightValue": 1000,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "39a7dfbe-5631-4b6f-8c2a-9696956c57c5",
+              "leftValue": "={{ $json.PDL_Used }}",
+              "rightValue": 100,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "85fdf8f7-c961-410b-8707-b48940cd2ca1",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "list",
+          "cachedResultName": "recruitment-alerts"
+        },
+        "text": "Monthly recruiting search budget limit reached! Sourcing is paused until next month.",
+        "otherOptions": {}
+      },
+      "id": "2521709a-aa68-4900-838e-cfef421eec4d",
+      "name": "Send a message1",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        672,
+        144
+      ],
+      "webhookId": "2273ea8a-85a8-4842-91ff-fa787ccce874",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "TcUGlwEQ7yhL1HyO",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": YOUR_USAGE_TRACKER_GID,
+          "mode": "list",
+          "cachedResultName": "Usage Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=YOUR_USAGE_TRACKER_GID"
+        },
+        "options": {}
+      },
+      "id": "1366e51e-6576-47fb-8b3c-4e5285493e8d",
+      "name": "Guardrail Check",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://google.serper.dev/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.serper_body) }}",
+        "options": {}
+      },
+      "id": "17669b17-e50b-4cbb-bf09-3c9d14a66a91",
+      "name": "Serper Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "QxVulPihxQdPXYA5",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1a2b3c4-0001-4a00-9000-000000000002",
+              "name": "page_text",
+              "type": "string",
+              "value": "={{ ($json.organic || []).map(o => (o.title || '') + ' | ' + (o.snippet || '') + ' | ' + (o.link || '')).join('\\n') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "339e56f3-fbbc-4889-b6b2-e9746da4f7ca",
+      "name": "Format Search Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        896,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = form['Key Skills & Criteria'] || '';\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst excludeRaw = form['Keywords to Exclude'] || '';\nconst employer = String(form['Current Employer'] || '').trim();\nconst education = String(form['Education'] || '').trim();\nconst expand = String(form['Expand Job Title Synonyms'] || '').toLowerCase();\n\nfunction q(s) { return /\\s/.test(s) ? '\"' + s + '\"' : s; }\n// A field \"looks boolean\" when the recruiter has already written their own\n// query syntax (AND / OR / quoted phrases / minus). In that case we trust it\n// verbatim and DO NOT wrap it in another pair of quotes (that nested-quote\n// wrapping is what produced 0-result searches before).\nfunction looksBoolean(s) {\n  s = String(s);\n  return /\\s(OR|AND)\\s/i.test(s) || s.indexOf('\"') !== -1 || /(^|\\s)-\\w/.test(s);\n}\n\n// --- role: honour recruiter boolean, else quote + optional synonym expansion ---\nconst synMap = {\n  'software engineer': ['software engineer','software developer','sde','backend engineer','full stack developer'],\n  'backend engineer': ['backend engineer','back end engineer','software engineer','java developer','backend developer'],\n  'frontend engineer': ['frontend engineer','front end engineer','ui engineer','react developer','javascript developer'],\n  'full stack developer': ['full stack developer','fullstack developer','software engineer','web developer'],\n  'data scientist': ['data scientist','machine learning engineer','ml engineer','ai engineer'],\n  'data engineer': ['data engineer','big data engineer','etl developer','analytics engineer'],\n  'data analyst': ['data analyst','business analyst','bi analyst'],\n  'product manager': ['product manager','product owner','program manager','technical product manager'],\n  'devops engineer': ['devops engineer','site reliability engineer','sre','platform engineer','infrastructure engineer'],\n  'qa engineer': ['qa engineer','sdet','test engineer','automation engineer','quality engineer'],\n  'designer': ['designer','ux designer','ui designer','product designer','ui/ux designer'],\n  'mobile developer': ['mobile developer','android developer','ios developer','react native developer'],\n  'sales': ['sales','account executive','business development','bdm','sales manager','account manager','inside sales'],\n  'marketing': ['marketing','digital marketing','marketing manager','growth marketer','performance marketing','brand manager'],\n  'hr': ['hr','human resources','talent acquisition','recruiter','hr manager','people operations','hrbp'],\n  'recruiter': ['recruiter','talent acquisition','technical recruiter','hr recruiter','sourcer'],\n  'accountant': ['accountant','accounts','chartered accountant','ca','finance executive','accounts manager','audit'],\n  'finance': ['finance','financial analyst','fp&a','finance manager','financial planning','financial controller'],\n  'operations': ['operations','operations manager','ops','business operations','operations executive'],\n  'customer success': ['customer success','customer success manager','csm','account manager','customer support'],\n  'content writer': ['content writer','copywriter','content marketer','editor','technical writer'],\n  'project manager': ['project manager','program manager','delivery manager','scrum master','pmo'],\n  'business analyst': ['business analyst','ba','business systems analyst','functional consultant']\n};\nlet roleTerm = '';\nif (role) {\n  if (looksBoolean(role)) {\n    // recruiter wrote their own boolean expression -> use as-is, grouped\n    roleTerm = '(' + role + ')';\n  } else {\n    let variants = ['\"' + role + '\"'];\n    if (expand === 'yes' || expand === 'true') {\n      const key = role.toLowerCase();\n      if (synMap[key]) { variants = synMap[key].map(function(v){ return '\"' + v + '\"'; }); }\n    }\n    roleTerm = variants.length > 1 ? '(' + variants.join(' OR ') + ')' : variants[0];\n  }\n}\n\n// --- skills: honour recruiter boolean, else comma-split into an OR group ---\nlet skillsTerm = '';\nif (String(skillsRaw).trim()) {\n  if (looksBoolean(skillsRaw)) {\n    skillsTerm = '(' + String(skillsRaw).trim() + ')';\n  } else {\n    const skills = String(skillsRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\n    if (skills.length) {\n      const quoted = skills.map(q);\n      skillsTerm = quoted.length > 1 ? '(' + quoted.join(' OR ') + ')' : quoted[0];\n    }\n  }\n}\n\n// --- exclude keywords ---\nconst excludes = String(excludeRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\nconst excludeTerm = excludes.map(function(s){ return '-' + q(s); }).join(' ');\n\n// --- current employer ---\nconst employerTerm = employer ? q(employer) : '';\n\n// --- education level: loose OR-group of common variants ---\nconst eduMap = {\n  'bachelors / degree': ['bachelor','bachelors','\"b.e\"','\"b.tech\"','btech','bsc','\"b.sc\"','degree'],\n  'masters': ['master','masters','\"m.e\"','\"m.tech\"','mtech','msc','\"m.sc\"'],\n  'phd': ['phd','\"ph.d\"','doctorate'],\n  'mba': ['mba','\"m.b.a\"']\n};\nlet eduTerm = '';\nif (education && !/^any$/i.test(education)) {\n  const ekey = education.toLowerCase();\n  const variants = eduMap[ekey];\n  if (variants && variants.length) { eduTerm = '(' + variants.join(' OR ') + ')'; }\n  else { eduTerm = q(education); }\n}\n\n// --- platform site: filters ---\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) {\n  platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n}\nconst siteMap = {\n  'LinkedIn': ['site:linkedin.com/in/'],\n  'Github': ['site:github.com'],\n  'GitHub': ['site:github.com'],\n  'X (Twitter)': ['site:twitter.com','site:x.com'],\n  'Stack Overflow': ['site:stackoverflow.com/users'],\n  'Dribbble': ['site:dribbble.com'],\n  'Behance': ['site:behance.net'],\n  'Hacker News': ['site:news.ycombinator.com']\n};\nconst openWeb = platforms.some(function(pl){ return /google|open web/i.test(pl); });\nlet sites = [];\nif (!openWeb) {\n  for (const pl of platforms) {\n    if (siteMap[pl]) { sites = sites.concat(siteMap[pl]); }\n  }\n  if (sites.length === 0) {\n    sites = ['site:linkedin.com/in/','site:github.com','site:twitter.com','site:x.com'];\n  }\n}\n\n// --- JD keyword extraction: pull distinctive keywords to strengthen the search ---\nlet jdText = '';\ntry { jdText = String($('Prep JD').first().json.jd_text || ''); } catch (e) { jdText = ''; }\nlet jdTerm = '';\nif (jdText) {\n  const STOP = {'the':1,'and':1,'for':1,'with':1,'you':1,'your':1,'our':1,'are':1,'will':1,'that':1,'this':1,'have':1,'has':1,'from':1,'not':1,'but':1,'all':1,'can':1,'who':1,'what':1,'when':1,'how':1,'why':1,'their':1,'they':1,'them':1,'about':1,'into':1,'over':1,'more':1,'most':1,'such':1,'per':1,'via':1,'etc':1,'role':1,'roles':1,'work':1,'working':1,'team':1,'teams':1,'years':1,'year':1,'experience':1,'experiences':1,'strong':1,'good':1,'great':1,'excellent':1,'ability':1,'skills':1,'skill':1,'knowledge':1,'understanding':1,'responsibilities':1,'requirements':1,'preferred':1,'plus':1,'must':1,'should':1,'including':1,'across':1,'within':1,'using':1,'help':1,'build':1,'building':1,'develop':1,'developing':1,'design':1,'designing':1,'candidate':1,'candidates':1,'company':1,'companies':1,'job':1,'jobs':1,'position':1,'positions':1,'looking':1,'join':1,'we':1,'us':1,'is':1,'to':1,'of':1,'in':1,'on':1,'as':1,'at':1,'be':1,'or':1,'an':1,'a':1,'by':1,'it':1,'if':1,'do':1,'up':1,'new':1,'like':1,'well':1,'also':1,'may':1,'get':1,'one':1,'two':1,'end':1,'day':1,'days':1};\n  const freq = {};\n  const toks = jdText.toLowerCase().replace(/[^a-z0-9+#. ]/g, ' ').split(/\\s+/);\n  for (const t0 of toks) {\n    const t = t0.replace(/^[.]+|[.]+$/g, '');\n    if (t.length < 3 || t.length > 30) continue;\n    if (STOP[t]) continue;\n    if (/^\\d+$/.test(t)) continue;\n    freq[t] = (freq[t] || 0) + 1;\n  }\n  const ranked = Object.keys(freq).sort(function(a, b){ return freq[b] - freq[a]; });\n  // keep only meaningfully repeated keywords, cap to 6 to avoid over-narrowing\n  const kw = ranked.filter(function(w){ return freq[w] >= 2; }).slice(0, 6);\n  if (kw.length) {\n    jdTerm = '(' + kw.map(function(w){ return /\\s/.test(w) ? '\"' + w + '\"' : w; }).join(' OR ') + ')';\n  }\n}\n\n// --- expert noise filter (Boolean Black Belt / SocialTalent best practice) ---\n// People-search returns job posts, ATS pages & directories unless we exclude them.\n// Site-restricted profile searches (e.g. linkedin.com/in/) already avoid most of\n// this, so only apply the noise NOT-block on broad Open Web searches.\nlet noiseTerm = '';\nlet cvIntentTerm = '';\nif (openWeb) {\n  const noise = [\n    'intitle:jobs', 'inurl:/jobs/', 'inurl:/careers/', 'inurl:job',\n    '\"job description\"', '\"apply now\"', '\"post a job\"', '\"we are looking\"',\n    '\"job opening\"', 'site:indeed.com', 'site:glassdoor.com',\n    'site:naukri.com', 'site:ziprecruiter.com', 'site:lever.co',\n    'site:greenhouse.io', 'site:workday.com', 'site:monster.com',\n    'site:shine.com', 'site:timesjobs.com', 'site:foundit.in',\n    'site:instahyre.com', 'site:cutshort.io', 'site:hirist.com',\n    'site:wellfound.com/jobs', 'site:linkedin.com/jobs'\n  ];\n  noiseTerm = noise.map(function(t){ return '-' + t; }).join(' ');\n\n  // --- CV / personal-blog intent booster (open web only) ---\n  // Candidates publish resumes/CVs on personal blogs & doc hosts. Actively TARGET\n  // those pages so open-web search surfaces PEOPLE (and their CVs) not job posts.\n  // We OR together: (a) resume/CV wording, (b) downloadable CV file types,\n  // (c) common personal-blog / CV-hosting domains where people post their CV.\n  const cvWords = '(\"resume\" OR \"curriculum vitae\" OR \"cv\" OR \"portfolio\" OR \"about me\" OR \"my work\" OR \"personal website\")';\n  const cvFiletypes = '(filetype:pdf OR filetype:doc OR filetype:docx)';\n  const cvHosts = '(site:medium.com OR site:github.io OR site:dev.to OR site:hashnode.dev OR site:notion.site OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:super.site OR site:substack.com OR site:wordpress.com OR site:blogspot.com OR site:wixsite.com OR site:carrd.co OR site:about.me OR site:behance.net OR site:gitconnected.com OR site:hackernoon.com OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms)';\n  const cvInurl = '(inurl:resume OR inurl:cv OR intitle:resume OR intitle:\\\"curriculum vitae\\\" OR inurl:portfolio)';\n  cvIntentTerm = '(' + cvWords + ' OR ' + cvFiletypes + ' OR ' + cvHosts + ' OR ' + cvInurl + ')';\n}\n\n// --- search region -> Serper gl country code ---\nconst regionMap = {\n  'india':'in','united states':'us','usa':'us','us':'us','america':'us',\n  'united kingdom':'gb','uk':'gb','britain':'gb','england':'gb',\n  'canada':'ca','australia':'au','germany':'de','france':'fr',\n  'netherlands':'nl','holland':'nl','singapore':'sg',\n  'united arab emirates':'ae','uae':'ae','dubai':'ae',\n  'ireland':'ie','spain':'es','italy':'it','japan':'jp','brazil':'br'\n};\nconst regionRaw = String(form['Search Region'] || '').trim();\nlet gl = '';\nif (regionRaw && !/^global|^all/i.test(regionRaw)) {\n  const rkey = regionRaw.toLowerCase().replace(/\\s*\\(.*\\)\\s*/, '').trim();\n  gl = regionMap[rkey] || '';\n}\n\n// --- assemble query ---\nconst parts = [];\nif (sites.length) { parts.push(sites.length > 1 ? '(' + sites.join(' OR ') + ')' : sites[0]); }\nif (roleTerm) parts.push(roleTerm);\nif (skillsTerm) parts.push(skillsTerm);\nif (jdTerm) parts.push(jdTerm);\nif (employerTerm) parts.push(employerTerm);\nif (eduTerm) parts.push(eduTerm);\nif (cvIntentTerm) parts.push(cvIntentTerm);\nif (loc) parts.push(q(loc));\nif (excludeTerm) parts.push(excludeTerm);\nif (noiseTerm) parts.push(noiseTerm);\n\nconst query = parts.join(' ').trim();\nconst PAGES = 3; // Serper: 1 credit per page (each page ~10 results)\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { q: query, page: pg };\n  if (gl) body.gl = gl;\n  out.push({ json: { q: query, page: pg, pages_total: PAGES, gl: gl || 'global', serper_body: body, jd_keywords: jdTerm || 'none', cv_intent: cvIntentTerm ? 'applied' : 'none', noise_filter: noiseTerm ? 'applied' : 'none', platforms_used: openWeb ? 'Open Web' : (sites.join(', ') || 'default'), excludes_used: excludeTerm || 'none' } });\n}\nreturn out;\n"
+      },
+      "id": "b82dcab5-ef4f-449d-9282-213c15fce065",
+      "name": "Build Search Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1-0001",
+              "leftValue": "={{ $json.profile_url }}",
+              "rightValue": "linkedin.com",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "69b6d455-9a52-4cc1-9a30-eef2710c39ec",
+      "name": "Has LinkedIn",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cand = $json || {};\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: cand.profile_url || '',\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: '',\n  pdl_skills: '',\n  github_url: '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  verified_linkedin: cand.profile_url || '',\n  enrichment_status: 'skipped - no linkedin (apollo not used)'\n} };"
+      },
+      "id": "6803e6bd-6eb1-4a0f-8bbc-896e4be47157",
+      "name": "Combine No Apollo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        96
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "598b9edc-a233-4640-8d9f-0ce38241c9ad",
+      "name": "Enriched Candidates",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.resume_link }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "7b0ed436-1cdb-4ce5-bbfb-2ad77de3ec3c",
+      "name": "Download Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2640,
+        -48
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "name": "={{ (($('Attach Resume').item.json.candidate_name || 'candidate').toString().replace(/[^A-Za-z0-9 _-]/g, '').trim() || 'candidate') }} - CV.{{ $binary.data.fileExtension || 'pdf' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive",
+          "cachedResultName": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "YOUR_DRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "N8N",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "51f8e90d-50a9-489f-8072-f91c7f8ebff9",
+      "name": "Save CV to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2832,
+        -240
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "XG5byiBVrSKI99P8",
+          "name": "Google Drive account 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "764c0fbe-b8f7-41fd-91b7-6ab61df76840",
+      "name": "Extract Resume PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        2832,
+        -48
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\nlet dkey;\nif (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else if (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('skipped') !== -1) reasons.push('not Apollo-verified (no LinkedIn)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
+      },
+      "id": "dbabb3dd-ea1a-4837-b877-406102b84a62",
+      "name": "Parse Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3008,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "277ec2b9-f5c4-46e1-b1bb-4716681368fd",
+      "name": "Load CRM Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2032,
+        128
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cand = $json;\nconst key = String(cand.dedupe_key || '').toLowerCase().trim();\nconst liKey = String(cand.verified_linkedin || cand.profile_url || '').toLowerCase().trim();\nlet rows = [];\ntry { rows = $('Load CRM Rows').all().map(function(i){ return i.json; }); } catch (e) { rows = []; }\nlet existing = null;\nfor (const r of rows) {\n  const rk = String(r['Dedupe Key'] || '').toLowerCase().trim();\n  if (key && rk && rk === key) { existing = r; break; }\n}\nif (!existing && liKey) {\n  for (const r of rows) {\n    const rli = String(r['LinkedIn'] || '').toLowerCase().trim();\n    if (rli && rli === liKey) { existing = r; break; }\n  }\n}\nconst merged = Object.assign({}, cand);\nif (existing) {\n  if (existing['Date Added']) merged.date_added = existing['Date Added'];\n  if (existing['Pipeline Status']) merged.pipeline_status = existing['Pipeline Status'];\n  if (existing['Outreach Status']) merged.outreach_status = existing['Outreach Status'];\n  merged.is_new = false;\n} else {\n  merged.is_new = true;\n}\nreturn { json: merged };"
+      },
+      "id": "3e989c09-1b7a-4a1c-b751-7a9671c294c5",
+      "name": "Merge CRM State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 15,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "id": "00444e25-a4ab-42d4-a748-126dd925810d",
+      "name": "On Candidate Reply",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "nO9PGd8GvFY2VaRj",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const raw = $json.from || $json.From || '';\nconst m = String(raw).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/);\nconst email = m ? m[0].toLowerCase() : '';\nreturn { json: { sender_email: email, subject: $json.subject || '', thread_id: $json.threadId || '' } };"
+      },
+      "id": "56fd9488-87a1-4a03-b54e-05448a7468aa",
+      "name": "Extract Sender",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email",
+              "lookupValue": "={{ $json.sender_email }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "id": "e2a6751d-b8c9-47c9-9026-6bf9a2459ade",
+      "name": "Find Candidate Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.Email }}",
+            "Outreach Status": "Replied",
+            "Pipeline Status": "Replied"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Outreach Status",
+              "displayName": "Outreach Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "Pipeline Status",
+              "displayName": "Pipeline Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8cf77329-1997-4878-bf37-1db16e900cc3",
+      "name": "Mark Replied",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "3458296a-64b2-4753-88f8-f635d288d469",
+      "name": "Outreach Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "2a96f2a3-d24c-4705-ab4c-522f30964a58",
+      "name": "Load Outreach Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        624
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(function(i){\n  const r = i.json || {};\n  const flag = String(r['Send Email?']).toLowerCase().trim();\n  const ready = flag === 'true' || flag === 'yes' || flag === '1' || r['Send Email?'] === true;\n  const status = String(r['Outreach Status'] || '').toLowerCase().trim();\n  const notContacted = status === '' || status === 'not contacted';\n  const hasEmail = String(r['Email'] || '').indexOf('@') !== -1;\n  return ready && notContacted && hasEmail;\n});"
+      },
+      "id": "d400d902-14fc-4276-815f-79414b65033b",
+      "name": "Filter Outreach Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Dedupe Key": "={{ $('Filter Outreach Queue').item.json['Dedupe Key'] }}",
+            "Outreach Status": "Contacted",
+            "Pipeline Status": "Contacted"
+          },
+          "matchingColumns": [
+            "Dedupe Key"
+          ],
+          "schema": [
+            {
+              "id": "Dedupe Key",
+              "displayName": "Dedupe Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Outreach Status",
+              "displayName": "Outreach Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "Pipeline Status",
+              "displayName": "Pipeline Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "28b68876-45c6-421b-af4d-b1b9bd3f169e",
+      "name": "Mark Contacted",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        624
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(function(i){ return i.json; });\nconst count = rows.length;\nlet nums = [];\nfor (const r of rows) { const n = Number(r.row_number || r.rowNumber); if (!isNaN(n) && n > 0) nums.push(n); }\nlet rangeText = '';\nif (nums.length) { nums.sort(function(a,b){return a-b;}); rangeText = 'rows ' + nums[0] + ' to ' + nums[nums.length-1]; }\nelse { rangeText = 'the latest ' + count + ' rows'; }\nlet role = '', loc = '';\ntry { const f = $('Search Criteria').first().json; role = f['Target Role'] || ''; loc = f['Location'] || ''; } catch(e) {}\n\nlet resumeSearches = 0;\ntry { resumeSearches = $('Resume Search').all().length; } catch(e) { resumeSearches = count; }\nlet mainPages = 1;\ntry { mainPages = $('Serper Search').all().length || 1; } catch(e) { mainPages = 1; }\nconst serperThisRun = mainPages + resumeSearches;\nlet apolloThisRun = 0;\ntry { apolloThisRun = $('Apollo Enrich').all().length; } catch(e) { apolloThisRun = 0; }\n\nlet prevSerper = 0, prevApollo = 0, month = '', trackerRow = null;\ntry {\n  const g = $('Budget Gate').first().json;\n  prevSerper = Number(g.Serper_Used) || 0;\n  prevApollo = Number(g.PDL_Used) || 0;\n  month = g.Month || '';\n  trackerRow = g.tracker_row || null;\n} catch(e) {}\n\nconst serperTotal = prevSerper + serperThisRun;\nconst apolloTotal = prevApollo + apolloThisRun;\n\nconst SERPER_CAP = 1000, APOLLO_CAP = 100;\nlet warnParts = [];\nif (serperTotal >= SERPER_CAP * 0.8) warnParts.push('Serper at ' + serperTotal + '/' + SERPER_CAP);\nif (apolloTotal >= APOLLO_CAP * 0.8) warnParts.push('Apollo at ' + apolloTotal + '/' + APOLLO_CAP);\nconst nearCap = warnParts.length > 0;\n\nreturn [{ json: {\n  count: count,\n  range_text: rangeText,\n  search_role: role,\n  search_location: loc,\n  month: month,\n  tracker_row: trackerRow,\n  serper_used_run: serperThisRun,\n  apollo_used_run: apolloThisRun,\n  serper_used_total: serperTotal,\n  apollo_used_total: apolloTotal,\n  near_cap: nearCap,\n  warning_text: warnParts.join(' | ')\n} }];"
+      },
+      "id": "220a7a8d-a262-4fbd-8429-58fa5eaa3c8d",
+      "name": "Sourcing Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        -208
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#recruitment-alerts",
+          "mode": "name"
+        },
+        "text": "=:checkered_flag: :checkered_flag: *SOURCING RUN COMPLETE* :checkered_flag: :checkered_flag:\n──────────────────────────────\n*Role:* {{ $json.search_role }}\n*Location:* {{ $json.search_location }}\n*New candidates added this run:* *{{ $json.count }}*\n──────────────────────────────\n:point_right: Results are in the Google Sheet ({{ $json.range_text }}). Review them and tick the *Send Email?* checkbox for anyone you want to reach out to.\n_This is the end-of-search summary (posted once per run, after all individual candidate cards above)._",
+        "otherOptions": {}
+      },
+      "id": "9afd5976-4d8a-40a0-8a35-c5b2a3c1fece",
+      "name": "Sourcing Complete Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        3680,
+        -208
+      ],
+      "webhookId": "76b4a08b-e5d7-4a88-ba06-be245f0dea1f",
+      "executeOnce": true,
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "TcUGlwEQ7yhL1HyO",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": YOUR_USAGE_TRACKER_GID,
+          "mode": "list",
+          "cachedResultName": "Usage Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=YOUR_USAGE_TRACKER_GID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Month": "={{ $json.month }}",
+            "Serper_Used": "={{ $json.serper_used_total }}",
+            "PDL_Used": "={{ $json.apollo_used_total }}"
+          },
+          "matchingColumns": [
+            "Month"
+          ],
+          "schema": [
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Serper_Used",
+              "displayName": "Serper_Used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "PDL_Used",
+              "displayName": "PDL_Used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f0f860f-4de8-443e-9c66-426ca422da9f",
+      "name": "Update Usage Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3680,
+        -320
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentMonth = $now.toFormat('LLLL yyyy');\nconst g = $input.first().json;\nconst trackerMonth = g.Month || '';\nconst sameMonth = trackerMonth === currentMonth;\nconst serper = sameMonth ? (Number(g.Serper_Used) || 0) : 0;\nconst apollo = sameMonth ? (Number(g.PDL_Used) || 0) : 0;\nreturn [{ json: {\n  Month: currentMonth,\n  Serper_Used: serper,\n  PDL_Used: apollo,\n  tracker_row: g.row_number || null,\n  is_new_month: !sameMonth,\n  prev_month: trackerMonth\n} }];"
+      },
+      "id": "f01e10af-86a3-4e11-9026-49e0642d8077",
+      "name": "Budget Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nc-0001",
+              "leftValue": "={{ $json.near_cap }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f88b2b27-82b1-45ab-9f0d-5358ee32d048",
+      "name": "Near Cap?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3904,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#recruitment-alerts",
+          "mode": "name"
+        },
+        "text": "=⚠️ *Recruiting budget nearing limit* ({{ $json.month }})\n\n{{ $json.warning_text }}\n\nSourcing auto-pauses when caps are hit (Serper 1000 / Apollo 100). Usage resets at the start of next month.",
+        "otherOptions": {}
+      },
+      "id": "a9e34566-8746-4c16-ba6a-e774f5eefbb8",
+      "name": "Budget Warning",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        4128,
+        -416
+      ],
+      "webhookId": "dfbdafc3-7cd2-4bbf-bd60-277870709159",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "TcUGlwEQ7yhL1HyO",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet parsed = [];\ntry {\n  const j = (items[0] && items[0].json) || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) {\n    raw = j.output[0].content[0].text;\n  } else if (typeof j.text === 'string') {\n    raw = j.text;\n  } else {\n    raw = '[]';\n  }\n  parsed = JSON.parse(raw);\n  if (!Array.isArray(parsed)) { parsed = [parsed]; }\n} catch (e) { parsed = []; }\n\nconst valid = parsed.filter(function(c){\n  return c && c.candidate_name && (Number(c.fit_score) || 0) > 0;\n});\n\nif (valid.length > 0) { return []; }\n\nlet role = '', loc = '', queryStr = '', platforms = '';\ntry {\n  const f = $('Search Criteria').first().json;\n  role = f['Target Role'] || '';\n  loc = f['Location'] || '';\n} catch (e) {}\ntry {\n  const g = $('Build Search Query').first().json;\n  queryStr = g.q || '';\n  platforms = g.platforms_used || '';\n} catch (e) {}\n\nreturn [{ json: {\n  role: role,\n  location: loc,\n  platforms: platforms,\n  query: queryStr,\n  scanned: parsed.length\n} }];\n"
+      },
+      "id": "f32481fb-d99b-4772-a5d6-c43e68445f93",
+      "name": "Results Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        144
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#recruitment-alerts",
+          "mode": "name"
+        },
+        "text": "=⚠️ *Search complete — 0 candidates found*\n\n*Role:* {{ $json.role }}\n*Location:* {{ $json.location }}\n*Platforms:* {{ $json.platforms }}\n\nNo matching profiles were found, so nothing was added to the Google Sheet. Try loosening the search:\n• Use plain values in each field (the workflow adds the OR/quoting for you) — e.g. Role *Backend Engineer*, Skills *Java, Spring Boot, Kafka*.\n• You *can* use Boolean too: type `AND` / `OR` or \"quoted phrases\" and they'll be respected.\n• Turn on *Expand Job Title Synonyms* for a wider net, remove some Key Skills, or widen the Location.\n• For people search prefer *LinkedIn* / *GitHub* over *Google / Open Web* (open web tends to return job posts, not profiles).\n\n_Search string used:_ `{{ $json.query }}`",
+        "otherOptions": {}
+      },
+      "id": "53f45d51-7305-45b9-a626-6da4fa8716f1",
+      "name": "No Results Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        144
+      ],
+      "webhookId": "86e0c2fe-275d-4616-96c1-f4065c0b69ce",
+      "executeOnce": true,
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "TcUGlwEQ7yhL1HyO",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const bin = item.binary || {};\n  const keys = Object.keys(bin);\n  const res = { json: Object.assign({}, item.json) };\n  res.json.jd_file_text = '';\n  res.json.jd_file_ext = '';\n  res.json.jd_is_pdf = false;\n  res.json.jd_is_word = false;\n  if (keys.length) {\n    const b = bin[keys[0]];\n    res.binary = { jd_file: b };\n    const name = String((b && b.fileName) || '').toLowerCase();\n    let ext = String((b && b.fileExtension) || '').toLowerCase();\n    if (!ext && name.indexOf('.') !== -1) ext = name.split('.').pop();\n    const mime = String((b && b.mimeType) || '').toLowerCase();\n    const isPdf = ext === 'pdf' || mime.indexOf('pdf') !== -1;\n    const isWord = ext === 'doc' || ext === 'docx'\n      || mime.indexOf('officedocument.wordprocessingml') !== -1\n      || mime.indexOf('msword') !== -1;\n    res.json.jd_file_ext = ext;\n    res.json.jd_is_pdf = isPdf;\n    res.json.jd_is_word = isWord;\n    if (!isPdf && !isWord && b && typeof b.data === 'string') {\n      try {\n        let txt = Buffer.from(b.data, 'base64').toString('utf-8');\n        if (ext === 'html' || ext === 'htm' || mime.indexOf('html') !== -1) {\n          txt = txt.replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n                   .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n                   .replace(/<[^>]+>/g, ' ');\n        }\n        if (ext === 'rtf' || mime.indexOf('rtf') !== -1) {\n          txt = txt.replace(/\\\\'[0-9a-fA-F]{2}/g, ' ')\n                   .replace(/\\\\[a-zA-Z]+-?\\d* ?/g, ' ')\n                   .replace(/[{}]/g, ' ');\n        }\n        txt = txt.replace(/\\u0000/g, ' ').replace(/[ \\t\\r\\f\\v]+/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim();\n        res.json.jd_file_text = txt;\n      } catch (e) { res.json.jd_file_text = ''; }\n    }\n  }\n  out.push(res);\n}\nreturn out;"
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000n1",
+      "name": "Normalize JD Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "jd_file",
+        "options": {}
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000n2",
+      "name": "Extract JD PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        240
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "jd-word-cond",
+              "leftValue": "={{ $json.jd_is_word }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000w0",
+      "name": "JD Is Word?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        144,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "jd_file",
+        "name": "={{ 'JD Upload ' + $now.toFormat('yyyyLLdd-HHmmss') }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive",
+          "cachedResultName": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "YOUR_DRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "N8N",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/YOUR_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000w1",
+      "name": "Upload JD to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        352,
+        560
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "XG5byiBVrSKI99P8",
+          "name": "Google Drive account 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}/copy",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"JD (converted to Google Doc)\",\n  \"mimeType\": \"application/vnd.google-apps.document\"\n}",
+        "options": {}
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000w2",
+      "name": "Convert JD to Google Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        560
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "XG5byiBVrSKI99P8",
+          "name": "Google Drive account 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}/export",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "mimeType",
+              "value": "text/plain"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000w3",
+      "name": "Export JD Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        752,
+        560
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "XG5byiBVrSKI99P8",
+          "name": "Google Drive account 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let txt = '';\ntry { txt = String(($json && $json.data) || '').trim(); } catch (e) { txt = ''; }\nreturn [{ json: { text: txt } }];"
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000w4",
+      "name": "Prep Word JD",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let pasted = '';\ntry { pasted = String($('On form submission').first().json['Job Description'] || '').trim(); } catch (e) { pasted = ''; }\nlet pdfText = '';\ntry { const j = $json || {}; if (typeof j.text === 'string') pdfText = j.text.trim(); } catch (e) { pdfText = ''; }\nlet fileText = '';\ntry { fileText = String($('Normalize JD Binary').first().json.jd_file_text || '').trim(); } catch (e) { fileText = ''; }\nconst jd = pasted || pdfText || fileText || '';\nlet src = 'none';\nif (pasted) src = 'pasted';\nelse if (pdfText) src = 'pdf';\nelse if (fileText) src = 'file';\nreturn [{ json: { jd_text: jd, jd_source: src, jd_present: jd.length > 0 } }];"
+      },
+      "id": "aa11cc22-jd00-4a00-9000-0000000000n3",
+      "name": "Prep JD",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Natural language hiring request (may be empty):\n\"\"\"\n{{ $('On form submission').first().json['Natural Language Search'] || '' }}\n\"\"\"\n\nJob description (may be empty):\n\"\"\"\n{{ $('Prep JD').first().json.jd_text || '' }}\n\"\"\"\n\nExtract the hiring criteria as a JSON object with EXACTLY these keys (use \"\" or [] when not mentioned):\n- target_role (string)\n- key_skills (string, comma-separated)\n- location (string, city or region)\n- preferred_industry (string)\n- current_employer (string)\n- keywords_exclude (string, comma-separated terms to exclude)\n- education (one of \"Any\",\"Bachelors / Degree\",\"Masters\",\"PhD\",\"MBA\" or \"\")\n- expand_synonyms (\"Yes\",\"No\" or \"\")\n- experience_range (EXACTLY one of \"0-2 years\",\"3-5 years\",\"5-8 years\",\"8+ years\" or \"\"). Map seniority words: intern/junior/entry/graduate => \"0-2 years\"; mid-level => \"3-5 years\"; senior => \"5-8 years\"; lead/principal/staff/head/very senior => \"8+ years\". If a number of years is stated, choose the band containing its lower bound.\n- gender_preference (\"Any\",\"Female\",\"Male\" or \"\")\n- platforms (array, any of \"LinkedIn\",\"Github\",\"X (Twitter)\",\"Stack Overflow\",\"Dribbble\",\"Behance\",\"Wellfound\",\"Hacker News\",\"Google / Open Web\")\nIf BOTH inputs are empty, return every value empty."
+            },
+            {
+              "role": "system",
+              "content": "You are a precise parser. Return ONLY a raw JSON object with the requested keys — no markdown, no code fences, no commentary."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "bb22dd33-nl00-4a00-9000-0000000000p1",
+      "name": "Parse NL Search",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        512,
+        240
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "n8n credits",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('On form submission').first().json;\nlet p = {};\ntry {\n  const j = $('Parse NL Search').first().json || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) raw = j.output[0].content[0].text;\n  else if (typeof j.text === 'string') raw = j.text;\n  else raw = '{}';\n  p = JSON.parse(raw);\n  if (!p || typeof p !== 'object' || Array.isArray(p)) p = {};\n} catch (e) { p = {}; }\n\nfunction pick(formVal, parsedVal, def) {\n  const f = (formVal === undefined || formVal === null) ? '' : String(formVal).trim();\n  if (f && !/^auto/i.test(f)) return formVal;\n  const pv = (parsedVal === undefined || parsedVal === null) ? '' : String(parsedVal).trim();\n  if (pv) return parsedVal;\n  return def;\n}\n\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nif (!platforms.length && Array.isArray(p.platforms)) platforms = p.platforms.filter(Boolean);\nif (!platforms.length) platforms = ['LinkedIn', 'Github'];\n\nconst nlUsed = String(form['Natural Language Search'] || '').trim().length > 0;\n\nreturn [{ json: {\n  'Target Role': pick(form['Target Role'], p.target_role, ''),\n  'Key Skills & Criteria': pick(form['Key Skills & Criteria'], p.key_skills, ''),\n  'Location': pick(form['Location'], p.location, ''),\n  'Preferred Industry': pick(form['Preferred Industry'], p.preferred_industry, ''),\n  'Current Employer': pick(form['Current Employer'], p.current_employer, ''),\n  'Keywords to Exclude': pick(form['Keywords to Exclude'], p.keywords_exclude, ''),\n  'Education': pick(form['Education'], p.education, 'Any'),\n  'Expand Job Title Synonyms': pick(form['Expand Job Title Synonyms'], p.expand_synonyms, 'No'),\n  'Experience Range (Years)': pick(form['Experience Range (Years)'], p.experience_range, '0-2 years'),\n  'Gender Preference': pick(form['Gender Preference'], p.gender_preference, 'Any'),\n  'Target Platforms': platforms,\n  'Search Region': pick(form['Search Region (Geography)'], p.search_region, ''),\n  'nl_used': nlUsed\n} }];"
+      },
+      "id": "bb22dd33-nl00-4a00-9000-0000000000p2",
+      "name": "Search Criteria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "mode": "list",
+          "value": "YOUR_SLACK_USER_ID",
+          "cachedResultName": "Your Name"
+        },
+        "text": "=:checkered_flag: *Sourcing run complete* — {{ $json.count }} new candidate(s) for *{{ $json.search_role }}* ({{ $json.search_location }}).\nResults are in the Google Sheet ({{ $json.range_text }}). Tick *Send Email?* for anyone you want to reach out to.",
+        "otherOptions": {}
+      },
+      "id": "cc33ee44-dm00-4a00-9000-0000000000q1",
+      "name": "Sourcing Complete DM",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        3904,
+        -128
+      ],
+      "webhookId": "65eef98a-00ed-4578-8cfa-d7b535acd784",
+      "executeOnce": true,
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "TcUGlwEQ7yhL1HyO",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine the organic results from all fetched Serper pages into ONE item,\n// de-duplicated by link, so the AI ranks the full candidate pool at once.\nconst items = $input.all();\nconst seen = {};\nconst organic = [];\nfor (const it of items) {\n  const arr = (it.json && it.json.organic) ? it.json.organic : [];\n  for (const o of arr) {\n    const key = (o && o.link) ? String(o.link).toLowerCase() : JSON.stringify(o);\n    if (seen[key]) continue;\n    seen[key] = true;\n    organic.push(o);\n  }\n}\nreturn [{ json: { organic: organic, pages_fetched: items.length, results_count: organic.length } }];\n"
+      },
+      "id": "merge-pages-0001-4a00-9000-000000000010",
+      "name": "Merge Pages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Search Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Run ID": "={{ $execution.id }}",
+            "Status": "🔄 Processing",
+            "Role": "={{ $('Search Criteria').first().json['Target Role'] }}",
+            "Location": "={{ $('Search Criteria').first().json['Location'] }}",
+            "Candidates": "",
+            "Rows": "",
+            "Started At": "={{ $now.toFormat('yyyy-LL-dd HH:mm:ss') }}",
+            "Completed At": ""
+          },
+          "matchingColumns": [
+            "Run ID"
+          ],
+          "schema": [
+            {
+              "id": "Run ID",
+              "displayName": "Run ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Candidates",
+              "displayName": "Candidates",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Rows",
+              "displayName": "Rows",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Started At",
+              "displayName": "Started At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Completed At",
+              "displayName": "Completed At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-start-0001-4a00-9000-000000000021",
+      "name": "Log Search Start",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        0
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Search Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Run ID": "={{ $execution.id }}",
+            "Status": "✅ Complete",
+            "Role": "={{ $json.search_role }}",
+            "Location": "={{ $json.search_location }}",
+            "Candidates": "={{ $json.count }}",
+            "Rows": "={{ $json.range_text }}",
+            "Started At": "",
+            "Completed At": "={{ $now.toFormat('yyyy-LL-dd HH:mm:ss') }}"
+          },
+          "matchingColumns": [
+            "Run ID"
+          ],
+          "schema": [
+            {
+              "id": "Run ID",
+              "displayName": "Run ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Candidates",
+              "displayName": "Candidates",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Rows",
+              "displayName": "Rows",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Started At",
+              "displayName": "Started At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Completed At",
+              "displayName": "Completed At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-done-0001-4a00-9000-000000000022",
+      "name": "Log Search Complete",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        0
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9q7wqgRrQ5yD6bqa",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ /github\\.com\\/[A-Za-z0-9-]+/i.test($json.profile_url) ? 'https://api.github.com/users/' + $json.profile_url.replace(/\\/+$/,'').split('/').filter(Boolean).pop() : 'https://api.github.com/rate_limit' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "github-enrich-0001-4a00-9000-000000000031",
+      "name": "GitHub Enrich",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "YK5uQOk0Ayo8V2NN",
+          "name": "GitHub account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cand = $('Enriched Candidates').item.json || {};\nconst resp = $json || {};\nconst merged = Object.assign({}, cand);\nfunction s(v){ return (typeof v === 'string') ? v : ''; }\nconst isGithub = /github\\.com\\/[A-Za-z0-9-]+/i.test(cand.profile_url || '');\n// A valid GitHub user response has a numeric id + login (rate_limit has neither)\nif (isGithub && resp && resp.login && resp.id) {\n  merged.github_url = s(resp.html_url) || cand.github_url || '';\n  const bio = s(resp.bio);\n  const ghCompany = s(resp.company);\n  const ghLoc = s(resp.location);\n  const blog = s(resp.blog);\n  const repos = (typeof resp.public_repos === 'number') ? resp.public_repos : '';\n  // enrich empty fields from GitHub (do not overwrite Apollo-verified data)\n  if (!merged.current_company && ghCompany) merged.current_company = ghCompany;\n  if (!merged.location && ghLoc) merged.location = ghLoc;\n  // a personal blog/portfolio doubles as a CV source if none found yet\n  if (blog && !merged.resume_link) { merged.github_blog = blog; }\n  const ghParts = [];\n  if (bio) ghParts.push('Bio: ' + bio);\n  if (repos !== '') ghParts.push(repos + ' public repos');\n  if (blog) ghParts.push('Site: ' + blog);\n  merged.github_summary = ghParts.join(' | ');\n  merged.github_status = 'enriched';\n} else {\n  merged.github_status = isGithub ? 'lookup failed' : 'n/a (not github)';\n  if (!merged.github_summary) merged.github_summary = '';\n}\nreturn { json: merged };\n"
+      },
+      "id": "merge-github-0001-4a00-9000-000000000032",
+      "name": "Merge GitHub",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Split Candidates",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Results Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Candidates": {
+      "main": [
+        [
+          {
+            "node": "Filter Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Candidates": {
+      "main": [
+        [
+          {
+            "node": "Rank Top 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank Top 10": {
+      "main": [
+        [
+          {
+            "node": "Has LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Enrich": {
+      "main": [
+        [
+          {
+            "node": "Combine Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Enriched Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Search": {
+      "main": [
+        [
+          {
+            "node": "Attach Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Resume": {
+      "main": [
+        [
+          {
+            "node": "Download Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Normalize JD Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Load CRM Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Search Start",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail Check": {
+      "main": [
+        [
+          {
+            "node": "Budget Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serper Search": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Search Results": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Query": {
+      "main": [
+        [
+          {
+            "node": "Serper Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Apollo Enrich",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Combine No Apollo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine No Apollo": {
+      "main": [
+        [
+          {
+            "node": "Enriched Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enriched Candidates": {
+      "main": [
+        [
+          {
+            "node": "GitHub Enrich",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Resume": {
+      "main": [
+        [
+          {
+            "node": "Extract Resume PDF",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save CV to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Resume PDF": {
+      "main": [
+        [
+          {
+            "node": "Parse Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge CRM State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge CRM State": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On Candidate Reply": {
+      "main": [
+        [
+          {
+            "node": "Extract Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Sender": {
+      "main": [
+        [
+          {
+            "node": "Find Candidate Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Candidate Row": {
+      "main": [
+        [
+          {
+            "node": "Mark Replied",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load CRM Rows": {
+      "main": [
+        [
+          {
+            "node": "Build Search Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outreach Schedule": {
+      "main": [
+        [
+          {
+            "node": "Load Outreach Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Outreach Queue": {
+      "main": [
+        [
+          {
+            "node": "Filter Outreach Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Outreach Queue": {
+      "main": [
+        [
+          {
+            "node": "Send Outreach Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Outreach Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Contacted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Sourcing Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sourcing Summary": {
+      "main": [
+        [
+          {
+            "node": "Sourcing Complete Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Usage Tracker",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Near Cap?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sourcing Complete DM",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Search Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Budget Gate": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Near Cap?": {
+      "main": [
+        [
+          {
+            "node": "Budget Warning",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Results Gate": {
+      "main": [
+        [
+          {
+            "node": "No Results Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize JD Binary": {
+      "main": [
+        [
+          {
+            "node": "JD Is Word?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract JD PDF": {
+      "main": [
+        [
+          {
+            "node": "Prep JD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep JD": {
+      "main": [
+        [
+          {
+            "node": "Parse NL Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse NL Search": {
+      "main": [
+        [
+          {
+            "node": "Search Criteria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Criteria": {
+      "main": [
+        [
+          {
+            "node": "Guardrail Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JD Is Word?": {
+      "main": [
+        [
+          {
+            "node": "Upload JD to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract JD PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload JD to Drive": {
+      "main": [
+        [
+          {
+            "node": "Convert JD to Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert JD to Google Doc": {
+      "main": [
+        [
+          {
+            "node": "Export JD Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export JD Text": {
+      "main": [
+        [
+          {
+            "node": "Prep Word JD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Word JD": {
+      "main": [
+        [
+          {
+            "node": "Prep JD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Pages": {
+      "main": [
+        [
+          {
+            "node": "Format Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Enrich": {
+      "main": [
+        [
+          {
+            "node": "Merge GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge GitHub": {
+      "main": [
+        [
+          {
+            "node": "Resume Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "errorWorkflow": "rPMKyioGlfDo29ZI"
+  },
+  "versionId": "cfcc4de8-aaa8-4106-9d30-87ccd42c1a89",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "af5434bdd9f370ccb2261f964c22b46a295258d48e54e40b9b96c5da67019c9f"
+  },
+  "nodeGroups": [],
+  "id": "Xh5JQOMy2rATeSsL",
+  "tags": []
+}
