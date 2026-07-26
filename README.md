@@ -1,6 +1,6 @@
 # AI Recruiting Sourcing Pipeline
 
-**Built by Shravan Kumar Shesham · 2026**
+**Built by Shravan Kumar Shesham · 2026** · 
 [LinkedIn](https://www.linkedin.com/in/shravanskumar/) · Licensed under [MIT](./LICENSE)
 
 An evidence-based, AI-powered candidate sourcing and outreach system built on [n8n](https://n8n.io).
