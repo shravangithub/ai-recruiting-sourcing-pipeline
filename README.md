@@ -1,8 +1,7 @@
 # AI Recruiting Sourcing Pipeline
 
-**Built by Shravan Kumar Shesham · 2026** · 
-[LinkedIn](https://www.linkedin.com/in/shravanskumar/) · Licensed under [MIT](./LICENSE)
-
+**Built by Shravan Kumar Shesham · 2026** · [LinkedIn](https://www.linkedin.com/in/shravanskumar/) · Licensed under [MIT](./LICENSE)
+▶ **[Watch the 3-minute demo](https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing)** — see the pipeline turn a brief into a ranked, verified shortlist.
 An evidence-based, AI-powered candidate sourcing and outreach system built on [n8n](https://n8n.io).
 It turns a plain-English hiring brief (or an uploaded job description) into a ranked, enriched,
 confidence-scored shortlist of real candidates — and manages recruiter-approved outreach end to end.
