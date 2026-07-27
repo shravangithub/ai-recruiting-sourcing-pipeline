@@ -112,11 +112,24 @@ Here are the decisions I'm most proud of:
 
 Real systems are defined by how they fail. A few representative fixes:
 
+- **Wrong candidate, stranger's email.**
+  - *Symptom:* a scraped resume attached a stranger's email to the wrong candidate.
+  - *Root cause:* the parser trusted any email found in a linked PDF — even an unrelated court
+    cause-list document that happened to rank in search.
+  - *Fix:* require the candidate's name to appear in the document before trusting a scraped email,
+    reject institutional/government domains outright, and surface a **Low-confidence** label instead
+    of writing a silent bad row.
+
+- **Every run wrongly hit "budget reached".**
+  - *Symptom:* sourcing was blocked on every run, as if the API credit cap were already exceeded.
+  - *Root cause:* a tracker column was named `Serper_Used ` (trailing space), so the budget-check
+    expression read `Serper_Used` as undefined and defaulted to the "over budget" branch.
+  - *Fix:* found it by inspecting the node's *resolved* parameters (not just the raw expression),
+    corrected the column, and made the check tolerant of whitespace.
+
 - **LLM inventing names.** Hacker News "who's hiring" threads made the model fabricate names like
   "Candidate from July 2019". Fixed by instructing the model to emit an empty name + score 0 for any
   non-person source.
-- **Trailing-space column** in the tracker silently broke the budget check (`Serper_Used ` vs
-  `Serper_Used`) and routed every run to "budget reached". Caught by inspecting resolved node data.
 - **Wrong-credential enrichment.** An enrichment node was silently bound to the wrong stored
   credential, returning 401s. Fixed the binding and hardened header-name handling.
 - **Zero-results dead end.** When a search returned nobody, the run silently ended with no signal.
