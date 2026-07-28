@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Docs / GitHub Pages troubleshooting — AI Recruiting Sourcing Pipeline</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#0f172a; --accent:#60a5fa; --muted:#9fb3d6; --text:#e6eefc;
+      --ok:#16a34a; --warn:#f59e0b; --err:#ef4444;
+    }
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#041024 0%,#07122a 100%);color:var(--text);margin:0;padding:28px}
+    .wrap{max-width:980px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    p.lead{color:var(--muted);margin:6px 0 18px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);margin-bottom:12px}
+    code{background:#071827;padding:2px 6px;border-radius:6px;color:#9be2ff;font-size:13px}
+    a.button{display:inline-block;padding:8px 12px;border-radius:8px;background:var(--accent);color:#042029;text-decoration:none;font-weight:600;margin-right:8px}
+    a.link{color:var(--accent)}
+    ul.checks{margin:0;padding-left:20px}
+    .status{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700}
+    .ok{background:rgba(22,163,74,0.12);color:var(--ok);border:1px solid rgba(22,163,74,0.12)}
+    .warn{background:rgba(245,158,11,0.08);color:var(--warn);border:1px solid rgba(245,158,11,0.08)}
+    .err{background:rgba(239,68,68,0.08);color:var(--err);border:1px solid rgba(239,68,68,0.08)}
+    pre.cmd{background:#071827;padding:10px;border-radius:8px;overflow:auto;color:#9be2ff}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>GitHub Pages — Quick debug & index placeholder</h1>
+        <p class="lead">If your Pages site shows a 404 or the wrong content, drop this file at <code>docs/index.html</code> and follow the checks below.</p>
+      </div>
+      <div style="text-align:right">
+        <div id="hostInfo" class="card" style="min-width:220px;text-align:left"></div>
+      </div>
+    </header>
+
+    <div class="card">
+      <strong>Quick links (open in a new tab)</strong>
+      <p style="margin:8px 0 0;">
+        <a class="button" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/tree/main/docs" target="_blank" rel="noopener">Repo → docs/ (view files)</a>
+        <a class="button" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/settings/pages" target="_blank" rel="noopener" style="background:#94a3b8;color:#021224">Pages Settings</a>
+      </p>
+      <p style="margin:10px 0 0;color:var(--muted)">Pages site URL (default): <a class="link" href="https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/" target="_blank" rel="noopener">https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/</a></p>
+    </div>
+
+    <div class="card">
+      <h3>Automatic checks</h3>
+      <p style="margin:6px 0;color:var(--muted)">This page runs a few simple client-side checks to help you find the problem quickly.</p>
+      <ul class="checks" id="checkList">
+        <li>Is this page served from a GitHub Pages domain? <span id="ghHost" class="status"></span></li>
+        <li>Does <code>docs/index.html</code> exist in the repo (raw-check)? <span id="rawExists" class="status"></span></li>
+        <li>Is the Pages build configured to <code>main:/docs</code>? See Pages settings. <span id="pagesInfo" class="status"></span></li>
+      </ul>
+      <p style="margin-top:10px;color:var(--muted)">Note: the raw file existence check uses <code>raw.githubusercontent.com</code>. If you used a different branch or path, update the commands below.</p>
+    </div>
+
+    <div class="card">
+      <h3>If you see 404 or wrong page — step-by-step fixes</h3>
+      <ol>
+        <li>Confirm the file exists: open <code>https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/tree/main/docs</code> and verify an <code>index.html</code> file is present.</li>
+        <li>If missing, add this file to <code>docs/index.html</code> (use the green "Add file" button or push via git).</li>
+        <li>Confirm Pages source matches where the file lives: Settings → Pages → Branch = <code>main</code>, Folder = <code>/docs</code>. Click <strong>Save</strong> if you changed it.</li>
+        <li>Wait ~30–90 seconds and refresh the Pages URL. Builds can take a short moment.</li>
+        <li>If it still fails, view the Pages build log in Settings → Pages (a banner appears when a build fails), or open Actions for Pages build details.</li>
+        <li>If you lack admin access or Save is disabled, ensure you're signed in as the repo owner (shravangithub) or request admin rights.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h3>Commands you can run locally (copy & paste)</h3>
+      <p style="margin:6px 0;color:var(--muted)">Quick raw-file check — returns HTTP headers for the raw file:</p>
+      <pre class="cmd">curl -I https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/docs/index.html</pre>
+
+      <p style="margin:10px 0;color:var(--muted)">Check Pages configuration via GitHub API (public info):</p>
+      <pre class="cmd">curl -H "Accept: application/vnd.github+json" https://api.github.com/repos/shravangithub/ai-recruiting-sourcing-pipeline/pages</pre>
+
+      <p style="margin:10px 0;color:var(--muted)">If you want to set Pages source via API (requires a token with repo scope):</p>
+      <pre class="cmd">export GITHUB_TOKEN=ghp_xxx
+curl -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/shravangithub/ai-recruiting-sourcing-pipeline/pages \
+  -d '{"source":{"branch":"main","path":"/docs"}}'</pre>
+    </div>
+
+    <div class="card">
+      <h3>Common root causes</h3>
+      <ul>
+        <li><strong>No index file</strong> at the published path (e.g., docs/index.html missing).</li>
+        <li><strong>Wrong branch/folder</strong> selected in Pages settings (e.g., publishing from root while files are in docs/).</li>
+        <li><strong>Build error</strong> (Pages attempted to build and failed — check build logs in Settings → Pages or Actions).</li>
+        <li><strong>Permissions</strong> — you're not an admin so Save is disabled.</li>
+        <li><strong>Timing</strong> — just created files or changed settings; wait 30–90s for propagation.</li>
+      </ul>
+    </div>
+
+    <footer>
+      <p>If you'd like, I can add a better demo page (clock or pipeline walkthrough) into <code>docs/</code> for you — reply with “commit demo” and I will add it directly to main.</p>
+      <p style="margin-top:6px;color:var(--muted)">This index is a placeholder intended to help you confirm Pages is configured correctly. Replace it with your real docs when ready.</p>
+    </footer>
+  </div>
+
+  <script>
+    // Fill host info and run simple raw file existence check
+    const hostDiv = document.getElementById('hostInfo');
+    const ghHostSpan = document.getElementById('ghHost');
+    const rawExistsSpan = document.getElementById('rawExists');
+    const pagesInfoSpan = document.getElementById('pagesInfo');
+
+    const repoRaw = 'https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/docs/index.html';
+    const pagesApi = 'https://api.github.com/repos/shravangithub/ai-recruiting-sourcing-pipeline/pages';
+    const pagesSite = 'https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/';
+
+    // Host info
+    const host = window.location.host;
+    const href = window.location.href;
+    hostDiv.innerHTML = '<div style="font-size:13px;color:var(--muted)">Visited URL</div><div style="margin-top:6px"><strong style="font-size:14px">' + href + '</strong></div>';
+
+    // Indicate if loaded from github.io
+    if (host.includes('github.io')) {
+      ghHostSpan.textContent = 'Yes (github.io)';
+      ghHostSpan.className = 'status ok';
+    } else {
+      ghHostSpan.textContent = 'No (local or raw view)';
+      ghHostSpan.className = 'status warn';
+    }
+
+    // Try to HEAD the raw file to check if it exists (CORS friendly for HEAD)
+    fetch(repoRaw, {method:'HEAD'}).then(r => {
+      if (r.ok) {
+        rawExistsSpan.textContent = 'Found';
+        rawExistsSpan.className = 'status ok';
+      } else if (r.status === 404) {
+        rawExistsSpan.textContent = 'Not found (404)';
+        rawExistsSpan.className = 'status err';
+      } else {
+        rawExistsSpan.textContent = 'HTTP ' + r.status;
+        rawExistsSpan.className = 'status warn';
+      }
+    }).catch(err => {
+      rawExistsSpan.textContent = 'Check failed (network/CORS)';
+      rawExistsSpan.className = 'status warn';
+    });
+
+    // Try to fetch public Pages API info (no token required for public repos)
+    fetch(pagesApi, {headers:{'Accept':'application/vnd.github+json'}}).then(r => {
+      if (r.ok) {
+        return r.json().then(json => {
+          const src = (json && json.source && json.source.branch) ? json.source.branch + ':' + json.source.path : '';
+          pagesInfoSpan.textContent = src || 'Configured';
+          pagesInfoSpan.className = 'status ok';
+        });
+      } else if (r.status === 404) {
+        pagesInfoSpan.textContent = 'No Pages configured';
+        pagesInfoSpan.className = 'status warn';
+      } else if (r.status === 403) {
+        pagesInfoSpan.textContent = 'API rate-limited or access blocked';
+        pagesInfoSpan.className = 'status warn';
+      } else {
+        pagesInfoSpan.textContent = 'HTTP ' + r.status;
+        pagesInfoSpan.className = 'status warn';
+      }
+    }).catch(() => {
+      pagesInfoSpan.textContent = 'API check failed';
+      pagesInfoSpan.className = 'status warn';
+    });
+  </script>
+</body>
+</html>
