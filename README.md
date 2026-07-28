@@ -39,6 +39,40 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 11. **Governance** — monthly API-credit budget tracking with auto-reset and an 80% near-cap alert.
 
 ---
+## Multi-source sourcing (native APIs, not just web scraping)
+
+Beyond open-web X-ray search, the pipeline queries several platforms through their
+**native APIs** and merges everyone into one ranked pool — so it surfaces people who
+never show up in a plain Google search:
+
+- **GitHub** — native user search (`api.github.com/search/users`) by skill/language +
+  location, then per-candidate profile enrichment (bio, company, public repos, blog).
+  Uses an authenticated credential for a 5,000 req/hr limit.
+- **Hacker News** — the "Who wants to be hired?" talent pool via the Algolia HN Search
+  API, enriched with each author's official Firebase profile (bio, karma).
+- **Stack Overflow** — top answerers for the relevant tag via the Stack Exchange API,
+  as a proxy for demonstrated, verifiable expertise.
+- **LinkedIn + open web** — Boolean X-ray search via Serper, with **3-page pagination**
+  for a deeper candidate pool per run.
+
+Additional controls added along the way:
+
+- **Geography selector** — a form dropdown maps to a Serper region code (`gl`), so a
+  search for "Bangalore" returns India-localized results instead of global noise.
+- **Resume directory-doc guard** — scraped "CVs" that are actually bulk documents
+  (annual reports, court cause-lists, merit/convocation lists — which contain many
+  names and coincidentally match a candidate) are detected and rejected, instead of
+  polluting the sheet with a stranger's contact details.
+- **Per-source confidence** — a candidate found only on Hacker News is scored more
+  cautiously than one verified via LinkedIn + Apollo, and the reason is shown in the
+  Confidence column.
+
+> **On sourcing honesty:** not every channel is worth automating. Wellfound, for
+> example, gates its profiles behind login, so a public X-ray only returns marketing
+> boilerplate — I removed it rather than pretend it works. The pipeline favors sources
+> that actually expose candidate signal.
+
+---
 
 ## Architecture
 
