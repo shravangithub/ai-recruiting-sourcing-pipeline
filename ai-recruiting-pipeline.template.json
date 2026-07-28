@@ -196,7 +196,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $('Enriched Candidates').item.json;\nconst resp = $json || {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // must reference the person's name somewhere to count strongly\n  const nameHit = tokens.length > 0 && tokens.some(function(t){ return blob.indexOf(t) !== -1; });\n  if (nameHit) score += 50;\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: nameHit };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// only accept a resume link if it clears a confidence threshold (name + a format/host or keyword signal)\nif (best && best.score >= 60) {\n  merged.resume_link = best.link;\n  merged.resume_status = best.score >= 90 ? 'likely (name + format match)' : 'possible (unverified)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };"
+        "jsCode": "const cand = $('Merge GitHub').item.json;\nconst resp = $json || {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // must reference the person's name somewhere to count strongly\n  const nameHit = tokens.length > 0 && tokens.some(function(t){ return blob.indexOf(t) !== -1; });\n  if (nameHit) score += 50;\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: nameHit };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// only accept a resume link if it clears a confidence threshold (name + a format/host or keyword signal)\nif (best && best.score >= 60) {\n  merged.resume_link = best.link;\n  merged.resume_status = best.score >= 90 ? 'likely (name + format match)' : 'possible (unverified)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };"
       },
       "id": "9d9b0af8-a857-4609-9d0c-092804ae6e90",
       "name": "Attach Resume",
@@ -853,7 +853,7 @@
         0,
         48
       ],
-      "webhookId": "YOUR_FORM_WEBHOOK_ID"
+      "webhookId": " YOUR_FORM_WEBHOOK_ID"
     },
     {
       "parameters": {
@@ -1057,7 +1057,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $json || {};\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: cand.profile_url || '',\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: '',\n  pdl_skills: '',\n  github_url: '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  verified_linkedin: cand.profile_url || '',\n  enrichment_status: 'skipped - no linkedin (apollo not used)'\n} };"
+        "jsCode": "const cand = $json || {};\nconst url = cand.profile_url || '';\nconst isGH = /github\\.com\\/[A-Za-z0-9-]+/i.test(url) && !/github\\.com\\/orgs\\//i.test(url);\nconst isLI = /linkedin\\.com/i.test(url);\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: url,\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: '',\n  pdl_skills: '',\n  github_url: isGH ? url : '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  // LinkedIn column: only a real LinkedIn URL, or a non-GitHub fallback (e.g. Stack Overflow) so the URL is not lost\n  verified_linkedin: isLI ? url : (isGH ? '' : url),\n  enrichment_status: 'skipped - no linkedin (apollo not used)'\n} };"
       },
       "id": "6803e6bd-6eb1-4a0f-8bbc-896e4be47157",
       "name": "Combine No Apollo",
@@ -1153,7 +1153,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\nlet dkey;\nif (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else if (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('skipped') !== -1) reasons.push('not Apollo-verified (no LinkedIn)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
+        "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\nlet dkey;\nif (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else if (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('skipped') !== -1) reasons.push('not Apollo-verified (no LinkedIn)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
       },
       "id": "dbabb3dd-ea1a-4837-b877-406102b84a62",
       "name": "Parse Contact",
@@ -2026,7 +2026,7 @@
           "__rl": true,
           "mode": "list",
           "value": "YOUR_SLACK_USER_ID",
-          "cachedResultName": "Your Name"
+          "cachedResultName": "YOUR_NAME"
         },
         "text": "=:checkered_flag: *Sourcing run complete* — {{ $json.count }} new candidate(s) for *{{ $json.search_role }}* ({{ $json.search_location }}).\nResults are in the Google Sheet ({{ $json.range_text }}). Tick *Send Email?* for anyone you want to reach out to.",
         "otherOptions": {}
@@ -2348,10 +2348,190 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $('Enriched Candidates').item.json || {};\nconst resp = $json || {};\nconst merged = Object.assign({}, cand);\nfunction s(v){ return (typeof v === 'string') ? v : ''; }\nconst isGithub = /github\\.com\\/[A-Za-z0-9-]+/i.test(cand.profile_url || '');\n// A valid GitHub user response has a numeric id + login (rate_limit has neither)\nif (isGithub && resp && resp.login && resp.id) {\n  merged.github_url = s(resp.html_url) || cand.github_url || '';\n  const bio = s(resp.bio);\n  const ghCompany = s(resp.company);\n  const ghLoc = s(resp.location);\n  const blog = s(resp.blog);\n  const repos = (typeof resp.public_repos === 'number') ? resp.public_repos : '';\n  // enrich empty fields from GitHub (do not overwrite Apollo-verified data)\n  if (!merged.current_company && ghCompany) merged.current_company = ghCompany;\n  if (!merged.location && ghLoc) merged.location = ghLoc;\n  // a personal blog/portfolio doubles as a CV source if none found yet\n  if (blog && !merged.resume_link) { merged.github_blog = blog; }\n  const ghParts = [];\n  if (bio) ghParts.push('Bio: ' + bio);\n  if (repos !== '') ghParts.push(repos + ' public repos');\n  if (blog) ghParts.push('Site: ' + blog);\n  merged.github_summary = ghParts.join(' | ');\n  merged.github_status = 'enriched';\n} else {\n  merged.github_status = isGithub ? 'lookup failed' : 'n/a (not github)';\n  if (!merged.github_summary) merged.github_summary = '';\n}\nreturn { json: merged };\n"
+        "jsCode": "const cand = $('Enriched Candidates').item.json || {};\nconst resp = $json || {};\nconst merged = Object.assign({}, cand);\nfunction s(v){ return (typeof v === 'string') ? v : ''; }\nconst isGithub = /github\\.com\\/[A-Za-z0-9-]+/i.test(cand.profile_url || '') && !/github\\.com\\/orgs\\//i.test(cand.profile_url || '');\n// A valid GitHub user response has a numeric id + login (rate_limit has neither)\nif (isGithub && resp && resp.login && resp.id) {\n  merged.github_url = s(resp.html_url) || merged.github_url || cand.profile_url || '';\n  // if the GitHub URL was sitting in the LinkedIn column, move it out (it now lives in the GitHub column)\n  if (merged.verified_linkedin && /github\\.com/i.test(merged.verified_linkedin)) merged.verified_linkedin = '';\n  const bio = s(resp.bio);\n  const ghCompany = s(resp.company);\n  const ghLoc = s(resp.location);\n  const blog = s(resp.blog);\n  const repos = (typeof resp.public_repos === 'number') ? resp.public_repos : '';\n  // enrich empty fields from GitHub (do not overwrite Apollo-verified data)\n  if (!merged.current_company && ghCompany) merged.current_company = ghCompany;\n  if (!merged.location && ghLoc) merged.location = ghLoc;\n  // a personal blog/portfolio doubles as a CV source if none found yet\n  if (blog && !merged.resume_link) { merged.github_blog = blog; }\n  const ghParts = [];\n  if (bio) ghParts.push('Bio: ' + bio);\n  if (repos !== '') ghParts.push(repos + ' public repos');\n  if (blog) ghParts.push('Site: ' + blog);\n  merged.github_summary = ghParts.join(' | ');\n  // capture the GitHub enrichment in the sheet: fold into Work History when it is otherwise empty\n  if (!merged.work_history && merged.github_summary) merged.work_history = merged.github_summary;\n  merged.github_status = 'enriched';\n} else {\n  merged.github_status = isGithub ? 'lookup failed' : 'n/a (not github)';\n  if (!merged.github_summary) merged.github_summary = '';\n}\nreturn { json: merged };"
       },
       "id": "merge-github-0001-4a00-9000-000000000032",
       "name": "Merge GitHub",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst hnSelected = platforms.some(function(p){ return /hacker\\s*news/i.test(String(p)); });\nif (!hnSelected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst terms = [];\nif (skillsRaw) { skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean).slice(0,4).forEach(function(s){ terms.push(s); }); }\nif (!terms.length && role) terms.push(role);\nif (loc) terms.push(loc);\nconst query = (terms.join(' ').trim()) || role;\nif (!query) return [];\n// Algolia HN Search API (free, no key). tags=comment targets people's posts,\n// including the monthly \"Ask HN: Who wants to be hired?\" self-posts.\nconst url = 'https://hn.algolia.com/api/v1/search?tags=comment&hitsPerPage=40&query=' + encodeURIComponent(query);\nreturn [{ json: { hn_query: query, hn_url: url } }];\n"
+      },
+      "id": "native-hn-000-4a00-9000-000000000041",
+      "name": "Build HN Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.hn_url }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-hn-000-4a00-9000-000000000042",
+      "name": "HN Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -304
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine the Algolia comment (from HN Split Authors) with the OFFICIAL Firebase\n// user profile (about/karma) for each HN author, into the shared organic shape.\nconst splits = $('HN Split Authors').all();\nconst fbs = $input.all();\nconst out = [];\nfor (let i = 0; i < splits.length; i++) {\n  const s = splits[i].json || {};\n  const fb = (fbs[i] && fbs[i].json) ? fbs[i].json : {};\n  let bio = '', karma = '';\n  if (fb && fb.id) {\n    bio = String(fb.about || '')\n      .replace(/<[^>]+>/g, ' ').replace(/&#x2F;/g, '/').replace(/&#x27;/g, \"'\")\n      .replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&quot;/g, '\"').replace(/&amp;/g, '&')\n      .replace(/\\s+/g, ' ').trim();\n    karma = (typeof fb.karma === 'number') ? fb.karma : '';\n  }\n  let snippet = s.comment_text || '';\n  const extras = [];\n  if (bio) extras.push('HN bio: ' + bio);\n  if (karma !== '') extras.push('karma ' + karma);\n  if (extras.length) snippet = snippet + ' | ' + extras.join(' | ');\n  const link = 'https://news.ycombinator.com/item?id=' + (s.objectID || '');\n  out.push({ title: s.author + ' (Hacker News)', snippet: snippet, link: link });\n}\nreturn [{ json: { organic: out, source: 'hackernews', results_count: out.length } }];"
+      },
+      "id": "native-hn-000-4a00-9000-000000000043",
+      "name": "HN To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst ghSelected = platforms.some(function(p){ return /^git\\s*hub$/i.test(String(p).trim()); });\nif (!ghSelected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst langMap = { 'java':'java','python':'python','javascript':'javascript','typescript':'typescript','go':'go','golang':'go','rust':'rust','c++':'cpp','ruby':'ruby','php':'php','swift':'swift','kotlin':'kotlin','scala':'scala','c#':'csharp','react':'javascript','node':'javascript','nodejs':'javascript','.net':'csharp','dotnet':'csharp' };\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\nlet lang = '';\nfor (const s of skills) { const k = s.toLowerCase(); if (langMap[k]) { lang = langMap[k]; break; } }\nconst kw = [];\nskills.slice(0,3).forEach(function(s){ kw.push(s); });\nif (!kw.length && role) kw.push(role);\nlet q = kw.join(' ');\nif (lang) q += ' language:' + lang;\nif (loc) q += ' location:' + loc;\nq = q.trim();\nif (!q) return [];\n// GitHub native user search (free, uses your GitHub credential -> 5000 req/hr)\nconst url = 'https://api.github.com/search/users?per_page=30&q=' + encodeURIComponent(q);\nreturn [{ json: { gh_query: q, gh_url: url } }];\n"
+      },
+      "id": "native-gh-000-4a00-9000-000000000051",
+      "name": "Build GH Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.gh_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-gh-000-4a00-9000-000000000052",
+      "name": "GitHub Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -448
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "YK5uQOk0Ayo8V2NN",
+          "name": "GitHub account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map GitHub user-search results into the shared organic shape. Search results\n// are sparse (login + url); the downstream 'GitHub Enrich' step later fetches\n// bio/company/repos for those that survive ranking.\nconst out = [];\nfor (const it of $input.all()) {\n  const items = (it.json && it.json.items) ? it.json.items : [];\n  for (const u of items) {\n    const login = String(u.login || '').trim();\n    if (!login) continue;\n    const link = String(u.html_url || ('https://github.com/' + login));\n    out.push({\n      title: login + ' (GitHub developer)',\n      snippet: 'GitHub developer profile (login: ' + login + ') matching the requested skills. Individual open-source contributor; enrich for bio, company and repositories.',\n      link: link\n    });\n  }\n}\nreturn [{ json: { organic: out, source: 'github', results_count: out.length } }];\n"
+      },
+      "id": "native-gh-000-4a00-9000-000000000053",
+      "name": "GH To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nconst seen = {};\nlet hits = [];\nfor (const it of $input.all()) { if (it.json && it.json.hits) hits = hits.concat(it.json.hits); }\nfor (const h of hits) {\n  const author = String(h.author || '').trim();\n  if (!author || seen[author]) continue;\n  seen[author] = true;\n  let text = String(h.comment_text || '')\n    .replace(/<[^>]+>/g, ' ').replace(/&#x2F;/g, '/').replace(/&#x27;/g, \"'\")\n    .replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&quot;/g, '\"').replace(/&amp;/g, '&')\n    .replace(/\\s+/g, ' ').trim();\n  if (text.length < 40) continue;\n  if (text.length > 600) text = text.slice(0, 600);\n  out.push({ json: { author: author, objectID: h.objectID || '', comment_text: text } });\n  if (out.length >= 20) break;\n}\nreturn out;"
+      },
+      "id": "native-hn-000-4a00-9000-000000000044",
+      "name": "HN Split Authors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://hacker-news.firebaseio.com/v0/user/{{ $json.author }}.json",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-hn-000-4a00-9000-000000000045",
+      "name": "HN Firebase Enrich",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst soSelected = platforms.some(function(p){ return /stack\\s*overflow/i.test(String(p)); });\nif (!soSelected) return [];\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst role = String(form['Target Role'] || '').trim();\n// map common skills -> real Stack Overflow tag slugs\nconst tagMap = {'spring boot':'spring-boot','springboot':'spring-boot','spring':'spring','react':'reactjs','reactjs':'reactjs','react.js':'reactjs','node':'node.js','nodejs':'node.js','node.js':'node.js','kafka':'apache-kafka','aws':'amazon-web-services','k8s':'kubernetes','kubernetes':'kubernetes','docker':'docker','golang':'go','go':'go','js':'javascript','javascript':'javascript','typescript':'typescript','ts':'typescript','python':'python','java':'java','c#':'c#','.net':'.net','dotnet':'.net','django':'django','flask':'flask','angular':'angular','vue':'vue.js','postgres':'postgresql','postgresql':'postgresql','mysql':'mysql','mongodb':'mongodb'};\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\nlet tag = '';\nfor (const s of skills) { const k = s.toLowerCase(); if (tagMap[k]) { tag = tagMap[k]; break; } }\nif (!tag && skills.length) { tag = skills[0].toLowerCase().replace(/\\s+/g, '-'); }\nif (!tag && role) { tag = role.toLowerCase().replace(/\\s+/g, '-'); }\nif (!tag) return [];\n// Stack Exchange API (free, no key for low volume): top answerers for the tag = real skilled people\nconst url = 'https://api.stackexchange.com/2.3/tags/' + encodeURIComponent(tag) + '/top-answerers/all_time?site=stackoverflow&pagesize=30';\nreturn [{ json: { so_tag: tag, so_url: url } }];"
+      },
+      "id": "native-so-000-4a00-9000-000000000061",
+      "name": "Build SO Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.so_url }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-so-000-4a00-9000-000000000062",
+      "name": "SO Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Stack Overflow top-answerers into the shared organic shape for ranking.\nconst out = [];\nfor (const it of $input.all()) {\n  const items = (it.json && it.json.items) ? it.json.items : [];\n  for (const row of items) {\n    const u = row.user || {};\n    const name = String(u.display_name || '').trim();\n    if (!name) continue;\n    const link = String(u.link || (u.user_id ? 'https://stackoverflow.com/users/' + u.user_id : ''));\n    const rep = (typeof u.reputation === 'number') ? u.reputation : '';\n    const posts = (typeof row.post_count === 'number') ? row.post_count : '';\n    let snippet = 'Stack Overflow top answerer';\n    const ex = [];\n    if (rep !== '') ex.push('reputation ' + rep);\n    if (posts !== '') ex.push(posts + ' answers in this tag');\n    if (ex.length) snippet += ' (' + ex.join(', ') + ')';\n    snippet += '. Demonstrated expertise in the requested skill; enrich for role and contact details.';\n    out.push({ title: name + ' (Stack Overflow)', snippet: snippet, link: link });\n  }\n}\nreturn [{ json: { organic: out, source: 'stackoverflow', results_count: out.length } }];"
+      },
+      "id": "native-so-000-4a00-9000-000000000063",
+      "name": "SO To Organic",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -2667,6 +2847,21 @@
             "node": "Build Search Query",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build HN Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build GH Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build SO Query",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2940,6 +3135,127 @@
           }
         ]
       ]
+    },
+    "Build HN Query": {
+      "main": [
+        [
+          {
+            "node": "HN Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HN Search": {
+      "main": [
+        [
+          {
+            "node": "HN Split Authors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HN To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build GH Query": {
+      "main": [
+        [
+          {
+            "node": "GitHub Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Search": {
+      "main": [
+        [
+          {
+            "node": "GH To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HN Split Authors": {
+      "main": [
+        [
+          {
+            "node": "HN Firebase Enrich",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HN Firebase Enrich": {
+      "main": [
+        [
+          {
+            "node": "HN To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SO Query": {
+      "main": [
+        [
+          {
+            "node": "SO Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SO Search": {
+      "main": [
+        [
+          {
+            "node": "SO To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SO To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -2949,7 +3265,7 @@
     "availableInMCP": false,
     "errorWorkflow": "rPMKyioGlfDo29ZI"
   },
-  "versionId": "cfcc4de8-aaa8-4106-9d30-87ccd42c1a89",
+  "versionId": "b2876bad-b353-4821-ad19-3c1f6dfbc46a",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "af5434bdd9f370ccb2261f964c22b46a295258d48e54e40b9b96c5da67019c9f"
