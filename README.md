@@ -161,6 +161,20 @@ Real systems are defined by how they fail. A few representative fixes:
   - *Fix:* found it by inspecting the node's *resolved* parameters (not just the raw expression),
     corrected the column, and made the check tolerant of whitespace.
 
+- **Bulk documents masquerading as CVs.**
+  - *Symptom:* a candidate's row showed a "verified" resume with contact details that
+    belonged to someone else entirely — e.g. an IIM-B academic report matched to "Rajiv Kumar",
+    or a college annual report / court cause-list attached as a personal CV.
+  - *Root cause:* the resume search sometimes returns large multi-person documents (directories,
+    annual reports, alumni/merit lists, legal filings). The parser grabbed the first email/phone
+    it found, even though the document contained dozens of unrelated contacts and never actually
+    matched the candidate.
+  - *Fix:* added a directory-document guard that rejects documents with many distinct emails/phones
+    plus bulk-document keywords (annual report, cause list, directory, alumni, etc.), requires the
+    candidate's own name near the extracted contact, and blocks institutional/government domains.
+    Verified live — an academic CV wrongly matched to "Rajiv Kumar" was rejected
+    (`resume_status: "rejected (bulk/directory document, not a personal CV)"`) while genuine CVs pass.
+
 - **LLM inventing names.** Hacker News "who's hiring" threads made the model fabricate names like
   "Candidate from July 2019". Fixed by instructing the model to emit an empty name + score 0 for any
   non-person source.
