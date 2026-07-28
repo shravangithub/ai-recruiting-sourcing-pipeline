@@ -3262,15 +3262,13 @@
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-    "availableInMCP": false,
+        "availableInMCP": false,
     "errorWorkflow": ""
   },
-  "versionId": "b2876bad-b353-4821-ad19-3c1f6dfbc46a",
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "af5434bdd9f370ccb2261f964c22b46a295258d48e54e40b9b96c5da67019c9f"
+    "templateCredsSetupCompleted": true
   },
   "nodeGroups": [],
-  "id": "Xh5JQOMy2rATeSsL",
+  "id": "TEMPLATE_WORKFLOW_ID",
   "tags": []
 }
