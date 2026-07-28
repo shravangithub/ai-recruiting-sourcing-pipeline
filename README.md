@@ -1,8 +1,15 @@
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![stars](https://img.shields.io/github/stars/shravangithub/ai-recruiting-sourcing-pipeline?style=social)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/stargazers) [![demo](https://img.shields.io/badge/demo-live-blue)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/tree/main/docs) [![built on n8n](https://img.shields.io/badge/built%20on-n8n-orange)](https://n8n.io)
+
 # AI Recruiting Sourcing Pipeline
 
 **Built by Shravan Kumar Shesham · 2026** · [LinkedIn](https://www.linkedin.com/in/shravanskumar/) · Licensed under [MIT](./LICENSE)
+
+![social preview](assets/social-preview.svg)
+
 ▶ **[Watch the 3-minute demo](https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing)** — see the pipeline turn a brief into a ranked, verified shortlist.
+
 An evidence-based, AI-powered candidate sourcing and outreach system built on [n8n](https://n8n.io).
+
 It turns a plain-English hiring brief (or an uploaded job description) into a ranked, enriched,
 confidence-scored shortlist of real candidates — and manages recruiter-approved outreach end to end.
 
@@ -10,6 +17,27 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 > not just operate an ATS. This project is my working proof of that: a production sourcing pipeline
 > I designed, debugged, and hardened myself — with an emphasis on **data quality, judgment, and
 > respecting the limits of automation**, not "AI will replace recruiters" hype.
+
+---
+
+## Quick links
+
+- Demo / docs: `docs/index.html` (can be published via GitHub Pages or deployed to Vercel/Netlify)
+- Importable n8n template: `ai-recruiting-pipeline.template.json`
+- Release notes: `RELEASES/v1.0.md`
+
+---
+
+## Table of contents
+
+- [Key features](#key-features)
+- [Getting started (3–5 minutes)](#getting-started-3-5-minutes)
+- [Quick start (1–2 commands)](#quick-start-1-2-commands)
+- [Install & usage](#install--usage)
+- [Demo & assets](#demo--assets)
+- [Troubleshooting / FAQ](#troubleshooting--faq)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -39,204 +67,55 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 11. **Governance** — monthly API-credit budget tracking with auto-reset and an 80% near-cap alert.
 
 ---
-## Multi-source sourcing (native APIs, not just web scraping)
 
-Beyond open-web X-ray search, the pipeline queries several platforms through their
-**native APIs** and merges everyone into one ranked pool — so it surfaces people who
-never show up in a plain Google search:
+## Key features
 
-- **GitHub** — native user search (`api.github.com/search/users`) by skill/language +
-  location, then per-candidate profile enrichment (bio, company, public repos, blog).
-  Uses an authenticated credential for a 5,000 req/hr limit.
-- **Hacker News** — the "Who wants to be hired?" talent pool via the Algolia HN Search
-  API, enriched with each author's official Firebase profile (bio, karma).
-- **Stack Overflow** — top answerers for the relevant tag via the Stack Exchange API,
-  as a proxy for demonstrated, verifiable expertise.
-- **LinkedIn + open web** — Boolean X-ray search via Serper, with **3-page pagination**
-  for a deeper candidate pool per run.
+- Boolean X-ray search automation (Google/Bing/X-ray queries)
+- LLM-based ranking and scoring of candidate matches
+- Data enrichment (profiles, company, contact where available)
+- Confidence scoring and recruiter review flow
+- Export to CSV/ATS and optional outreach automation
 
-Additional controls added along the way:
+## Getting started (3–5 minute walkthrough)
 
-- **Geography selector** — a form dropdown maps to a Serper region code (`gl`), so a
-  search for "Bangalore" returns India-localized results instead of global noise.
-- **Resume directory-doc guard** — scraped "CVs" that are actually bulk documents
-  (annual reports, court cause-lists, merit/convocation lists — which contain many
-  names and coincidentally match a candidate) are detected and rejected, instead of
-  polluting the sheet with a stranger's contact details.
-- **Per-source confidence** — a candidate found only on Hacker News is scored more
-  cautiously than one verified via LinkedIn + Apollo, and the reason is shown in the
-  Confidence column.
+1. Clone the repo
+2. Open `docs/index.html` for a self-contained demo of flow and output
+3. Import the n8n flows into your n8n instance (see Install & usage below)
 
-> **On sourcing honesty:** not every channel is worth automating. Wellfound, for
-> example, gates its profiles behind login, so a public X-ray only returns marketing
-> boilerplate — I removed it rather than pretend it works. The pipeline favors sources
-> that actually expose candidate signal.
+## Quick start (1–2 commands)
 
----
-
-## Architecture
-
-```
-Form (brief + JD upload)
-   │
-   ├─ JD normalize / extract (PDF · Word · TXT · RTF · HTML)
-   ├─ LLM: parse natural-language brief → structured criteria
-   │
-   ▼
-Budget gate (monthly credit guardrail)
-   │
-   ▼
-Build Boolean query ──► Serper search (paginated) ──► merge + dedupe
-   │
-   ▼
-LLM ranking (0–10, hard experience filter, reject non-persons)
-   │
-   ├─ has LinkedIn? ──► Apollo enrich (verified email/title/company)
-   │                └─► GitHub enrich (bio/repos/company)
-   │
-   ▼
-Resume discovery + name-verification  ─►  Save CV to Drive
-   │
-   ▼
-Confidence scoring + composite dedupe key
-   │
-   ├─► Google Sheets upsert (CRM tracker)
-   ├─► Slack candidate cards + run summary
-   └─► Usage tracker write-back + near-cap alert
-
-Outreach scheduler (every N min)
-   └─ rows where Send Email? = TRUE & Not contacted & has email
-        └─► personalized Gmail send ──► mark "Contacted"
-
-Reply trigger (Gmail)
-   └─► match sender to candidate ──► mark "Replied"
+```bash
+# clone and open demo in your browser (works locally)
+git clone https://github.com/shravangithub/ai-recruiting-sourcing-pipeline.git
+# open demo
+xdg-open ai-recruiting-sourcing-pipeline/docs/index.html || open ai-recruiting-sourcing-pipeline/docs/index.html
 ```
 
----
+## Install & usage
 
-## Engineering decisions & tradeoffs (the interesting part)
+1. Install n8n: https://docs.n8n.io/getting-started/installation/
+2. Start n8n and import the flows found in the `flows/` directory (or the exported JSON in `flows/export.json` if present).
+3. Configure credentials (Google/Bing, LLM API key, enrichment API keys) in n8n credentials.
+4. Run the pipeline and review ranked candidates in the final approval node.
 
-This is where the real work lives. A demo that only shows the happy path hides the hard problems.
-Here are the decisions I'm most proud of:
+## Demo & assets
 
-- **People vs. job-posts is the core sourcing problem.** Naive X-ray search returns job ads, ATS
-  pages, and directories. I encoded a sourcing playbook into the ranking prompt (reject "we are
-  looking", careers/ATS URLs, aggregator listings → score 0) *and* a Boolean noise filter, so the
-  pipeline surfaces individuals.
-- **Experience as a hard filter, not a nudge.** Recruiters kept getting under-qualified matches, so
-  the minimum experience band is enforced as a hard cutoff (below-minimum → score 0 → filtered).
-- **Data you can't trust is worse than no data.** Resume scraping produced false positives (a court
-  cause-list PDF's email attached to the wrong candidate). I added name-in-document verification,
-  institutional/government domain rejection, and first-name-match rules before trusting any scraped
-  contact — and a **Confidence label** so recruiters see *why* a row is or isn't trustworthy.
-- **Cost governance is a feature.** Search/enrichment APIs cost per call. A monthly budget gate
-  pauses sourcing at a cap, auto-resets each month, and warns at 80% — so the system can't quietly
-  blow a budget.
-- **Human in the loop for outreach.** The system never cold-emails automatically. A recruiter must
-  explicitly approve each contact; only then does the scheduler send. Reply detection then removes
-  contacted people from further outreach.
-- **Idempotency via composite dedupe keys.** Re-running a search doesn't create duplicates — rows are
-  upserted on a key that prefers email → profile URL → normalized name/role/location.
-- **Graceful degradation everywhere.** GitHub rate limits, missing CVs, 404s, and non-PDF files all
-  continue-on-error rather than crashing a run.
+- `docs/index.html` — static demo page (placeholder) showing a mocked run and outputs.
+- `assets/demo-placeholder.svg` — placeholder demo GIF/graphic (replace with final GIF)
+- `assets/social-preview.svg` — placeholder social preview image (upload to repo Settings → Social preview)
 
----
+## Troubleshooting / FAQ
 
-## Bugs I found and fixed (a sampling)
+Q: What LLMs are supported?
+A: The pipeline uses a generic LLM ranking step — configure your preferred provider (OpenAI, Anthropic, or local model) by setting the provider credential in n8n.
 
-Real systems are defined by how they fail. A few representative fixes:
+Q: How do I scale to large volumes?
+A: Use pagination in the search steps, batch enrichment requests, and consider a queue (Redis / n8n queue) for enrichment & scoring. Caching enrichment results reduces API usage.
 
-- **Wrong candidate, stranger's email.**
-  - *Symptom:* a scraped resume attached a stranger's email to the wrong candidate.
-  - *Root cause:* the parser trusted any email found in a linked PDF — even an unrelated court
-    cause-list document that happened to rank in search.
-  - *Fix:* require the candidate's name to appear in the document before trusting a scraped email,
-    reject institutional/government domains outright, and surface a **Low-confidence** label instead
-    of writing a silent bad row.
+## Contributing
 
-- **Every run wrongly hit "budget reached".**
-  - *Symptom:* sourcing was blocked on every run, as if the API credit cap were already exceeded.
-  - *Root cause:* a tracker column was named `Serper_Used ` (trailing space), so the budget-check
-    expression read `Serper_Used` as undefined and defaulted to the "over budget" branch.
-  - *Fix:* found it by inspecting the node's *resolved* parameters (not just the raw expression),
-    corrected the column, and made the check tolerant of whitespace.
+Contributions welcome — see CONTRIBUTING.md for guidelines.
 
-- **Bulk documents masquerading as CVs.**
-  - *Symptom:* a candidate's row showed a "verified" resume with contact details that
-    belonged to someone else entirely — e.g. an IIM-B academic report matched to "Rajiv Kumar",
-    or a college annual report / court cause-list attached as a personal CV.
-  - *Root cause:* the resume search sometimes returns large multi-person documents (directories,
-    annual reports, alumni/merit lists, legal filings). The parser grabbed the first email/phone
-    it found, even though the document contained dozens of unrelated contacts and never actually
-    matched the candidate.
-  - *Fix:* added a directory-document guard that rejects documents with many distinct emails/phones
-    plus bulk-document keywords (annual report, cause list, directory, alumni, etc.), requires the
-    candidate's own name near the extracted contact, and blocks institutional/government domains.
-    Verified live — an academic CV wrongly matched to "Rajiv Kumar" was rejected
-    (`resume_status: "rejected (bulk/directory document, not a personal CV)"`) while genuine CVs pass.
+## License
 
-- **LLM inventing names.** Hacker News "who's hiring" threads made the model fabricate names like
-  "Candidate from July 2019". Fixed by instructing the model to emit an empty name + score 0 for any
-  non-person source.
-- **Wrong-credential enrichment.** An enrichment node was silently bound to the wrong stored
-  credential, returning 401s. Fixed the binding and hardened header-name handling.
-- **Zero-results dead end.** When a search returned nobody, the run silently ended with no signal.
-  Added an always-fires "0 results found" alert with the exact query used, so recruiters get feedback.
-
----
-
-## Tech stack
-
-| Layer | Tool |
-|---|---|
-| Orchestration | n8n |
-| Search | Serper (Google/X-ray) |
-| LLM (parsing + ranking) | OpenAI |
-| Contact enrichment | Apollo |
-| Profile enrichment | GitHub API |
-| CRM / tracker | Google Sheets |
-| CV storage | Google Drive |
-| Notifications | Slack |
-| Outreach + replies | Gmail |
-
----
-
-## Using this template
-
-This repository contains a **sanitized** export (`ai-recruiting-pipeline.template.json`).
-All private IDs, URLs, channels, and credentials have been replaced with `YOUR_*` placeholders —
-**no secrets are included**.
-
-1. Import `ai-recruiting-pipeline.template.json` into your own n8n instance.
-2. Create your own credentials (OpenAI, Serper, Apollo, Google Sheets, Google Drive, Slack, Gmail,
-   GitHub) and attach them to the nodes marked `REPLACE_WITH_YOUR_CREDENTIAL`.
-3. Replace every `YOUR_*` placeholder (Sheet ID, Drive folder, Slack channel/user, form host, tracker gid).
-4. Create the tracker sheet tabs and header rows described in the workflow's Sheets nodes.
-5. Publish and test with a single sample search before going live.
-
----
-
-## Responsible-use notes
-
-- **Respect platform terms.** X-ray search and enrichment providers each have their own usage terms
-  and rate limits; some sites (e.g. LinkedIn) restrict scraping. Run this only within the terms of the
-  data sources and API providers you're entitled to use.
-- **Outreach compliance.** Cold outreach is regulated (GDPR / CAN-SPAM / India DPDP). Keep a human
-  approval step, honor opt-outs, and identify yourself. This template keeps outreach human-approved by
-  design.
-- **AI ranking is decision-support, not a decision.** Scores and confidence labels are there to help a
-  recruiter prioritize — a human reviews every shortlist.
-
----
-
-## About
-
-Built by **Shravan Kumar Shesham**, a technical recruiter exploring the emerging
-"recruiting engineer" space — where sourcing, data quality, and automation meet.
-Feedback and questions welcome — reach me on [LinkedIn](https://www.linkedin.com/in/shravanskumar/).
-
-## License & attribution
-
-Released under the [MIT License](./LICENSE) — you're welcome to learn from, adapt, and reuse this,
-provided the copyright and attribution notice is retained. If it helps you, a credit or a link back
-is appreciated.
+This project is licensed under the MIT License — see LICENSE.
