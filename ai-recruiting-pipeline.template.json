@@ -1,5 +1,5 @@
 {
-  "name": "My workflow",
+  "name": "AI Recruiting Sourcing Pipeline (Template)",
   "nodes": [
     {
       "parameters": {
@@ -146,7 +146,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "TIi2uzcD3iLfehno",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Header Auth account 2"
         }
       },
@@ -187,7 +187,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "QxVulPihxQdPXYA5",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Header Auth account"
         }
       },
@@ -567,7 +567,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       }
@@ -595,7 +595,7 @@
       "webhookId": "ce25a298-8997-4df7-a850-0ffe7f962d0b",
       "credentials": {
         "slackOAuth2Api": {
-          "id": "TcUGlwEQ7yhL1HyO",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Slack account 2"
         }
       }
@@ -620,7 +620,7 @@
       "webhookId": "0db43689-b419-4111-a8d3-b0e76641c2b2",
       "credentials": {
         "gmailOAuth2": {
-          "id": "nO9PGd8GvFY2VaRj",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Gmail account"
         }
       }
@@ -921,7 +921,7 @@
       "webhookId": "2273ea8a-85a8-4842-91ff-fa787ccce874",
       "credentials": {
         "slackOAuth2Api": {
-          "id": "TcUGlwEQ7yhL1HyO",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Slack account 2"
         }
       }
@@ -954,7 +954,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       }
@@ -980,7 +980,7 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "QxVulPihxQdPXYA5",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Header Auth account"
         }
       }
@@ -1129,7 +1129,7 @@
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "XG5byiBVrSKI99P8",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Drive account 3"
         }
       },
@@ -1194,7 +1194,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -1241,7 +1241,7 @@
       ],
       "credentials": {
         "gmailOAuth2": {
-          "id": "nO9PGd8GvFY2VaRj",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Gmail account"
         }
       }
@@ -1298,7 +1298,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -1376,7 +1376,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -1429,7 +1429,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -1520,7 +1520,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -1564,7 +1564,7 @@
       "executeOnce": true,
       "credentials": {
         "slackOAuth2Api": {
-          "id": "TcUGlwEQ7yhL1HyO",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Slack account 2"
         }
       }
@@ -1641,7 +1641,7 @@
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       }
@@ -1716,7 +1716,7 @@
       "webhookId": "dfbdafc3-7cd2-4bbf-bd60-277870709159",
       "credentials": {
         "slackOAuth2Api": {
-          "id": "TcUGlwEQ7yhL1HyO",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Slack account 2"
         }
       }
@@ -1759,7 +1759,7 @@
       "executeOnce": true,
       "credentials": {
         "slackOAuth2Api": {
-          "id": "TcUGlwEQ7yhL1HyO",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Slack account 2"
         }
       }
@@ -1858,7 +1858,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "XG5byiBVrSKI99P8",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Drive account 3"
         }
       },
@@ -1895,7 +1895,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "XG5byiBVrSKI99P8",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Drive account 3"
         }
       },
@@ -1934,7 +1934,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "XG5byiBVrSKI99P8",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Drive account 3"
         }
       },
@@ -2043,7 +2043,7 @@
       "executeOnce": true,
       "credentials": {
         "slackOAuth2Api": {
-          "id": "TcUGlwEQ7yhL1HyO",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Slack account 2"
         }
       }
@@ -2179,7 +2179,7 @@
       "executeOnce": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -2303,7 +2303,7 @@
       "executeOnce": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "9q7wqgRrQ5yD6bqa",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "Google Sheets account 2"
         }
       },
@@ -2339,7 +2339,7 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "YK5uQOk0Ayo8V2NN",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "GitHub account"
         }
       },
@@ -2447,7 +2447,7 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "YK5uQOk0Ayo8V2NN",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
           "name": "GitHub account"
         }
       },
@@ -3263,7 +3263,11 @@
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false,
-    "errorWorkflow": "rPMKyioGlfDo29ZI"
+    "errorWorkflow": ""
+"errorWorkflow": ""
+"errorWorkflow": ""
+"errorWorkflow": ""
+"errorWorkflow": ""
   },
   "versionId": "b2876bad-b353-4821-ad19-3c1f6dfbc46a",
   "meta": {
