@@ -30,6 +30,7 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 
 ## Table of contents
 
+- [Pipeline architecture](#pipeline-architecture)
 - [Key features](#key-features)
 - [Getting started (3–5 minutes)](#getting-started-3-5-minutes)
 - [Quick start (1–2 commands)](#quick-start-1-2-commands)
@@ -38,6 +39,34 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 - [Troubleshooting / FAQ](#troubleshooting--faq)
 - [Contributing](#contributing)
 - [License](#license)
+
+---
+
+## Pipeline architecture
+
+One pass, eleven stages — from a plain-English brief to recruiter-approved outreach, with a
+governance layer watching API spend throughout.
+
+```mermaid
+flowchart TD
+    A["Intake<br/>brief · JD · form fields"] --> B["Natural-language understanding<br/>parse to structured criteria"]
+    B --> C["Query construction<br/>Boolean X-ray per platform"]
+    C --> D["Multi-source search<br/>Serper · merge + de-dupe"]
+    D --> E["AI ranking<br/>score 0–10 · reject non-people"]
+    E --> F["Enrichment<br/>Apollo email/title · GitHub"]
+    F --> G["Resume discovery<br/>find CV · verify vs name"]
+    G --> H["Confidence scoring<br/>High / Medium / Low + reasons"]
+    H --> I["CRM write<br/>Google Sheets · Slack cards"]
+    I --> J{"Recruiter approval gate"}
+    J -->|"Send Email?"| K["Approved outreach<br/>personalized · auto-flag replies"]
+    GOV["Governance<br/>monthly budget · 80% alert"] -. monitors .-> D
+    GOV -. monitors .-> F
+
+    classDef stage fill:#0b1630,stroke:#60a5fa,stroke-width:1px,color:#e8effc;
+    classDef gate fill:#10285a,stroke:#38bdf8,stroke-width:1px,color:#e8effc;
+    class A,B,C,D,E,F,G,H,I,K stage;
+    class J,GOV gate;
+```
 
 ---
 
