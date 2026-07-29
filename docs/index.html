@@ -12,176 +12,176 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/" />
 <style>
-  :root{
-    --bg:#070f22; --bg2:#0b1630; --card:rgba(255,255,255,.035); --card-brd:rgba(255,255,255,.08);
-    --accent:#60a5fa; --accent2:#38bdf8; --text:#e8effc; --muted:#9fb3d6;
-    --ok:#22c55e; --warn:#f59e0b; --chip:rgba(96,165,250,.12);
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-    background:radial-gradient(1200px 700px at 80% -10%, #10285a 0%, transparent 55%),
-               radial-gradient(1000px 600px at -10% 10%, #0c2145 0%, transparent 50%),
-               linear-gradient(180deg,var(--bg) 0%, var(--bg2) 100%);
-    color:var(--text); margin:0; line-height:1.55; -webkit-font-smoothing:antialiased;
-  }
-  .wrap{max-width:1040px; margin:0 auto; padding:28px 22px 64px}
-  a{color:var(--accent)}
-  /* header */
-  header.top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:28px}
-  .brand{display:flex; align-items:center; gap:12px}
-  .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#04122b;font-size:18px}
-  .brand h2{margin:0;font-size:15px;letter-spacing:.2px}
-  .brand span{display:block;color:var(--muted);font-size:12px;font-weight:400}
-  nav a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:16px}
-  nav a:hover{color:var(--text)}
-  /* hero */
-  .hero{padding:14px 0 8px}
-  .pill{display:inline-block;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.25);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.3px}
-  h1{font-size:clamp(28px,5vw,46px);line-height:1.1;margin:16px 0 10px;letter-spacing:-.5px}
-  h1 .grad{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  p.lead{color:var(--muted);font-size:clamp(15px,2.2vw,18px);max-width:720px;margin:0 0 22px}
-  .cta{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 10px}
-  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px}
-  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04122b}
-  .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--card-brd)}
-  .btn:hover{transform:translateY(-1px)}
-  .btn{transition:transform .12s ease}
-  .byline{color:var(--muted);font-size:13px;margin-top:18px}
-  /* sections */
-  section{margin-top:44px}
-  h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin:0 0 16px}
-  .grid{display:grid;gap:14px}
-  .feat{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
-  .card{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px}
-  .card h4{margin:0 0 6px;font-size:15px}
-  .card p{margin:0;color:var(--muted);font-size:13.5px}
-  /* pipeline */
-  ol.pipe{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
-  ol.pipe li{counter-increment:step;background:var(--card);border:1px solid var(--card-brd);border-radius:12px;padding:16px 16px 16px 56px;position:relative}
-  ol.pipe li::before{content:counter(step);position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:9px;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.3);display:grid;place-items:center;font-weight:800;font-size:14px}
-  ol.pipe strong{display:block;font-size:14px;margin-bottom:3px}
-  ol.pipe span{color:var(--muted);font-size:13px}
-  /* stats */
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
-  .stat{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px;text-align:center}
-  .stat b{display:block;font-size:26px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .stat span{color:var(--muted);font-size:12.5px}
-  /* resources */
-  .res{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-  .res a{display:block;text-decoration:none;background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:16px;color:var(--text);transition:border-color .15s}
-  .res a:hover{border-color:var(--accent)}
-  .res a strong{display:block;font-size:14px;margin-bottom:4px}
-  .res a small{color:var(--muted)}
-  code{background:#071827;padding:2px 7px;border-radius:6px;color:#9be2ff;font-size:13px}
-  pre{background:#071827;border:1px solid var(--card-brd);padding:14px;border-radius:10px;overflow:auto;color:#9be2ff;font-size:13px}
-  .note{color:var(--muted);font-size:12.5px;margin-top:10px}
-  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--card-brd);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
-  footer a{color:var(--accent);text-decoration:none}
+:root{
+--bg:#0a0a0b; --bg2:#141013; --card:rgba(255,255,255,.035); --card-brd:rgba(255,255,255,.08);
+--accent:#a8323c; --accent2:#c6414c; --text:#f3eced; --muted:#b9a7aa;
+--ok:#22c55e; --warn:#f59e0b; --chip:rgba(168,50,60,.12);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+background:radial-gradient(1200px 700px at 80% -10%, #3a1218 0%, transparent 55%),
+radial-gradient(1000px 600px at -10% 10%, #240a0e 0%, transparent 50%),
+linear-gradient(180deg,var(--bg) 0%, var(--bg2) 100%);
+color:var(--text); margin:0; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1040px; margin:0 auto; padding:28px 22px 64px}
+a{color:var(--accent)}
+/* header */
+header.top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:28px}
+.brand{display:flex; align-items:center; gap:12px}
+.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#f3eced;font-size:18px}
+.brand h2{margin:0;font-size:15px;letter-spacing:.2px}
+.brand span{display:block;color:var(--muted);font-size:12px;font-weight:400}
+nav a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:16px}
+nav a:hover{color:var(--text)}
+/* hero */
+.hero{padding:14px 0 8px}
+.pill{display:inline-block;background:var(--chip);color:var(--accent);border:1px solid rgba(168,50,60,.25);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.3px}
+h1{font-size:clamp(28px,5vw,46px);line-height:1.1;margin:16px 0 10px;letter-spacing:-.5px}
+h1 .grad{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+p.lead{color:var(--muted);font-size:clamp(15px,2.2vw,18px);max-width:720px;margin:0 0 22px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 10px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#f3eced}
+.btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--card-brd)}
+.btn:hover{transform:translateY(-1px)}
+.btn{transition:transform .12s ease}
+.byline{color:var(--muted);font-size:13px;margin-top:18px}
+/* sections */
+section{margin-top:44px}
+h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin:0 0 16px}
+.grid{display:grid;gap:14px}
+.feat{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.card{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px}
+.card h4{margin:0 0 6px;font-size:15px}
+.card p{margin:0;color:var(--muted);font-size:13.5px}
+/* pipeline */
+ol.pipe{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+ol.pipe li{counter-increment:step;background:var(--card);border:1px solid var(--card-brd);border-radius:12px;padding:16px 16px 16px 56px;position:relative}
+ol.pipe li::before{content:counter(step);position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:9px;background:var(--chip);color:var(--accent);border:1px solid rgba(168,50,60,.3);display:grid;place-items:center;font-weight:800;font-size:14px}
+ol.pipe strong{display:block;font-size:14px;margin-bottom:3px}
+ol.pipe span{color:var(--muted);font-size:13px}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.stat{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px;text-align:center}
+.stat b{display:block;font-size:26px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{color:var(--muted);font-size:12.5px}
+/* resources */
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.res a{display:block;text-decoration:none;background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:16px;color:var(--text);transition:border-color .15s}
+.res a:hover{border-color:var(--accent)}
+.res a strong{display:block;font-size:14px;margin-bottom:4px}
+.res a small{color:var(--muted)}
+code{background:#17090b;padding:2px 7px;border-radius:6px;color:#f0b8bc;font-size:13px}
+pre{background:#17090b;border:1px solid var(--card-brd);padding:14px;border-radius:10px;overflow:auto;color:#f0b8bc;font-size:13px}
+.note{color:var(--muted);font-size:12.5px;margin-top:10px}
+footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--card-brd);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+footer a{color:var(--accent);text-decoration:none}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <header class="top">
-    <div class="brand">
-      <div class="logo">AI</div>
-      <div>
-        <h2>AI Recruiting Sourcing Pipeline</h2>
-        <span>by Shravan Kumar Shesham</span>
-      </div>
-    </div>
-    <nav>
-      <a href="#how">How it works</a>
-      <a href="#features">Features</a>
-      <a href="#resources">Resources</a>
-      <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a>
-    </nav>
-  </header>
+<header class="top">
+<div class="brand">
+<div class="logo">AI</div>
+<div>
+<h2>AI Recruiting Sourcing Pipeline</h2>
+<span>by Shravan Kumar Shesham</span>
+</div>
+</div>
+<nav>
+<a href="#how">How it works</a>
+<a href="#features">Features</a>
+<a href="#resources">Resources</a>
+<a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a>
+</nav>
+</header>
 
-  <section class="hero">
-    <span class="pill">Built on n8n · Evidence-based sourcing</span>
-    <h1>From a hiring brief to a <span class="grad">ranked, verified shortlist</span> — automatically.</h1>
-    <p class="lead">
-      An AI-powered candidate sourcing and outreach system that turns a plain-English brief
-      (or an uploaded job description) into a ranked, enriched, confidence-scored shortlist of
-      <em>real</em> candidates — and manages recruiter-approved outreach end to end.
-    </p>
-    <div class="cta">
-      <a class="btn primary" href="https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing" target="_blank" rel="noopener">▶ Watch the 3-min demo</a>
-      <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">⬇ Get the n8n template</a>
-      <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">★ View on GitHub</a>
-    </div>
-    <p class="byline">
-      Designed, debugged, and hardened by <strong>Shravan Kumar Shesham</strong> · 2026 ·
-      <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a> ·
-      MIT Licensed
-    </p>
-  </section>
+<section class="hero">
+<span class="pill">Built on n8n · Evidence-based sourcing</span>
+<h1>From a hiring brief to a <span class="grad">ranked, verified shortlist</span> — automatically.</h1>
+<p class="lead">
+An AI-powered candidate sourcing and outreach system that turns a plain-English brief
+(or an uploaded job description) into a ranked, enriched, confidence-scored shortlist of
+<em>real</em> candidates — and manages recruiter-approved outreach end to end.
+</p>
+<div class="cta">
+<a class="btn primary" href="https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing" target="_blank" rel="noopener">▶ Watch the 3-min demo</a>
+<a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">⬇ Get the n8n template</a>
+<a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">★ View on GitHub</a>
+</div>
+<p class="byline">
+Designed, debugged, and hardened by <strong>Shravan Kumar Shesham</strong> · 2026 ·
+<a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a> ·
+MIT Licensed
+</p>
+</section>
 
-  <section>
-    <div class="stats">
-      <div class="stat"><b>11</b><span>automated stages, brief → outreach</span></div>
-      <div class="stat"><b>0–10</b><span>AI relevance score per candidate</span></div>
-      <div class="stat"><b>25+</b><span>fields written to the CRM tracker</span></div>
-      <div class="stat"><b>3</b><span>confidence tiers: High / Med / Low</span></div>
-    </div>
-  </section>
+<section>
+<div class="stats">
+<div class="stat"><b>11</b><span>automated stages, brief → outreach</span></div>
+<div class="stat"><b>0–10</b><span>AI relevance score per candidate</span></div>
+<div class="stat"><b>25+</b><span>fields written to the CRM tracker</span></div>
+<div class="stat"><b>3</b><span>confidence tiers: High / Med / Low</span></div>
+</div>
+</section>
 
-  <section id="how">
-    <h3 class="sec">How it works — one pass</h3>
-    <ol class="pipe">
-      <li><strong>Intake</strong><span>Recruiter submits role, skills, location, seniority, exclusions, target platforms — or pastes/uploads a full JD.</span></li>
-      <li><strong>Natural-language understanding</strong><span>An LLM parses the free-text brief into structured criteria; explicit form fields always override the AI.</span></li>
-      <li><strong>Query construction</strong><span>Boolean "X-ray" strings per platform with synonym expansion, exclusions, and a job-post noise filter.</span></li>
-      <li><strong>Multi-source search</strong><span>Paginated search via Serper across selected platforms and the open web; results merged and de-duplicated.</span></li>
-      <li><strong>AI ranking</strong><span>Every result scored 0–10 against the criteria, with a hard experience-minimum and rules to reject non-person pages.</span></li>
-      <li><strong>Enrichment</strong><span>Top candidates enriched with verified work email/title/company (Apollo) and public GitHub data.</span></li>
-      <li><strong>Resume discovery</strong><span>A targeted secondary search finds a downloadable CV — verified against the candidate's name before it's trusted.</span></li>
-      <li><strong>Confidence scoring</strong><span>Each candidate gets a High/Medium/Low label with reasons, so recruiters know which rows to trust.</span></li>
-      <li><strong>CRM write</strong><span>Deduped candidates upserted into a Google Sheets tracker (25+ fields), plus per-candidate cards to Slack.</span></li>
-      <li><strong>Approved outreach</strong><span>Recruiter ticks "Send Email?"; a scheduler sends personalized outreach and auto-flags replies.</span></li>
-      <li><strong>Governance</strong><span>Monthly API-credit budget tracking with auto-reset and an 80% near-cap alert.</span></li>
-    </ol>
-  </section>
+<section id="how">
+<h3 class="sec">How it works — one pass</h3>
+<ol class="pipe">
+<li><strong>Intake</strong><span>Recruiter submits role, skills, location, seniority, exclusions, target platforms — or pastes/uploads a full JD.</span></li>
+<li><strong>Natural-language understanding</strong><span>An LLM parses the free-text brief into structured criteria; explicit form fields always override the AI.</span></li>
+<li><strong>Query construction</strong><span>Boolean "X-ray" strings per platform with synonym expansion, exclusions, and a job-post noise filter.</span></li>
+<li><strong>Multi-source search</strong><span>Paginated search via Serper across selected platforms and the open web; results merged and de-duplicated.</span></li>
+<li><strong>AI ranking</strong><span>Every result scored 0–10 against the criteria, with a hard experience-minimum and rules to reject non-person pages.</span></li>
+<li><strong>Enrichment</strong><span>Top candidates enriched with verified work email/title/company (Apollo) and public GitHub data.</span></li>
+<li><strong>Resume discovery</strong><span>A targeted secondary search finds a downloadable CV — verified against the candidate's name before it's trusted.</span></li>
+<li><strong>Confidence scoring</strong><span>Each candidate gets a High/Medium/Low label with reasons, so recruiters know which rows to trust.</span></li>
+<li><strong>CRM write</strong><span>Deduped candidates upserted into a Google Sheets tracker (25+ fields), plus per-candidate cards to Slack.</span></li>
+<li><strong>Approved outreach</strong><span>Recruiter ticks "Send Email?"; a scheduler sends personalized outreach and auto-flags replies.</span></li>
+<li><strong>Governance</strong><span>Monthly API-credit budget tracking with auto-reset and an 80% near-cap alert.</span></li>
+</ol>
+</section>
 
-  <section id="features">
-    <h3 class="sec">Key features</h3>
-    <div class="grid feat">
-      <div class="card"><h4>Boolean X-ray automation</h4><p>Google/Bing X-ray queries built per platform to return people, not job ads.</p></div>
-      <div class="card"><h4>LLM ranking &amp; scoring</h4><p>Every match scored against the brief, with hard filters and non-person rejection.</p></div>
-      <div class="card"><h4>Data enrichment</h4><p>Verified email, title, company, and public profile data — credit-aware to save spend.</p></div>
-      <div class="card"><h4>Confidence &amp; review flow</h4><p>Transparent High/Med/Low labels with reasons for a human-in-the-loop review.</p></div>
-      <div class="card"><h4>Export &amp; ATS-ready</h4><p>Deduped rows written to a tracker with 25+ fields; export to CSV/ATS.</p></div>
-      <div class="card"><h4>Approved outreach</h4><p>Personalized emails sent only on recruiter approval, with reply auto-flagging.</p></div>
-    </div>
-    <p class="note">Emphasis on <strong>data quality, judgment, and respecting the limits of automation</strong> — a working proof that recruiters can build, not just operate an ATS.</p>
-  </section>
+<section id="features">
+<h3 class="sec">Key features</h3>
+<div class="grid feat">
+<div class="card"><h4>Boolean X-ray automation</h4><p>Google/Bing X-ray queries built per platform to return people, not job ads.</p></div>
+<div class="card"><h4>LLM ranking &amp; scoring</h4><p>Every match scored against the brief, with hard filters and non-person rejection.</p></div>
+<div class="card"><h4>Data enrichment</h4><p>Verified email, title, company, and public profile data — credit-aware to save spend.</p></div>
+<div class="card"><h4>Confidence &amp; review flow</h4><p>Transparent High/Med/Low labels with reasons for a human-in-the-loop review.</p></div>
+<div class="card"><h4>Export &amp; ATS-ready</h4><p>Deduped rows written to a tracker with 25+ fields; export to CSV/ATS.</p></div>
+<div class="card"><h4>Approved outreach</h4><p>Personalized emails sent only on recruiter approval, with reply auto-flagging.</p></div>
+</div>
+<p class="note">Emphasis on <strong>data quality, judgment, and respecting the limits of automation</strong> — a working proof that recruiters can build, not just operate an ATS.</p>
+</section>
 
-  <section id="resources">
-    <h3 class="sec">Resources</h3>
-    <div class="res">
-      <a href="https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing" target="_blank" rel="noopener"><strong>▶ 3-minute demo video</strong><small>See a brief become a ranked, verified shortlist.</small></a>
-      <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener"><strong>⬇ Importable n8n template</strong><small>Drop the JSON into your own n8n instance.</small></a>
-      <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener"><strong>★ Source on GitHub</strong><small>README, license, and full project files.</small></a>
-      <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener"><strong>in Connect on LinkedIn</strong><small>Shravan Kumar Shesham.</small></a>
-    </div>
-  </section>
+<section id="resources">
+<h3 class="sec">Resources</h3>
+<div class="res">
+<a href="https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing" target="_blank" rel="noopener"><strong>▶ 3-minute demo video</strong><small>See a brief become a ranked, verified shortlist.</small></a>
+<a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener"><strong>⬇ Importable n8n template</strong><small>Drop the JSON into your own n8n instance.</small></a>
+<a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener"><strong>★ Source on GitHub</strong><small>README, license, and full project files.</small></a>
+<a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener"><strong>in Connect on LinkedIn</strong><small>Shravan Kumar Shesham.</small></a>
+</div>
+</section>
 
-  <section id="start">
-    <h3 class="sec">Try it locally</h3>
-    <pre>git clone https://github.com/shravangithub/ai-recruiting-sourcing-pipeline.git
+<section id="start">
+<h3 class="sec">Try it locally</h3>
+<pre>git clone https://github.com/shravangithub/ai-recruiting-sourcing-pipeline.git
 
 # then import the template into n8n:
-#   ai-recruiting-pipeline.template.json  →  n8n → Import from File</pre>
-    <p class="note">Requires an <a href="https://docs.n8n.io/getting-started/installation/" target="_blank" rel="noopener">n8n instance</a> and credentials for your LLM, search (Serper), and enrichment (Apollo) providers.</p>
-  </section>
+# ai-recruiting-pipeline.template.json → n8n → Import from File</pre>
+<p class="note">Requires an <a href="https://docs.n8n.io/getting-started/installation/" target="_blank" rel="noopener">n8n instance</a> and credentials for your LLM, search (Serper), and enrichment (Apollo) providers.</p>
+</section>
 
-  <footer>
-    <span>© 2026 Shravan Kumar Shesham · MIT License</span>
-    <span><a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a> · <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a></span>
-  </footer>
+<footer>
+<span>© 2026 Shravan Kumar Shesham · MIT License</span>
+<span><a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a> · <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a></span>
+</footer>
 
 </div>
 </body>
