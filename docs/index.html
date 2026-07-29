@@ -13,16 +13,16 @@
 <meta property="og:url" content="https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/" />
 <style>
 :root{
---bg:#0a0a0b; --bg2:#141013; --card:rgba(255,255,255,.035); --card-brd:rgba(255,255,255,.08);
---accent:#a8323c; --accent2:#c6414c; --text:#f3eced; --muted:#b9a7aa;
---ok:#22c55e; --warn:#f59e0b; --chip:rgba(168,50,60,.12);
+--bg:#070f22; --bg2:#0b1630; --card:rgba(255,255,255,.035); --card-brd:rgba(255,255,255,.08);
+--accent:#60a5fa; --accent2:#38bdf8; --text:#e8effc; --muted:#9fb3d6;
+--ok:#22c55e; --warn:#f59e0b; --chip:rgba(96,165,250,.12);
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{
 font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-background:radial-gradient(1200px 700px at 80% -10%, #3a1218 0%, transparent 55%),
-radial-gradient(1000px 600px at -10% 10%, #240a0e 0%, transparent 50%),
+background:radial-gradient(1200px 700px at 80% -10%, #10285a 0%, transparent 55%),
+radial-gradient(1000px 600px at -10% 10%, #0c2145 0%, transparent 50%),
 linear-gradient(180deg,var(--bg) 0%, var(--bg2) 100%);
 color:var(--text); margin:0; line-height:1.55; -webkit-font-smoothing:antialiased;
 }
@@ -31,20 +31,20 @@ a{color:var(--accent)}
 /* header */
 header.top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:28px}
 .brand{display:flex; align-items:center; gap:12px}
-.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#f3eced;font-size:18px}
+.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#04122b;font-size:18px}
 .brand h2{margin:0;font-size:15px;letter-spacing:.2px}
 .brand span{display:block;color:var(--muted);font-size:12px;font-weight:400}
 nav a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:16px}
 nav a:hover{color:var(--text)}
 /* hero */
 .hero{padding:14px 0 8px}
-.pill{display:inline-block;background:var(--chip);color:var(--accent);border:1px solid rgba(168,50,60,.25);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.3px}
+.pill{display:inline-block;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.25);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.3px}
 h1{font-size:clamp(28px,5vw,46px);line-height:1.1;margin:16px 0 10px;letter-spacing:-.5px}
 h1 .grad{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
 p.lead{color:var(--muted);font-size:clamp(15px,2.2vw,18px);max-width:720px;margin:0 0 22px}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 10px}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#f3eced}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04122b}
 .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--card-brd)}
 .btn:hover{transform:translateY(-1px)}
 .btn{transition:transform .12s ease}
@@ -60,7 +60,7 @@ h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--
 /* pipeline */
 ol.pipe{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 ol.pipe li{counter-increment:step;background:var(--card);border:1px solid var(--card-brd);border-radius:12px;padding:16px 16px 16px 56px;position:relative}
-ol.pipe li::before{content:counter(step);position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:9px;background:var(--chip);color:var(--accent);border:1px solid rgba(168,50,60,.3);display:grid;place-items:center;font-weight:800;font-size:14px}
+ol.pipe li::before{content:counter(step);position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:9px;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.3);display:grid;place-items:center;font-weight:800;font-size:14px}
 ol.pipe strong{display:block;font-size:14px;margin-bottom:3px}
 ol.pipe span{color:var(--muted);font-size:13px}
 /* stats */
@@ -74,8 +74,8 @@ ol.pipe span{color:var(--muted);font-size:13px}
 .res a:hover{border-color:var(--accent)}
 .res a strong{display:block;font-size:14px;margin-bottom:4px}
 .res a small{color:var(--muted)}
-code{background:#17090b;padding:2px 7px;border-radius:6px;color:#f0b8bc;font-size:13px}
-pre{background:#17090b;border:1px solid var(--card-brd);padding:14px;border-radius:10px;overflow:auto;color:#f0b8bc;font-size:13px}
+code{background:#071827;padding:2px 7px;border-radius:6px;color:#9be2ff;font-size:13px}
+pre{background:#071827;border:1px solid var(--card-brd);padding:14px;border-radius:10px;overflow:auto;color:#9be2ff;font-size:13px}
 .note{color:var(--muted);font-size:12.5px;margin-top:10px}
 footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--card-brd);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
 footer a{color:var(--accent);text-decoration:none}
