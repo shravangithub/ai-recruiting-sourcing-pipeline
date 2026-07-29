@@ -1,174 +1,188 @@
-<!-- rebuild: triggered by Copilot to force Pages redeploy on 2026-07-29T06:40:00Z -->
 <!doctype html>
-
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Docs / GitHub Pages troubleshooting — AI Recruiting Sourcing Pipeline</title>
-  <style>
-    :root{
-      --bg:#0b1220; --card:#0f172a; --accent:#60a5fa; --muted:#9fb3d6; --text:#e6eefc;
-      --ok:#16a34a; --warn:#f59e0b; --err:#ef4444;
-    }
-    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#041024 0%,#07122a 100%);color:var(--text);margin:0;padding:28px}
-    .wrap{max-width:980px;margin:0 auto}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-    h1{font-size:20px;margin:0}
-    p.lead{color:var(--muted);margin:6px 0 18px}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);margin-bottom:12px}
-    code{background:#071827;padding:2px 6px;border-radius:6px;color:#9be2ff;font-size:13px}
-    a.button{display:inline-block;padding:8px 12px;border-radius:8px;background:var(--accent);color:#042029;text-decoration:none;font-weight:600;margin-right:8px}
-    a.link{color:var(--accent)}
-    ul.checks{margin:0;padding-left:20px}
-    .status{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700}
-    .ok{background:rgba(22,163,74,0.12);color:var(--ok);border:1px solid rgba(22,163,74,0.12)}
-    .warn{background:rgba(245,158,11,0.08);color:var(--warn);border:1px solid rgba(245,158,11,0.08)}
-    .err{background:rgba(239,68,68,0.08);color:var(--err);border:1px solid rgba(239,68,68,0.08)}
-    pre.cmd{background:#071827;padding:10px;border-radius:8px;overflow:auto;color:#9be2ff}
-    footer{margin-top:18px;color:var(--muted);font-size:13px}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Recruiting Sourcing Pipeline — Shravan Kumar Shesham</title>
+<meta name="description" content="An evidence-based, AI-powered candidate sourcing and outreach system built on n8n. Turns a plain-English hiring brief into a ranked, verified, confidence-scored shortlist of real candidates." />
+<meta name="color-scheme" content="dark" />
+<!-- Open Graph -->
+<meta property="og:title" content="AI Recruiting Sourcing Pipeline" />
+<meta property="og:description" content="Turn a hiring brief into a ranked, enriched, confidence-scored shortlist — with recruiter-approved outreach, built on n8n." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/" />
+<style>
+  :root{
+    --bg:#070f22; --bg2:#0b1630; --card:rgba(255,255,255,.035); --card-brd:rgba(255,255,255,.08);
+    --accent:#60a5fa; --accent2:#38bdf8; --text:#e8effc; --muted:#9fb3d6;
+    --ok:#22c55e; --warn:#f59e0b; --chip:rgba(96,165,250,.12);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    background:radial-gradient(1200px 700px at 80% -10%, #10285a 0%, transparent 55%),
+               radial-gradient(1000px 600px at -10% 10%, #0c2145 0%, transparent 50%),
+               linear-gradient(180deg,var(--bg) 0%, var(--bg2) 100%);
+    color:var(--text); margin:0; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:28px 22px 64px}
+  a{color:var(--accent)}
+  /* header */
+  header.top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:28px}
+  .brand{display:flex; align-items:center; gap:12px}
+  .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#04122b;font-size:18px}
+  .brand h2{margin:0;font-size:15px;letter-spacing:.2px}
+  .brand span{display:block;color:var(--muted);font-size:12px;font-weight:400}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:16px}
+  nav a:hover{color:var(--text)}
+  /* hero */
+  .hero{padding:14px 0 8px}
+  .pill{display:inline-block;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.25);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.3px}
+  h1{font-size:clamp(28px,5vw,46px);line-height:1.1;margin:16px 0 10px;letter-spacing:-.5px}
+  h1 .grad{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  p.lead{color:var(--muted);font-size:clamp(15px,2.2vw,18px);max-width:720px;margin:0 0 22px}
+  .cta{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 10px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04122b}
+  .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--card-brd)}
+  .btn:hover{transform:translateY(-1px)}
+  .btn{transition:transform .12s ease}
+  .byline{color:var(--muted);font-size:13px;margin-top:18px}
+  /* sections */
+  section{margin-top:44px}
+  h3.sec{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin:0 0 16px}
+  .grid{display:grid;gap:14px}
+  .feat{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .card{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;color:var(--muted);font-size:13.5px}
+  /* pipeline */
+  ol.pipe{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  ol.pipe li{counter-increment:step;background:var(--card);border:1px solid var(--card-brd);border-radius:12px;padding:16px 16px 16px 56px;position:relative}
+  ol.pipe li::before{content:counter(step);position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:9px;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.3);display:grid;place-items:center;font-weight:800;font-size:14px}
+  ol.pipe strong{display:block;font-size:14px;margin-bottom:3px}
+  ol.pipe span{color:var(--muted);font-size:13px}
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .stat{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px;text-align:center}
+  .stat b{display:block;font-size:26px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat span{color:var(--muted);font-size:12.5px}
+  /* resources */
+  .res{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .res a{display:block;text-decoration:none;background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:16px;color:var(--text);transition:border-color .15s}
+  .res a:hover{border-color:var(--accent)}
+  .res a strong{display:block;font-size:14px;margin-bottom:4px}
+  .res a small{color:var(--muted)}
+  code{background:#071827;padding:2px 7px;border-radius:6px;color:#9be2ff;font-size:13px}
+  pre{background:#071827;border:1px solid var(--card-brd);padding:14px;border-radius:10px;overflow:auto;color:#9be2ff;font-size:13px}
+  .note{color:var(--muted);font-size:12.5px;margin-top:10px}
+  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--card-brd);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+  footer a{color:var(--accent);text-decoration:none}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo">AI</div>
       <div>
-        <h1>GitHub Pages — Quick debug & index placeholder</h1>
-        <p class="lead">If your Pages site shows a 404 or the wrong content, drop this file at <code>docs/index.html</code> and follow the checks below.</p>
+        <h2>AI Recruiting Sourcing Pipeline</h2>
+        <span>by Shravan Kumar Shesham</span>
       </div>
-      <div style="text-align:right">
-        <div id="hostInfo" class="card" style="min-width:220px;text-align:left"></div>
-      </div>
-    </header>
-
-    <div class="card">
-      <strong>Quick links (open in a new tab)</strong>
-      <p style="margin:8px 0 0;">
-        <a class="button" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/tree/main/docs" target="_blank" rel="noopener">Repo → docs/ (view files)</a>
-        <a class="button" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/settings/pages" target="_blank" rel="noopener" style="background:#94a3b8;color:#021224">Pages Settings</a>
-      </p>
-      <p style="margin:10px 0 0;color:var(--muted)">Pages site URL (default): <a class="link" href="https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/" target="_blank" rel="noopener">https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/</a></p>
     </div>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#resources">Resources</a>
+      <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
 
-    <div class="card">
-      <h3>Automatic checks</h3>
-      <p style="margin:6px 0;color:var(--muted)">This page runs a few simple client-side checks to help you find the problem quickly.</p>
-      <ul class="checks" id="checkList">
-        <li>Is this page served from a GitHub Pages domain? <span id="ghHost" class="status"></span></li>
-        <li>Does <code>docs/index.html</code> exist in the repo (raw-check)? <span id="rawExists" class="status"></span></li>
-        <li>Is the Pages build configured to <code>main:/docs</code>? See Pages settings. <span id="pagesInfo" class="status"></span></li>
-      </ul>
-      <p style="margin-top:10px;color:var(--muted)">Note: the raw file existence check uses <code>raw.githubusercontent.com</code>. If you used a different branch or path, update the commands below.</p>
+  <section class="hero">
+    <span class="pill">Built on n8n · Evidence-based sourcing</span>
+    <h1>From a hiring brief to a <span class="grad">ranked, verified shortlist</span> — automatically.</h1>
+    <p class="lead">
+      An AI-powered candidate sourcing and outreach system that turns a plain-English brief
+      (or an uploaded job description) into a ranked, enriched, confidence-scored shortlist of
+      <em>real</em> candidates — and manages recruiter-approved outreach end to end.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing" target="_blank" rel="noopener">▶ Watch the 3-min demo</a>
+      <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">⬇ Get the n8n template</a>
+      <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">★ View on GitHub</a>
     </div>
+    <p class="byline">
+      Designed, debugged, and hardened by <strong>Shravan Kumar Shesham</strong> · 2026 ·
+      <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a> ·
+      MIT Licensed
+    </p>
+  </section>
 
-    <div class="card">
-      <h3>If you see 404 or wrong page — step-by-step fixes</h3>
-      <ol>
-        <li>Confirm the file exists: open <code>https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/tree/main/docs</code> and verify an <code>index.html</code> file is present.</li>
-        <li>If missing, add this file to <code>docs/index.html</code> (use the green "Add file" button or push via git).</li>
-        <li>Confirm Pages source matches where the file lives: Settings → Pages → Branch = <code>main</code>, Folder = <code>/docs</code>. Click <strong>Save</strong> if you changed it.</li>
-        <li>Wait ~30–90 seconds and refresh the Pages URL. Builds can take a short moment.</li>
-        <li>If it still fails, view the Pages build log in Settings → Pages (a banner appears when a build fails), or open Actions for Pages build details.</li>
-        <li>If you lack admin access or Save is disabled, ensure you're signed in as the repo owner (shravangithub) or request admin rights.</li>
-      </ol>
+  <section>
+    <div class="stats">
+      <div class="stat"><b>11</b><span>automated stages, brief → outreach</span></div>
+      <div class="stat"><b>0–10</b><span>AI relevance score per candidate</span></div>
+      <div class="stat"><b>25+</b><span>fields written to the CRM tracker</span></div>
+      <div class="stat"><b>3</b><span>confidence tiers: High / Med / Low</span></div>
     </div>
+  </section>
 
-    <div class="card">
-      <h3>Commands you can run locally (copy & paste)</h3>
-      <p style="margin:6px 0;color:var(--muted)">Quick raw-file check — returns HTTP headers for the raw file:</p>
-      <pre class="cmd">curl -I https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/docs/index.html</pre>
+  <section id="how">
+    <h3 class="sec">How it works — one pass</h3>
+    <ol class="pipe">
+      <li><strong>Intake</strong><span>Recruiter submits role, skills, location, seniority, exclusions, target platforms — or pastes/uploads a full JD.</span></li>
+      <li><strong>Natural-language understanding</strong><span>An LLM parses the free-text brief into structured criteria; explicit form fields always override the AI.</span></li>
+      <li><strong>Query construction</strong><span>Boolean "X-ray" strings per platform with synonym expansion, exclusions, and a job-post noise filter.</span></li>
+      <li><strong>Multi-source search</strong><span>Paginated search via Serper across selected platforms and the open web; results merged and de-duplicated.</span></li>
+      <li><strong>AI ranking</strong><span>Every result scored 0–10 against the criteria, with a hard experience-minimum and rules to reject non-person pages.</span></li>
+      <li><strong>Enrichment</strong><span>Top candidates enriched with verified work email/title/company (Apollo) and public GitHub data.</span></li>
+      <li><strong>Resume discovery</strong><span>A targeted secondary search finds a downloadable CV — verified against the candidate's name before it's trusted.</span></li>
+      <li><strong>Confidence scoring</strong><span>Each candidate gets a High/Medium/Low label with reasons, so recruiters know which rows to trust.</span></li>
+      <li><strong>CRM write</strong><span>Deduped candidates upserted into a Google Sheets tracker (25+ fields), plus per-candidate cards to Slack.</span></li>
+      <li><strong>Approved outreach</strong><span>Recruiter ticks "Send Email?"; a scheduler sends personalized outreach and auto-flags replies.</span></li>
+      <li><strong>Governance</strong><span>Monthly API-credit budget tracking with auto-reset and an 80% near-cap alert.</span></li>
+    </ol>
+  </section>
 
-      <p style="margin:10px 0;color:var(--muted)">Check Pages configuration via GitHub API (public info):</p>
-      <pre class="cmd">curl -H "Accept: application/vnd.github+json" https://api.github.com/repos/shravangithub/ai-recruiting-sourcing-pipeline/pages</pre>
-
-      <p style="margin:10px 0;color:var(--muted)">If you want to set Pages source via API (requires a token with repo scope):</p>
-      <pre class="cmd">export GITHUB_TOKEN=ghp_xxx
-curl -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/shravangithub/ai-recruiting-sourcing-pipeline/pages \
-  -d '{"source":{"branch":"main","path":"/docs"}}'</pre>
+  <section id="features">
+    <h3 class="sec">Key features</h3>
+    <div class="grid feat">
+      <div class="card"><h4>Boolean X-ray automation</h4><p>Google/Bing X-ray queries built per platform to return people, not job ads.</p></div>
+      <div class="card"><h4>LLM ranking &amp; scoring</h4><p>Every match scored against the brief, with hard filters and non-person rejection.</p></div>
+      <div class="card"><h4>Data enrichment</h4><p>Verified email, title, company, and public profile data — credit-aware to save spend.</p></div>
+      <div class="card"><h4>Confidence &amp; review flow</h4><p>Transparent High/Med/Low labels with reasons for a human-in-the-loop review.</p></div>
+      <div class="card"><h4>Export &amp; ATS-ready</h4><p>Deduped rows written to a tracker with 25+ fields; export to CSV/ATS.</p></div>
+      <div class="card"><h4>Approved outreach</h4><p>Personalized emails sent only on recruiter approval, with reply auto-flagging.</p></div>
     </div>
+    <p class="note">Emphasis on <strong>data quality, judgment, and respecting the limits of automation</strong> — a working proof that recruiters can build, not just operate an ATS.</p>
+  </section>
 
-    <div class="card">
-      <h3>Common root causes</h3>
-      <ul>
-        <li><strong>No index file</strong> at the published path (e.g., docs/index.html missing).</li>
-        <li><strong>Wrong branch/folder</strong> selected in Pages settings (e.g., publishing from root while files are in docs/).</li>
-        <li><strong>Build error</strong> (Pages attempted to build and failed — check build logs in Settings → Pages or Actions).</li>
-        <li><strong>Permissions</strong> — you're not an admin so Save is disabled.</li>
-        <li><strong>Timing</strong> — just created files or changed settings; wait 30–90s for propagation.</li>
-      </ul>
+  <section id="resources">
+    <h3 class="sec">Resources</h3>
+    <div class="res">
+      <a href="https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing" target="_blank" rel="noopener"><strong>▶ 3-minute demo video</strong><small>See a brief become a ranked, verified shortlist.</small></a>
+      <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener"><strong>⬇ Importable n8n template</strong><small>Drop the JSON into your own n8n instance.</small></a>
+      <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener"><strong>★ Source on GitHub</strong><small>README, license, and full project files.</small></a>
+      <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener"><strong>in Connect on LinkedIn</strong><small>Shravan Kumar Shesham.</small></a>
     </div>
+  </section>
 
-    <footer>
-      <p>If you'd like, I can add a better demo page (clock or pipeline walkthrough) into <code>docs/</code> for you — reply with “commit demo” and I will add it directly to main.</p>
-      <p style="margin-top:6px;color:var(--muted)">This index is a placeholder intended to help you confirm Pages is configured correctly. Replace it with your real docs when ready.</p>
-    </footer>
-  </div>
+  <section id="start">
+    <h3 class="sec">Try it locally</h3>
+    <pre>git clone https://github.com/shravangithub/ai-recruiting-sourcing-pipeline.git
 
-  <script>
-    // Fill host info and run simple raw file existence check
-    const hostDiv = document.getElementById('hostInfo');
-    const ghHostSpan = document.getElementById('ghHost');
-    const rawExistsSpan = document.getElementById('rawExists');
-    const pagesInfoSpan = document.getElementById('pagesInfo');
+# then import the template into n8n:
+#   ai-recruiting-pipeline.template.json  →  n8n → Import from File</pre>
+    <p class="note">Requires an <a href="https://docs.n8n.io/getting-started/installation/" target="_blank" rel="noopener">n8n instance</a> and credentials for your LLM, search (Serper), and enrichment (Apollo) providers.</p>
+  </section>
 
-    const repoRaw = 'https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/docs/index.html';
-    const pagesApi = 'https://api.github.com/repos/shravangithub/ai-recruiting-sourcing-pipeline/pages';
-    const pagesSite = 'https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/';
+  <footer>
+    <span>© 2026 Shravan Kumar Shesham · MIT License</span>
+    <span><a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a> · <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a></span>
+  </footer>
 
-    // Host info
-    const host = window.location.host;
-    const href = window.location.href;
-    hostDiv.innerHTML = '<div style="font-size:13px;color:var(--muted)">Visited URL</div><div style="margin-top:6px"><strong style="font-size:14px">' + href + '</strong></div>';
-
-    // Indicate if loaded from github.io
-    if (host.includes('github.io')) {
-      ghHostSpan.textContent = 'Yes (github.io)';
-      ghHostSpan.className = 'status ok';
-    } else {
-      ghHostSpan.textContent = 'No (local or raw view)';
-      ghHostSpan.className = 'status warn';
-    }
-
-    // Try to HEAD the raw file to check if it exists (CORS friendly for HEAD)
-    fetch(repoRaw, {method:'HEAD'}).then(r => {
-      if (r.ok) {
-        rawExistsSpan.textContent = 'Found';
-        rawExistsSpan.className = 'status ok';
-      } else if (r.status === 404) {
-        rawExistsSpan.textContent = 'Not found (404)';
-        rawExistsSpan.className = 'status err';
-      } else {
-        rawExistsSpan.textContent = 'HTTP ' + r.status;
-        rawExistsSpan.className = 'status warn';
-      }
-    }).catch(err => {
-      rawExistsSpan.textContent = 'Check failed (network/CORS)';
-      rawExistsSpan.className = 'status warn';
-    });
-
-    // Try to fetch public Pages API info (no token required for public repos)
-    fetch(pagesApi, {headers:{'Accept':'application/vnd.github+json'}}).then(r => {
-      if (r.ok) {
-        return r.json().then(json => {
-          const src = (json && json.source && json.source.branch) ? json.source.branch + ':' + json.source.path : '';
-          pagesInfoSpan.textContent = src || 'Configured';
-          pagesInfoSpan.className = 'status ok';
-        });
-      } else if (r.status === 404) {
-        pagesInfoSpan.textContent = 'No Pages configured';
-        pagesInfoSpan.className = 'status warn';
-      } else if (r.status === 403) {
-        pagesInfoSpan.textContent = 'API rate-limited or access blocked';
-        pagesInfoSpan.className = 'status warn';
-      } else {
-        pagesInfoSpan.textContent = 'HTTP ' + r.status;
-        pagesInfoSpan.className = 'status warn';
-      }
-    }).catch(() => {
-      pagesInfoSpan.textContent = 'API check failed';
-      pagesInfoSpan.className = 'status warn';
-    });
-  </script>
+</div>
 </body>
 </html>
