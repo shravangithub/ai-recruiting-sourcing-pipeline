@@ -1,4 +1,4 @@
-[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![stars](https://img.shields.io/github/stars/shravangithub/ai-recruiting-sourcing-pipeline?style=social)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/stargazers) [![demo](https://img.shields.io/badge/demo-live-blue)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/tree/main/docs) [![built on n8n](https://img.shields.io/badge/built%20on-n8n-orange)](https://n8n.io)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![stars](https://img.shields.io/github/stars/shravangithub/ai-recruiting-sourcing-pipeline?style=social)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/stargazers) [![demo](https://img.shields.io/badge/demo-live-blue)](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/) [![built on n8n](https://img.shields.io/badge/built%20on-n8n-orange)](https://n8n.io)
 
 # AI Recruiting Sourcing Pipeline
 
@@ -22,9 +22,9 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 
 ## Quick links
 
-- Demo / docs: `docs/index.html` (can be published via GitHub Pages or deployed to Vercel/Netlify)
+- Live demo / docs: **[shravangithub.github.io/ai-recruiting-sourcing-pipeline](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/)** (source in `docs/index.html`)
 - Importable n8n template: `ai-recruiting-pipeline.template.json`
-- Release notes: `RELEASES/v1.0.md`
+- Release notes: [`RELEASES/v1.0.md`](RELEASES/v1.0.md)
 
 ---
 
@@ -80,7 +80,7 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 
 1. Clone the repo
 2. Open `docs/index.html` for a self-contained demo of flow and output
-3. Import the n8n flows into your n8n instance (see Install & usage below)
+3. Import the n8n workflow into your n8n instance (see Install & usage below)
 
 ## Quick start (1–2 commands)
 
@@ -94,15 +94,15 @@ xdg-open ai-recruiting-sourcing-pipeline/docs/index.html || open ai-recruiting-s
 ## Install & usage
 
 1. Install n8n: https://docs.n8n.io/getting-started/installation/
-2. Start n8n and import the flows found in the `flows/` directory (or the exported JSON in `flows/export.json` if present).
+2. Start n8n and import the workflow from `ai-recruiting-pipeline.template.json` (n8n → **Import from File**).
 3. Configure credentials (Google/Bing, LLM API key, enrichment API keys) in n8n credentials.
 4. Run the pipeline and review ranked candidates in the final approval node.
 
 ## Demo & assets
 
-- `docs/index.html` — static demo page (placeholder) showing a mocked run and outputs.
-- `assets/demo-placeholder.svg` — placeholder demo GIF/graphic (replace with final GIF)
-- `assets/social-preview.svg` — placeholder social preview image (upload to repo Settings → Social preview)
+- `docs/index.html` — static demo/landing page (also published via GitHub Pages).
+- `assets/social-preview.svg` — social preview image (upload to repo Settings → Social preview).
+- `assets/demo-placeholder.svg` — placeholder demo graphic (replace with a final GIF when ready).
 
 ## Troubleshooting / FAQ
 
@@ -114,8 +114,8 @@ A: Use pagination in the search steps, batch enrichment requests, and consider a
 
 ## Contributing
 
-Contributions welcome — see CONTRIBUTING.md for guidelines.
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the MIT License — see LICENSE.
+This project is licensed under the MIT License — see [LICENSE](./LICENSE).
