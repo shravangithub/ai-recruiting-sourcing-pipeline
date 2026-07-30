@@ -87,6 +87,11 @@ pre{background:#071827;border:1px solid var(--card-brd);padding:14px;border-radi
 .note{color:var(--muted);font-size:12.5px;margin-top:10px}
 footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--card-brd);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
 footer a{color:var(--accent);text-decoration:none}
+/* demo + responsible use */
+.demo{display:block;width:100%;border:1px solid var(--card-brd);border-radius:14px;margin:22px 0 6px}
+.rlist{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.rlist li{background:var(--card);border:1px solid var(--card-brd);border-radius:12px;padding:14px 16px;font-size:13.5px;color:var(--muted);line-height:1.5}
+.rlist li b{color:var(--text);font-weight:600}
 </style>
 </head>
 <body>
@@ -104,6 +109,7 @@ footer a{color:var(--accent);text-decoration:none}
 <a href="#how">How it works</a>
 <a href="#features">Features</a>
 <a href="#resources">Resources</a>
+<a href="#responsible">Responsible use</a>
 <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a>
 </nav>
 </header>
@@ -121,6 +127,7 @@ An AI-powered candidate sourcing and outreach system that turns a plain-English 
 <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">⬇ Get the n8n template</a>
 <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">★ View on GitHub</a>
 </div>
+<img class="demo" src="https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/assets/demo.gif" alt="Animated demo: a hiring brief becoming a ranked, confidence-scored shortlist" loading="lazy" />
 <p class="byline">
 Designed, debugged, and hardened by <strong>Shravan Kumar Shesham</strong> · 2026 ·
 <a href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">LinkedIn</a> ·
@@ -184,6 +191,18 @@ MIT Licensed
 # then import the template into n8n:
 # ai-recruiting-pipeline.template.json → n8n → Import from File</pre>
 <p class="note">Requires an <a href="https://docs.n8n.io/getting-started/installation/" target="_blank" rel="noopener">n8n instance</a> and credentials for your LLM, search (Serper), and enrichment (Apollo) providers.</p>
+</section>
+
+<section id="responsible">
+<h3 class="sec">Responsible use &amp; data privacy</h3>
+<p class="note" style="margin:0 0 16px;font-size:13.5px">This pipeline handles personal data about real candidates, so it is built to keep a human in control and to minimize what it collects and retains.</p>
+<ul class="rlist">
+<li><b>Recruiter-in-the-loop by design.</b> The system ranks and enriches, but never contacts anyone on its own — outreach only sends after a recruiter explicitly ticks "Send Email?" on a row. AI scores are decision support, not decisions.</li>
+<li><b>Credentials stay in n8n.</b> API keys and tokens live in n8n's credential store, never in the repo or the exported template (which ships with <code>YOUR_*</code> placeholders).</li>
+<li><b>Data minimization.</b> Only publicly available professional data is used; enrichment is credit-aware and skipped where it isn't needed; and confidence labels let recruiters set aside low-trust rows rather than act on them.</li>
+<li><b>Bias &amp; fairness.</b> Boolean and AI matching can inherit bias from queries and sources. Keep criteria job-related, review the shortlist yourself, and treat scores as one signal among many — this widens and speeds sourcing, it does not auto-reject people.</li>
+<li><b>Compliance is your responsibility.</b> Depending on jurisdiction, sourcing and outreach may fall under GDPR, CCPA, or local employment law — lawful basis, data-subject requests, retention limits, and outreach consent. Configure retention, opt-outs, and record-keeping to fit your obligations.</li>
+</ul>
 </section>
 
 <footer>
