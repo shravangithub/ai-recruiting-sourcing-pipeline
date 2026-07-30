@@ -8,6 +8,8 @@
 
 ▶ **[Watch the 3-minute demo](https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing)** — see the pipeline turn a brief into a ranked, verified shortlist.
 
+![Pipeline demo — a hiring brief becoming a ranked, confidence-scored shortlist](assets/demo.gif)
+
 An evidence-based, AI-powered candidate sourcing and outreach system built on [n8n](https://n8n.io).
 
 It turns a plain-English hiring brief (or an uploaded job description) into a ranked, enriched,
@@ -32,6 +34,7 @@ confidence-scored shortlist of real candidates — and manages recruiter-approve
 
 - [Pipeline architecture](#pipeline-architecture)
 - [Key features](#key-features)
+- [Responsible use & data privacy](#responsible-use--data-privacy)
 - [Getting started (3–5 minutes)](#getting-started-3-5-minutes)
 - [Quick start (1–2 commands)](#quick-start-1-2-commands)
 - [Install & usage](#install--usage)
@@ -105,6 +108,26 @@ flowchart TD
 - Confidence scoring and recruiter review flow
 - Export to CSV/ATS and optional outreach automation
 
+## Responsible use & data privacy
+
+This pipeline handles personal data about real candidates, so it is built to keep a human in
+control and to minimize what it collects and retains.
+
+- **Recruiter-in-the-loop by design.** The system ranks and enriches, but never contacts anyone on
+  its own — outreach only sends after a recruiter explicitly ticks "Send Email?" on a row. AI scores
+  are decision *support*, not decisions.
+- **Credentials stay in n8n.** API keys and tokens live in n8n's credential store, never in this repo
+  or the exported template (which ships with `YOUR_*` placeholders). Don't commit real secrets.
+- **Data minimization.** Only publicly available professional data is used; enrichment is credit-aware
+  and skipped where it isn't needed; and the confidence labels exist so recruiters can set aside
+  low-trust rows rather than act on them.
+- **Bias & fairness.** Boolean and AI matching can inherit bias from queries and sources. Keep criteria
+  job-related, review the shortlist yourself, and treat scores as one signal among many — this tool is
+  meant to widen and speed sourcing, not to auto-reject people.
+- **Compliance is your responsibility.** Depending on jurisdiction, sourcing and outreach may fall under
+  GDPR, CCPA, or local employment law (lawful basis, data-subject requests, retention limits, outreach
+  consent). Configure retention, opt-outs, and record-keeping to fit your obligations.
+
 ## Getting started (3–5 minute walkthrough)
 
 1. Clone the repo
@@ -131,7 +154,8 @@ xdg-open ai-recruiting-sourcing-pipeline/docs/index.html || open ai-recruiting-s
 
 - `docs/index.html` — static demo/landing page (also published via GitHub Pages).
 - `assets/social-preview.svg` — social preview image (upload to repo Settings → Social preview).
-- `assets/demo-placeholder.svg` — placeholder demo graphic (replace with a final GIF when ready).
+- `assets/demo.gif` — animated demo of the pipeline producing a ranked, confidence-scored shortlist.
+- `assets/demo-placeholder.svg` — original static placeholder (superseded by `demo.gif`).
 
 ## Troubleshooting / FAQ
 
