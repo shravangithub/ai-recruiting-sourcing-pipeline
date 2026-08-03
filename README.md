@@ -16,7 +16,7 @@
 
 ![social preview](assets/social-preview.svg)
 
-▶ **[Watch the 3-minute demo](https://drive.google.com/file/d/1CyNN-onKTZ-8LBOsvo8TD3sbrm7-agEr/view?usp=sharing)** — see the pipeline turn a brief into a ranked, verified shortlist.
+▶ **[Watch the demo](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/#demo)** — see the pipeline turn a brief into a ranked, verified shortlist. ([direct MP4](https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/assets/demo.mp4))
 
 ![Pipeline demo — a hiring brief becoming a ranked, confidence-scored shortlist](assets/demo.gif)
 
