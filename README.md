@@ -162,6 +162,19 @@ xdg-open ai-recruiting-sourcing-pipeline/docs/index.html || open ai-recruiting-s
 3. Configure credentials (Google/Bing, LLM API key, enrichment API keys) in n8n credentials.
 4. Run the pipeline and review ranked candidates in the final approval node.
 
+## 💬 Live Demo (optional)
+
+This project includes **TalentRubric Scout**, a conversational sourcing chat
+(n8n Chat Trigger → AI criteria parsing → Serper X-ray search → AI ranking).
+
+The public demo is **off by default** so it doesn't consume the maintainer's
+API credits. To run it yourself:
+
+1. Import the workflow into your own n8n instance.
+2. Add your own **Serper** API key and OpenAI credential (or use n8n credits).
+3. **Publish** the workflow and open the Chat Trigger's chat URL
+   (`/webhook/<your-id>/chat`) — that's your live demo link.
+
 ## Demo & assets
 
 - `docs/index.html` — static demo/landing page (also published via GitHub Pages).
