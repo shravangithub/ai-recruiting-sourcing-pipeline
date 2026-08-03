@@ -155,7 +155,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $('Rank Top 10').item.json;\nconst resp = $json || {};\nconst p = resp.person || null;\n\nfunction s(v) { return (typeof v === 'string') ? v : ''; }\n\nlet email = '';\nlet email_status = '';\nlet location = '';\nlet current_company = '';\nlet verified_title = '';\nlet work_history = '';\nlet linkedin = cand.profile_url || '';\n\nif (p) {\n  const e = s(p.email);\n  if (e && e.toLowerCase().indexOf('not_unlocked') === -1 && e.toLowerCase().indexOf('domain.com') === -1) {\n    email = e;\n  }\n  email_status = s(p.email_status);\n  verified_title = s(p.title);\n  if (p.organization && p.organization.name) { current_company = s(p.organization.name); }\n  location = [s(p.city), s(p.state), s(p.country)].filter(Boolean).join(', ');\n  if (p.linkedin_url) { linkedin = s(p.linkedin_url); }\n  if (Array.isArray(p.employment_history)) {\n    work_history = p.employment_history.slice(0, 3).map(function(h) {\n      const t = s(h.title);\n      const o = s(h.organization_name);\n      let line = t;\n      if (o) line += ' @ ' + o;\n      return line;\n    }).filter(Boolean).join(' | ');\n  }\n}\n\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: cand.profile_url || '',\n  verified_gender: '',\n  current_company: current_company,\n  verified_title: verified_title,\n  location: location,\n  pdl_skills: '',\n  github_url: '',\n  email: email,\n  email_status: email_status,\n  phone: '',\n  work_history: work_history,\n  education: '',\n  verified_linkedin: linkedin,\n  enrichment_status: p ? 'enriched' : 'not found'\n} };"
+        "jsCode": "const cand = $('Rank Top 10').item.json;\nconst resp = $json || {};\nconst p = resp.person || null;\n\nfunction s(v) { return (typeof v === 'string') ? v : ''; }\n\nlet email = '';\nlet email_status = '';\nlet location = '';\nlet current_company = '';\nlet verified_title = '';\nlet work_history = '';\nlet linkedin = cand.profile_url || '';\n\nif (p) {\n  const e = s(p.email);\n  if (e && e.toLowerCase().indexOf('not_unlocked') === -1 && e.toLowerCase().indexOf('domain.com') === -1) {\n    email = e;\n  }\n  email_status = s(p.email_status);\n  verified_title = s(p.title);\n  if (p.organization && p.organization.name) { current_company = s(p.organization.name); }\n  location = [s(p.city), s(p.state), s(p.country)].filter(Boolean).join(', ');\n  if (p.linkedin_url) { linkedin = s(p.linkedin_url); }\n  if (Array.isArray(p.employment_history)) {\n    work_history = p.employment_history.slice(0, 3).map(function(h) {\n      const t = s(h.title);\n      const o = s(h.organization_name);\n      let line = t;\n      if (o) line += ' @ ' + o;\n      return line;\n    }).filter(Boolean).join(' | ');\n  }\n}\n\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: cand.profile_url || '',\n  verified_gender: '',\n  current_company: current_company,\n  verified_title: verified_title,\n  location: location,\n  pdl_skills: '',\n  github_url: '',\n  email: email,\n  email_status: email_status,\n  phone: '',\n  work_history: work_history,\n  education: '',\n  verified_linkedin: /linkedin\\.com/i.test(linkedin) ? linkedin : '',\n  enrichment_status: p ? 'enriched' : 'not found'\n} };"
       },
       "id": "c0dfdff4-a6d3-410d-b9f3-50279caa0def",
       "name": "Combine Enrichment",
@@ -196,7 +196,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $('Merge GitHub').item.json;\nconst resp = $json || {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // must reference the person's name somewhere to count strongly\n  const nameHit = tokens.length > 0 && tokens.some(function(t){ return blob.indexOf(t) !== -1; });\n  if (nameHit) score += 50;\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: nameHit };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// only accept a resume link if it clears a confidence threshold (name + a format/host or keyword signal)\nif (best && best.score >= 60) {\n  merged.resume_link = best.link;\n  merged.resume_status = best.score >= 90 ? 'likely (name + format match)' : 'possible (unverified)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };"
+        "jsCode": "const cand = $('Merge GitHub').item.json;\nconst resp = $json || {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\n\n// Hosts that are almost never a candidate's own CV: government / regulator\n// registries, courts, gazettes, news/classified PDFs, job boards, directories.\n// These are the recurring false positives for common names (e.g. ckycindia,\n// nodal-officer lists, Economic Times listings).\nconst BLOCK_HOST = /(ckycindia|\\.gov(\\.[a-z]{2})?\\b|\\.nic\\.in\\b|\\.gov\\.in\\b|courts?\\.|highcourt|gazette|sebi\\.gov|rbi\\.org|\\.mil\\b|economictimes|timesofindia|chronicleclub|thehindu|indianexpress|hindustantimes|scribd\\.com|slideshare|indeed\\.com|naukri\\.com|glassdoor|monster\\.com|shine\\.com|foundit|timesjobs|instahyre|cutshort|hirist|freshersworld|yumpu\\.com)/i;\n\n// A result snippet reads like a DIRECTORY / bulk list (many people) when it\n// contains several distinct emails or a long run of \"Name email  Name email\".\nfunction looksDirectory(blob) {\n  const emails = blob.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/gi) || [];\n  const uniq = {}; for (const e of emails) uniq[e.toLowerCase()] = 1;\n  if (Object.keys(uniq).length >= 2) return true;          // 2+ different emails = list\n  if (/\\b(list of|nodal officer|reporting entit|registered with|shareholders|merit list|selection list|directory|classifieds?)\\b/.test(blob)) return true;\n  return false;\n}\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // --- STRONG name match: for multi-token names require the FIRST name PLUS at\n  // least one other token in the SAME result (kills 'Vivek Kumar Bansal' matching\n  // 'Vivek kumar'); for single-token names require that token. ---\n  let strongName = false;\n  if (tokens.length >= 2) {\n    const firstHit = firstToken && blob.indexOf(firstToken) !== -1;\n    const otherHit = tokens.slice(1).some(function(t){ return blob.indexOf(t) !== -1; });\n    strongName = firstHit && otherHit;\n  } else if (tokens.length === 1) {\n    strongName = blob.indexOf(firstToken) !== -1;\n  }\n  if (strongName) score += 50;\n  else return { link: o.link || '', score: -999, nameHit: false }; // no strong name -> reject outright\n\n  // --- hard blocks: registry/court/news/job-board hosts, or directory-style pages ---\n  if (BLOCK_HOST.test(link)) return { link: o.link || '', score: -999, nameHit: true };\n  if (looksDirectory(blob)) return { link: o.link || '', score: -999, nameHit: true };\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: true };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// require BOTH a strong name match and a real format/host signal: threshold 95\n// (name 50 + at least one strong format/host signal). This is stricter than\n// before (was 60) so common-name registry/news PDFs no longer slip through.\nif (best && best.score >= 95) {\n  merged.resume_link = best.link;\n  merged.resume_status = 'likely (name + format match)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };\n"
       },
       "id": "9d9b0af8-a857-4609-9d0c-092804ae6e90",
       "name": "Attach Resume",
@@ -237,7 +237,6 @@
             "Current Company": "={{ $json.current_company }}",
             "Verified Title": "={{ $json.verified_title }}",
             "Location": "={{ $json.location }}",
-            "PDL Skills": "={{ $json.pdl_skills }}",
             "Email": "={{ $json.email }}",
             "Phone": "={{ $json.phone }}",
             "GitHub": "={{ $json.github_url }}",
@@ -255,7 +254,8 @@
             "Outreach Status": "={{ $json.outreach_status }}",
             "Dedupe Key": "={{ $json.dedupe_key }}",
             "Send Email?": "FALSE",
-            "Confidence": "={{ $json.confidence }}"
+            "Confidence": "={{ $json.confidence }}",
+            "PDL Skills": "={{ $json.profile_url }}"
           },
           "matchingColumns": [
             "Dedupe Key"
@@ -627,28 +627,29 @@
     },
     {
       "parameters": {
-        "formTitle": "TalentRubric Sourcing Request",
-        "formDescription": "Describe your ideal candidate in plain English in the Natural Language Search box, OR fill in the structured fields below (or both — filled fields always take priority). Fields marked * are required only if you are not using natural-language search. See the examples at the bottom.",
+        "formTitle": "TalentRubric — Candidate Sourcing",
+        "formDescription": "Find candidates two ways: (A) describe the role in plain English, or (B) fill the numbered fields. Fill just one option and hit Search.",
         "formFields": {
           "values": [
             {
+              "fieldType": "html",
+              "elementName": "top_intro",
+              "html": "<div class=\"tr-intro\"><b>How this works</b> &mdash; choose <b>one</b> of the two ways to search:<ul><li><b>Option A</b> &mdash; describe the person in plain English. The AI fills the fields for you.</li><li><b>Option B</b> &mdash; fill the numbered fields yourself.</li></ul>If you use both, the numbered fields win.</div>"
+            },
+            {
+              "fieldType": "html",
+              "elementName": "sec_a",
+              "html": "<div class=\"tr-sec tr-sec-a\"><div class=\"tr-sec-title\">Option A</div><div class=\"tr-sec-sub\">Describe the candidate in one or two sentences.</div></div>"
+            },
+            {
               "fieldLabel": "Natural Language Search",
               "fieldType": "textarea",
-              "placeholder": "e.g. \"Senior backend engineer in Bangalore with 5+ years of Java, Spring Boot and Kafka. Exclude interns. Search LinkedIn and GitHub.\"  —  just describe the person in plain English and the AI fills the fields below."
-            },
-            {
-              "fieldLabel": "Target Role",
-              "placeholder": "e.g. Backend Engineer"
-            },
-            {
-              "fieldLabel": "Key Skills & Criteria",
-              "fieldType": "textarea",
-              "placeholder": "e.g. Java, Spring Boot, Kafka, Microservices"
+              "placeholder": "e.g. \"Senior backend engineer in Bangalore, 5+ yrs Java, Spring Boot & Kafka. Exclude interns. Search LinkedIn and GitHub.\""
             },
             {
               "fieldLabel": "Job Description",
               "fieldType": "textarea",
-              "placeholder": "Paste the full job description here, or upload it as a file below (PDF, Word .doc/.docx, TXT, RTF, HTML or MD)."
+              "placeholder": "Optional. Paste the full JD here (or upload a file below). The AI scores each candidate against it."
             },
             {
               "fieldLabel": "Job Description File (PDF, Word, TXT, RTF, HTML, MD)",
@@ -657,23 +658,479 @@
               "acceptFileTypes": ".pdf,.doc,.docx,.txt,.md,.markdown,.rtf,.html,.htm,.csv"
             },
             {
-              "fieldLabel": "Location",
-              "placeholder": "e.g. Bangalore"
+              "fieldType": "html",
+              "elementName": "hint_jdfile",
+              "html": "<div class=\"tr-hint\">Optional. Upload the JD instead of pasting it (PDF, Word, TXT, RTF, HTML or Markdown).</div>"
             },
             {
-              "fieldLabel": "Preferred Industry",
-              "placeholder": "e.g. Fintech, SaaS, E-commerce"
+              "fieldType": "html",
+              "elementName": "or_divider",
+              "html": "<div class=\"tr-or\"><span>OR</span></div>"
             },
             {
-              "fieldLabel": "Current Employer",
-              "placeholder": "e.g. Flipkart"
+              "fieldType": "html",
+              "elementName": "sec_b",
+              "html": "<div class=\"tr-sec tr-sec-b\"><div class=\"tr-sec-title\">Option B</div><div class=\"tr-sec-sub\">Fill the fields below. Anything here overrides Option A.</div></div>"
             },
             {
-              "fieldLabel": "Keywords to Exclude",
-              "placeholder": "e.g. intern, recruiter, freelance"
+              "fieldLabel": "1) Target Role",
+              "placeholder": "The job title you're hiring for. e.g. Backend Engineer, Data Scientist, Product Manager"
             },
             {
-              "fieldLabel": "Education",
+              "fieldLabel": "2) Primary Skills (must-have)",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Java"
+                  },
+                  {
+                    "option": "Python"
+                  },
+                  {
+                    "option": "JavaScript"
+                  },
+                  {
+                    "option": "TypeScript"
+                  },
+                  {
+                    "option": "Go"
+                  },
+                  {
+                    "option": "Rust"
+                  },
+                  {
+                    "option": "C++"
+                  },
+                  {
+                    "option": "C#"
+                  },
+                  {
+                    "option": "Ruby"
+                  },
+                  {
+                    "option": "PHP"
+                  },
+                  {
+                    "option": "Kotlin"
+                  },
+                  {
+                    "option": "Swift"
+                  },
+                  {
+                    "option": "Scala"
+                  },
+                  {
+                    "option": "React"
+                  },
+                  {
+                    "option": "Angular"
+                  },
+                  {
+                    "option": "Vue"
+                  },
+                  {
+                    "option": "Node.js"
+                  },
+                  {
+                    "option": "Spring Boot"
+                  },
+                  {
+                    "option": "Django"
+                  },
+                  {
+                    "option": "FastAPI"
+                  },
+                  {
+                    "option": ".NET"
+                  },
+                  {
+                    "option": "SQL"
+                  },
+                  {
+                    "option": "PostgreSQL"
+                  },
+                  {
+                    "option": "MongoDB"
+                  },
+                  {
+                    "option": "MySQL"
+                  },
+                  {
+                    "option": "Redis"
+                  },
+                  {
+                    "option": "Kafka"
+                  },
+                  {
+                    "option": "Elasticsearch"
+                  },
+                  {
+                    "option": "GraphQL"
+                  },
+                  {
+                    "option": "AWS"
+                  },
+                  {
+                    "option": "Azure"
+                  },
+                  {
+                    "option": "GCP"
+                  },
+                  {
+                    "option": "Docker"
+                  },
+                  {
+                    "option": "Kubernetes"
+                  },
+                  {
+                    "option": "Terraform"
+                  },
+                  {
+                    "option": "CI/CD"
+                  },
+                  {
+                    "option": "Microservices"
+                  },
+                  {
+                    "option": "Machine Learning"
+                  },
+                  {
+                    "option": "Deep Learning"
+                  },
+                  {
+                    "option": "NLP"
+                  },
+                  {
+                    "option": "LLMs"
+                  },
+                  {
+                    "option": "PyTorch"
+                  },
+                  {
+                    "option": "TensorFlow"
+                  },
+                  {
+                    "option": "Data Analysis"
+                  },
+                  {
+                    "option": "Spark"
+                  },
+                  {
+                    "option": "Airflow"
+                  },
+                  {
+                    "option": "Android"
+                  },
+                  {
+                    "option": "iOS"
+                  },
+                  {
+                    "option": "Flutter"
+                  },
+                  {
+                    "option": "React Native"
+                  },
+                  {
+                    "option": "Sales"
+                  },
+                  {
+                    "option": "Marketing"
+                  },
+                  {
+                    "option": "SEO"
+                  },
+                  {
+                    "option": "Content Writing"
+                  },
+                  {
+                    "option": "Finance"
+                  },
+                  {
+                    "option": "Accounting"
+                  },
+                  {
+                    "option": "HR"
+                  },
+                  {
+                    "option": "Recruiting"
+                  },
+                  {
+                    "option": "Customer Success"
+                  },
+                  {
+                    "option": "Project Management"
+                  },
+                  {
+                    "option": "Product Management"
+                  },
+                  {
+                    "option": "UX Design"
+                  },
+                  {
+                    "option": "UI Design"
+                  },
+                  {
+                    "option": "Figma"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldType": "html",
+              "elementName": "hint_primary",
+              "html": "<div class=\"tr-hint\">Pick the <b>must-have</b> skills from the list (you can select several). These are <b>required</b> in the search.</div>"
+            },
+            {
+              "fieldLabel": "2b) Add other primary skills",
+              "placeholder": "Comma-separated skills not in the list. e.g. gRPC, Temporal, DuckDB"
+            },
+            {
+              "fieldLabel": "2c) Secondary Skills (nice-to-have)",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Java"
+                  },
+                  {
+                    "option": "Python"
+                  },
+                  {
+                    "option": "JavaScript"
+                  },
+                  {
+                    "option": "TypeScript"
+                  },
+                  {
+                    "option": "Go"
+                  },
+                  {
+                    "option": "Rust"
+                  },
+                  {
+                    "option": "C++"
+                  },
+                  {
+                    "option": "C#"
+                  },
+                  {
+                    "option": "Ruby"
+                  },
+                  {
+                    "option": "PHP"
+                  },
+                  {
+                    "option": "Kotlin"
+                  },
+                  {
+                    "option": "Swift"
+                  },
+                  {
+                    "option": "Scala"
+                  },
+                  {
+                    "option": "React"
+                  },
+                  {
+                    "option": "Angular"
+                  },
+                  {
+                    "option": "Vue"
+                  },
+                  {
+                    "option": "Node.js"
+                  },
+                  {
+                    "option": "Spring Boot"
+                  },
+                  {
+                    "option": "Django"
+                  },
+                  {
+                    "option": "FastAPI"
+                  },
+                  {
+                    "option": ".NET"
+                  },
+                  {
+                    "option": "SQL"
+                  },
+                  {
+                    "option": "PostgreSQL"
+                  },
+                  {
+                    "option": "MongoDB"
+                  },
+                  {
+                    "option": "MySQL"
+                  },
+                  {
+                    "option": "Redis"
+                  },
+                  {
+                    "option": "Kafka"
+                  },
+                  {
+                    "option": "Elasticsearch"
+                  },
+                  {
+                    "option": "GraphQL"
+                  },
+                  {
+                    "option": "AWS"
+                  },
+                  {
+                    "option": "Azure"
+                  },
+                  {
+                    "option": "GCP"
+                  },
+                  {
+                    "option": "Docker"
+                  },
+                  {
+                    "option": "Kubernetes"
+                  },
+                  {
+                    "option": "Terraform"
+                  },
+                  {
+                    "option": "CI/CD"
+                  },
+                  {
+                    "option": "Microservices"
+                  },
+                  {
+                    "option": "Machine Learning"
+                  },
+                  {
+                    "option": "Deep Learning"
+                  },
+                  {
+                    "option": "NLP"
+                  },
+                  {
+                    "option": "LLMs"
+                  },
+                  {
+                    "option": "PyTorch"
+                  },
+                  {
+                    "option": "TensorFlow"
+                  },
+                  {
+                    "option": "Data Analysis"
+                  },
+                  {
+                    "option": "Spark"
+                  },
+                  {
+                    "option": "Airflow"
+                  },
+                  {
+                    "option": "Android"
+                  },
+                  {
+                    "option": "iOS"
+                  },
+                  {
+                    "option": "Flutter"
+                  },
+                  {
+                    "option": "React Native"
+                  },
+                  {
+                    "option": "Sales"
+                  },
+                  {
+                    "option": "Marketing"
+                  },
+                  {
+                    "option": "SEO"
+                  },
+                  {
+                    "option": "Content Writing"
+                  },
+                  {
+                    "option": "Finance"
+                  },
+                  {
+                    "option": "Accounting"
+                  },
+                  {
+                    "option": "HR"
+                  },
+                  {
+                    "option": "Recruiting"
+                  },
+                  {
+                    "option": "Customer Success"
+                  },
+                  {
+                    "option": "Project Management"
+                  },
+                  {
+                    "option": "Product Management"
+                  },
+                  {
+                    "option": "UX Design"
+                  },
+                  {
+                    "option": "UI Design"
+                  },
+                  {
+                    "option": "Figma"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldType": "html",
+              "elementName": "hint_secondary",
+              "html": "<div class=\"tr-hint\">Optional <b>nice-to-have</b> skills. These <b>widen the match</b> and can be switched off below.</div>"
+            },
+            {
+              "fieldLabel": "2d) Add other secondary skills",
+              "placeholder": "Comma-separated extra skills. e.g. Grafana, Splunk"
+            },
+            {
+              "fieldLabel": "2e) Use Secondary Skills?",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Yes"
+                  },
+                  {
+                    "option": "No"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldType": "html",
+              "elementName": "hint_usesec",
+              "html": "<div class=\"tr-hint\">Pick <b>No</b> to ignore secondary skills and search on the primary must-haves only.</div>"
+            },
+            {
+              "fieldLabel": "3) Location",
+              "placeholder": "City or region (use the city before any dash). e.g. Bangalore"
+            },
+            {
+              "fieldLabel": "4) Preferred Industry",
+              "placeholder": "Optional. e.g. Fintech, SaaS, E-commerce"
+            },
+            {
+              "fieldLabel": "5) Current Employer",
+              "placeholder": "Optional. Only people currently at this company. e.g. Flipkart"
+            },
+            {
+              "fieldLabel": "6) Keywords to Exclude",
+              "placeholder": "Optional. Comma-separated terms to filter out. e.g. intern, recruiter, freelance"
+            },
+            {
+              "fieldLabel": "7) Education",
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
@@ -696,7 +1153,12 @@
               }
             },
             {
-              "fieldLabel": "Expand Job Title Synonyms",
+              "fieldType": "html",
+              "elementName": "hint_education",
+              "html": "<div class=\"tr-hint\">Minimum qualification. Pick <b>Any</b> to ignore education.</div>"
+            },
+            {
+              "fieldLabel": "8) Expand Job Title Synonyms",
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
@@ -710,7 +1172,12 @@
               }
             },
             {
-              "fieldLabel": "Experience Range (Years)",
+              "fieldType": "html",
+              "elementName": "hint_expand",
+              "html": "<div class=\"tr-hint\"><b>Yes</b> also matches similar titles (SDE, Software Developer) for a wider search. Recommended.</div>"
+            },
+            {
+              "fieldLabel": "9) Experience Range (Years)",
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
@@ -734,7 +1201,12 @@
               "requiredField": true
             },
             {
-              "fieldLabel": "Gender Preference",
+              "fieldType": "html",
+              "elementName": "hint_exp",
+              "html": "<div class=\"tr-hint\">This is the <b>minimum</b> experience &mdash; e.g. <b>8+ years</b> excludes anyone below 8. Pick <b>Auto</b> to read it from your description.</div>"
+            },
+            {
+              "fieldLabel": "10) Gender Preference",
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
@@ -755,7 +1227,12 @@
               "requiredField": true
             },
             {
-              "fieldLabel": "Target Platforms",
+              "fieldType": "html",
+              "elementName": "hint_gender",
+              "html": "<div class=\"tr-hint\">Pick <b>Any</b> to rank purely on merit.</div>"
+            },
+            {
+              "fieldLabel": "11) Target Platforms",
               "fieldType": "checkbox",
               "fieldOptions": {
                 "values": [
@@ -781,13 +1258,33 @@
                     "option": "Hacker News"
                   },
                   {
+                    "option": "Reddit"
+                  },
+                  {
+                    "option": "Dev.to"
+                  },
+                  {
+                    "option": "GitLab"
+                  },
+                  {
+                    "option": "Hugging Face"
+                  },
+                  {
+                    "option": "Kaggle"
+                  },
+                  {
                     "option": "Google / Open Web"
                   }
                 ]
               }
             },
             {
-              "fieldLabel": "Search Region (Geography)",
+              "fieldType": "html",
+              "elementName": "hint_platforms",
+              "html": "<div class=\"tr-hint\">Where to search. <b>LinkedIn + GitHub</b> give the best real people; <b>Kaggle</b> for data-science/ML; <b>Google / Open Web</b> for a broad sweep.</div>"
+            },
+            {
+              "fieldLabel": "12) Search Region (Geography)",
               "fieldType": "dropdown",
               "fieldOptions": {
                 "values": [
@@ -832,17 +1329,19 @@
             },
             {
               "fieldType": "html",
-              "elementName": "examples_guide",
-              "html": "<div style=\"border:1px solid #cfe3ff;border-radius:8px;padding:12px 14px;background:#f2f8ff;font-size:13px;line-height:1.6;color:#222;margin-bottom:12px\"><b>&#128173; Natural Language Search &mdash; example prompts (copy &amp; edit)</b><ul style=\"margin:8px 0 0 18px;padding:0\"><li><i>Find a senior backend engineer in Bangalore who knows Java, Spring Boot and Kafka.</i></li><li><i>Senior data engineer in Pune, 5+ years, Spark + Airflow + AWS. Exclude interns and consultants. Search LinkedIn and GitHub.</i></li><li><i>Product designer in Bengaluru with Figma and design-systems experience, 3&ndash;5 years. Search Dribbble, Behance and LinkedIn.</i></li><li><i>Lead DevOps / SRE, 8+ years, strong Kubernetes, Terraform and AWS, currently at a product company, in Hyderabad. Prefer GitHub and LinkedIn.</i></li><li><i>Machine learning engineer at a fintech in Mumbai, Master's or PhD, 5+ years with PyTorch and LLMs. Exclude recruiters.</i></li></ul><div style=\"margin-top:8px;padding-top:6px;border-top:1px dashed #b8d4ff\"><b>Tips:</b> mention <b>role, skills, location, experience/seniority, exclusions and platforms</b>. Naming <b>LinkedIn / GitHub</b> finds real people; &ldquo;Google / open web&rdquo; tends to return job posts. Anything you set in the fields below <b>overrides</b> the AI.</div></div><div style=\"border:1px solid #e2e2e2;border-radius:8px;padding:14px 16px;background:#fafafa;font-size:13px;line-height:1.6;color:#333\"><b>How to fill this form &mdash; examples</b><p style=\"margin:6px 0\"><b>Natural Language Search</b> (easiest): just describe the role in plain English &mdash; e.g. <i>\"Senior data engineer in Pune, 5+ yrs, Spark + Airflow + AWS, exclude consultants, search LinkedIn + GitHub\"</i>. The AI fills the fields below for you. Anything you set explicitly below overrides the AI.</p><ul style=\"margin:8px 0 0 18px;padding:0\"><li><b>Target Role</b>: the job title you are hiring for &mdash; <i>Backend Engineer</i>, <i>Data Scientist</i>, <i>Product Manager</i></li><li><b>Key Skills &amp; Criteria</b>: comma-separated must-have skills &mdash; <i>Java, Spring Boot, Kafka</i></li><li><b>Job Description</b> (optional, recommended): paste the full JD text <i>or</i> upload the JD as a PDF, Word (.doc/.docx), TXT, RTF, HTML or Markdown file below &mdash; the AI scores each candidate against it and pulls extra keywords from it</li><li><b>Location</b>: city or region &mdash; <i>Bangalore</i> (use the city before any dash)</li><li><b>Current Employer</b> (optional): only people at this company &mdash; <i>Flipkart</i></li><li><b>Keywords to Exclude</b> (optional): comma-separated terms to filter out &mdash; <i>intern, recruiter, freelance</i></li><li><b>Education</b> (optional): minimum qualification &mdash; <i>Bachelors / Degree</i>, <i>Masters</i></li><li><b>Expand Job Title Synonyms</b>: choose <i>Yes</i> to also match similar titles (e.g. SDE, Software Developer) &mdash; recommended for a wider search</li><li><b>Experience Range</b>: the MINIMUM experience required &mdash; picking <i>8+ years</i> excludes anyone below 8 years</li><li><b>Target Platforms</b>: where to search &mdash; tick <i>LinkedIn</i> + <i>GitHub</i> for best results, or <i>Google / Open Web</i> for a broad search</li></ul><div style=\"margin-top:10px;padding-top:8px;border-top:1px dashed #ddd\"><b>Example search:</b> Target Role = <i>Backend Engineer</i>, Skills = <i>Java, Spring, Kafka</i>, Location = <i>Bangalore</i>, Exclude = <i>intern</i>, Experience = <i>3-5 years</i>, Platforms = <i>LinkedIn, GitHub</i></div></div>"
+              "elementName": "hint_region",
+              "html": "<div class=\"tr-hint\">Focus on a country/region. Pick <b>Global</b> for no geographic filter.</div>"
             }
           ]
         },
         "options": {
+          "buttonLabel": "Search candidates",
           "respondWithOptions": {
             "values": {
               "formSubmittedText": "✅ Your sourcing request has been received and is now processing. Live status is shown in the Google Sheet 'Search Log' tab — it flips from 🔄 Processing to ✅ Complete (with the candidate count and row range) when the run finishes, usually within a few minutes. Ranked candidates also post to the recruitment Slack channel. You can safely close this page."
             }
-          }
+          },
+          "customCss": "\n:root {\n  --tr-primary: #2f6df6;\n  --tr-primary-dark: #1e4fd6;\n  --tr-ink: #1f2937;\n  --tr-muted: #6b7280;\n  --tr-border: #d7dee8;\n  --tr-bg: #f4f7fb;\n}\nbody { background: var(--tr-bg); }\n.form-container, .card { max-width: 640px; margin: 0 auto; }\nh1, .form-header h1 { color: var(--tr-ink); font-weight: 800; letter-spacing: -.3px; }\n.form-header, .form-description { color: var(--tr-muted); }\n\n/* consistent spacing + alignment for every field row */\n.form-group { margin-bottom: 18px; }\nlabel { font-weight: 600; color: var(--tr-ink); margin-bottom: 6px; display: block; }\n\n/* inputs: uniform look + clear focus */\ninput[type=text], input[type=email], input[type=number], textarea, select {\n  width: 100%; box-sizing: border-box; border: 1px solid var(--tr-border);\n  border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--tr-ink);\n  background: #fff; transition: border-color .15s, box-shadow .15s;\n}\ninput:focus, textarea:focus, select:focus {\n  border-color: var(--tr-primary); box-shadow: 0 0 0 3px rgba(47,109,246,.15); outline: none;\n}\ntextarea { min-height: 92px; resize: vertical; }\n\n/* uniform hint styling (replaces the old mismatched inline blocks) */\n.tr-hint {\n  margin: -10px 0 2px; padding: 8px 12px; font-size: 12.5px; color: #55617a;\n  line-height: 1.55; background: #f5f8ff; border-left: 3px solid var(--tr-primary);\n  border-radius: 0 6px 6px 0;\n}\n.tr-hint b { color: var(--tr-primary-dark); }\n\n/* intro card */\n.tr-intro {\n  padding: 14px 16px; background: #eef4ff; border: 1px solid #cfe0ff;\n  border-radius: 10px; font-size: 13.5px; line-height: 1.6; color: #24324a; margin-bottom: 10px;\n}\n.tr-intro ul { margin: 8px 0 4px 18px; padding: 0; }\n.tr-intro li { margin: 2px 0; }\n\n/* section headers */\n.tr-sec { margin: 18px 0 12px; padding: 12px 16px; border-radius: 10px; border: 1px solid transparent; }\n.tr-sec-title { font-size: 16px; font-weight: 800; color: var(--tr-ink); }\n.tr-sec-sub { font-size: 12.5px; color: var(--tr-muted); margin-top: 3px; }\n.tr-sec-a { background: #f1fbf4; border-color: #c4e8cf; }\n.tr-sec-b { background: #fff6ec; border-color: #f2dcbe; }\n\n/* OR divider */\n.tr-or { display: flex; align-items: center; text-align: center; margin: 22px 0 8px; }\n.tr-or::before, .tr-or::after { content: \"\"; flex: 1; height: 1px; background: var(--tr-border); }\n.tr-or span { padding: 0 14px; font-weight: 800; font-size: 14px; color: #97a2b3; letter-spacing: 1px; }\n\n/* checkbox + radio grid: aligned two-column, tidy */\n.form-group.checkbox .form-check, .form-group.radio .form-check {\n  display: inline-flex; align-items: center; gap: 8px; width: 48%;\n  margin: 4px 1% 4px 0; padding: 8px 10px; border: 1px solid var(--tr-border);\n  border-radius: 8px; background: #fff; font-size: 13.5px; color: var(--tr-ink); box-sizing: border-box;\n}\n.form-check input { margin: 0; }\n\n/* submit button */\nbutton[type=submit], .btn-primary {\n  background: var(--tr-primary); border: none; border-radius: 9px; color: #fff;\n  font-weight: 700; font-size: 15px; padding: 12px 18px; width: 100%; cursor: pointer;\n  transition: background .15s, transform .02s;\n}\nbutton[type=submit]:hover, .btn-primary:hover { background: var(--tr-primary-dark); }\nbutton[type=submit]:active { transform: translateY(1px); }\n"
         }
       },
       "id": "5c16cc59-5ba4-4612-8179-ca9f993b847a",
@@ -853,7 +1352,7 @@
         0,
         48
       ],
-      "webhookId": " YOUR_FORM_WEBHOOK_ID"
+      "webhookId": "YOUR_FORM_WEBHOOK_ID"
     },
     {
       "parameters": {
@@ -937,10 +1436,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "value": "YOUR_USAGE_TRACKER_GID",
+          "value": 2134273428,
           "mode": "list",
           "cachedResultName": "Usage Tracker",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=YOUR_USAGE_TRACKER_GID"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=2134273428"
         },
         "options": {}
       },
@@ -1010,7 +1509,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const form = $('Search Criteria').first().json;\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = form['Key Skills & Criteria'] || '';\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst excludeRaw = form['Keywords to Exclude'] || '';\nconst employer = String(form['Current Employer'] || '').trim();\nconst education = String(form['Education'] || '').trim();\nconst expand = String(form['Expand Job Title Synonyms'] || '').toLowerCase();\n\nfunction q(s) { return /\\s/.test(s) ? '\"' + s + '\"' : s; }\n// A field \"looks boolean\" when the recruiter has already written their own\n// query syntax (AND / OR / quoted phrases / minus). In that case we trust it\n// verbatim and DO NOT wrap it in another pair of quotes (that nested-quote\n// wrapping is what produced 0-result searches before).\nfunction looksBoolean(s) {\n  s = String(s);\n  return /\\s(OR|AND)\\s/i.test(s) || s.indexOf('\"') !== -1 || /(^|\\s)-\\w/.test(s);\n}\n\n// --- role: honour recruiter boolean, else quote + optional synonym expansion ---\nconst synMap = {\n  'software engineer': ['software engineer','software developer','sde','backend engineer','full stack developer'],\n  'backend engineer': ['backend engineer','back end engineer','software engineer','java developer','backend developer'],\n  'frontend engineer': ['frontend engineer','front end engineer','ui engineer','react developer','javascript developer'],\n  'full stack developer': ['full stack developer','fullstack developer','software engineer','web developer'],\n  'data scientist': ['data scientist','machine learning engineer','ml engineer','ai engineer'],\n  'data engineer': ['data engineer','big data engineer','etl developer','analytics engineer'],\n  'data analyst': ['data analyst','business analyst','bi analyst'],\n  'product manager': ['product manager','product owner','program manager','technical product manager'],\n  'devops engineer': ['devops engineer','site reliability engineer','sre','platform engineer','infrastructure engineer'],\n  'qa engineer': ['qa engineer','sdet','test engineer','automation engineer','quality engineer'],\n  'designer': ['designer','ux designer','ui designer','product designer','ui/ux designer'],\n  'mobile developer': ['mobile developer','android developer','ios developer','react native developer'],\n  'sales': ['sales','account executive','business development','bdm','sales manager','account manager','inside sales'],\n  'marketing': ['marketing','digital marketing','marketing manager','growth marketer','performance marketing','brand manager'],\n  'hr': ['hr','human resources','talent acquisition','recruiter','hr manager','people operations','hrbp'],\n  'recruiter': ['recruiter','talent acquisition','technical recruiter','hr recruiter','sourcer'],\n  'accountant': ['accountant','accounts','chartered accountant','ca','finance executive','accounts manager','audit'],\n  'finance': ['finance','financial analyst','fp&a','finance manager','financial planning','financial controller'],\n  'operations': ['operations','operations manager','ops','business operations','operations executive'],\n  'customer success': ['customer success','customer success manager','csm','account manager','customer support'],\n  'content writer': ['content writer','copywriter','content marketer','editor','technical writer'],\n  'project manager': ['project manager','program manager','delivery manager','scrum master','pmo'],\n  'business analyst': ['business analyst','ba','business systems analyst','functional consultant']\n};\nlet roleTerm = '';\nif (role) {\n  if (looksBoolean(role)) {\n    // recruiter wrote their own boolean expression -> use as-is, grouped\n    roleTerm = '(' + role + ')';\n  } else {\n    let variants = ['\"' + role + '\"'];\n    if (expand === 'yes' || expand === 'true') {\n      const key = role.toLowerCase();\n      if (synMap[key]) { variants = synMap[key].map(function(v){ return '\"' + v + '\"'; }); }\n    }\n    roleTerm = variants.length > 1 ? '(' + variants.join(' OR ') + ')' : variants[0];\n  }\n}\n\n// --- skills: honour recruiter boolean, else comma-split into an OR group ---\nlet skillsTerm = '';\nif (String(skillsRaw).trim()) {\n  if (looksBoolean(skillsRaw)) {\n    skillsTerm = '(' + String(skillsRaw).trim() + ')';\n  } else {\n    const skills = String(skillsRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\n    if (skills.length) {\n      const quoted = skills.map(q);\n      skillsTerm = quoted.length > 1 ? '(' + quoted.join(' OR ') + ')' : quoted[0];\n    }\n  }\n}\n\n// --- exclude keywords ---\nconst excludes = String(excludeRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\nconst excludeTerm = excludes.map(function(s){ return '-' + q(s); }).join(' ');\n\n// --- current employer ---\nconst employerTerm = employer ? q(employer) : '';\n\n// --- education level: loose OR-group of common variants ---\nconst eduMap = {\n  'bachelors / degree': ['bachelor','bachelors','\"b.e\"','\"b.tech\"','btech','bsc','\"b.sc\"','degree'],\n  'masters': ['master','masters','\"m.e\"','\"m.tech\"','mtech','msc','\"m.sc\"'],\n  'phd': ['phd','\"ph.d\"','doctorate'],\n  'mba': ['mba','\"m.b.a\"']\n};\nlet eduTerm = '';\nif (education && !/^any$/i.test(education)) {\n  const ekey = education.toLowerCase();\n  const variants = eduMap[ekey];\n  if (variants && variants.length) { eduTerm = '(' + variants.join(' OR ') + ')'; }\n  else { eduTerm = q(education); }\n}\n\n// --- platform site: filters ---\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) {\n  platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n}\nconst siteMap = {\n  'LinkedIn': ['site:linkedin.com/in/'],\n  'Github': ['site:github.com'],\n  'GitHub': ['site:github.com'],\n  'X (Twitter)': ['site:twitter.com','site:x.com'],\n  'Stack Overflow': ['site:stackoverflow.com/users'],\n  'Dribbble': ['site:dribbble.com'],\n  'Behance': ['site:behance.net'],\n  'Hacker News': ['site:news.ycombinator.com']\n};\nconst openWeb = platforms.some(function(pl){ return /google|open web/i.test(pl); });\nlet sites = [];\nif (!openWeb) {\n  for (const pl of platforms) {\n    if (siteMap[pl]) { sites = sites.concat(siteMap[pl]); }\n  }\n  if (sites.length === 0) {\n    sites = ['site:linkedin.com/in/','site:github.com','site:twitter.com','site:x.com'];\n  }\n}\n\n// --- JD keyword extraction: pull distinctive keywords to strengthen the search ---\nlet jdText = '';\ntry { jdText = String($('Prep JD').first().json.jd_text || ''); } catch (e) { jdText = ''; }\nlet jdTerm = '';\nif (jdText) {\n  const STOP = {'the':1,'and':1,'for':1,'with':1,'you':1,'your':1,'our':1,'are':1,'will':1,'that':1,'this':1,'have':1,'has':1,'from':1,'not':1,'but':1,'all':1,'can':1,'who':1,'what':1,'when':1,'how':1,'why':1,'their':1,'they':1,'them':1,'about':1,'into':1,'over':1,'more':1,'most':1,'such':1,'per':1,'via':1,'etc':1,'role':1,'roles':1,'work':1,'working':1,'team':1,'teams':1,'years':1,'year':1,'experience':1,'experiences':1,'strong':1,'good':1,'great':1,'excellent':1,'ability':1,'skills':1,'skill':1,'knowledge':1,'understanding':1,'responsibilities':1,'requirements':1,'preferred':1,'plus':1,'must':1,'should':1,'including':1,'across':1,'within':1,'using':1,'help':1,'build':1,'building':1,'develop':1,'developing':1,'design':1,'designing':1,'candidate':1,'candidates':1,'company':1,'companies':1,'job':1,'jobs':1,'position':1,'positions':1,'looking':1,'join':1,'we':1,'us':1,'is':1,'to':1,'of':1,'in':1,'on':1,'as':1,'at':1,'be':1,'or':1,'an':1,'a':1,'by':1,'it':1,'if':1,'do':1,'up':1,'new':1,'like':1,'well':1,'also':1,'may':1,'get':1,'one':1,'two':1,'end':1,'day':1,'days':1};\n  const freq = {};\n  const toks = jdText.toLowerCase().replace(/[^a-z0-9+#. ]/g, ' ').split(/\\s+/);\n  for (const t0 of toks) {\n    const t = t0.replace(/^[.]+|[.]+$/g, '');\n    if (t.length < 3 || t.length > 30) continue;\n    if (STOP[t]) continue;\n    if (/^\\d+$/.test(t)) continue;\n    freq[t] = (freq[t] || 0) + 1;\n  }\n  const ranked = Object.keys(freq).sort(function(a, b){ return freq[b] - freq[a]; });\n  // keep only meaningfully repeated keywords, cap to 6 to avoid over-narrowing\n  const kw = ranked.filter(function(w){ return freq[w] >= 2; }).slice(0, 6);\n  if (kw.length) {\n    jdTerm = '(' + kw.map(function(w){ return /\\s/.test(w) ? '\"' + w + '\"' : w; }).join(' OR ') + ')';\n  }\n}\n\n// --- expert noise filter (Boolean Black Belt / SocialTalent best practice) ---\n// People-search returns job posts, ATS pages & directories unless we exclude them.\n// Site-restricted profile searches (e.g. linkedin.com/in/) already avoid most of\n// this, so only apply the noise NOT-block on broad Open Web searches.\nlet noiseTerm = '';\nlet cvIntentTerm = '';\nif (openWeb) {\n  const noise = [\n    'intitle:jobs', 'inurl:/jobs/', 'inurl:/careers/', 'inurl:job',\n    '\"job description\"', '\"apply now\"', '\"post a job\"', '\"we are looking\"',\n    '\"job opening\"', 'site:indeed.com', 'site:glassdoor.com',\n    'site:naukri.com', 'site:ziprecruiter.com', 'site:lever.co',\n    'site:greenhouse.io', 'site:workday.com', 'site:monster.com',\n    'site:shine.com', 'site:timesjobs.com', 'site:foundit.in',\n    'site:instahyre.com', 'site:cutshort.io', 'site:hirist.com',\n    'site:wellfound.com/jobs', 'site:linkedin.com/jobs'\n  ];\n  noiseTerm = noise.map(function(t){ return '-' + t; }).join(' ');\n\n  // --- CV / personal-blog intent booster (open web only) ---\n  // Candidates publish resumes/CVs on personal blogs & doc hosts. Actively TARGET\n  // those pages so open-web search surfaces PEOPLE (and their CVs) not job posts.\n  // We OR together: (a) resume/CV wording, (b) downloadable CV file types,\n  // (c) common personal-blog / CV-hosting domains where people post their CV.\n  const cvWords = '(\"resume\" OR \"curriculum vitae\" OR \"cv\" OR \"portfolio\" OR \"about me\" OR \"my work\" OR \"personal website\")';\n  const cvFiletypes = '(filetype:pdf OR filetype:doc OR filetype:docx)';\n  const cvHosts = '(site:medium.com OR site:github.io OR site:dev.to OR site:hashnode.dev OR site:notion.site OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:super.site OR site:substack.com OR site:wordpress.com OR site:blogspot.com OR site:wixsite.com OR site:carrd.co OR site:about.me OR site:behance.net OR site:gitconnected.com OR site:hackernoon.com OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms)';\n  const cvInurl = '(inurl:resume OR inurl:cv OR intitle:resume OR intitle:\\\"curriculum vitae\\\" OR inurl:portfolio)';\n  cvIntentTerm = '(' + cvWords + ' OR ' + cvFiletypes + ' OR ' + cvHosts + ' OR ' + cvInurl + ')';\n}\n\n// --- search region -> Serper gl country code ---\nconst regionMap = {\n  'india':'in','united states':'us','usa':'us','us':'us','america':'us',\n  'united kingdom':'gb','uk':'gb','britain':'gb','england':'gb',\n  'canada':'ca','australia':'au','germany':'de','france':'fr',\n  'netherlands':'nl','holland':'nl','singapore':'sg',\n  'united arab emirates':'ae','uae':'ae','dubai':'ae',\n  'ireland':'ie','spain':'es','italy':'it','japan':'jp','brazil':'br'\n};\nconst regionRaw = String(form['Search Region'] || '').trim();\nlet gl = '';\nif (regionRaw && !/^global|^all/i.test(regionRaw)) {\n  const rkey = regionRaw.toLowerCase().replace(/\\s*\\(.*\\)\\s*/, '').trim();\n  gl = regionMap[rkey] || '';\n}\n\n// --- assemble query ---\nconst parts = [];\nif (sites.length) { parts.push(sites.length > 1 ? '(' + sites.join(' OR ') + ')' : sites[0]); }\nif (roleTerm) parts.push(roleTerm);\nif (skillsTerm) parts.push(skillsTerm);\nif (jdTerm) parts.push(jdTerm);\nif (employerTerm) parts.push(employerTerm);\nif (eduTerm) parts.push(eduTerm);\nif (cvIntentTerm) parts.push(cvIntentTerm);\nif (loc) parts.push(q(loc));\nif (excludeTerm) parts.push(excludeTerm);\nif (noiseTerm) parts.push(noiseTerm);\n\nconst query = parts.join(' ').trim();\nconst PAGES = 3; // Serper: 1 credit per page (each page ~10 results)\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { q: query, page: pg };\n  if (gl) body.gl = gl;\n  out.push({ json: { q: query, page: pg, pages_total: PAGES, gl: gl || 'global', serper_body: body, jd_keywords: jdTerm || 'none', cv_intent: cvIntentTerm ? 'applied' : 'none', noise_filter: noiseTerm ? 'applied' : 'none', platforms_used: openWeb ? 'Open Web' : (sites.join(', ') || 'default'), excludes_used: excludeTerm || 'none' } });\n}\nreturn out;\n"
+        "jsCode": "const form = $('Search Criteria').first().json;\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = form['Key Skills & Criteria'] || '';\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst excludeRaw = form['Keywords to Exclude'] || '';\nconst employer = String(form['Current Employer'] || '').trim();\nconst education = String(form['Education'] || '').trim();\nconst expand = String(form['Expand Job Title Synonyms'] || '').toLowerCase();\n\nfunction q(s) { return /\\s/.test(s) ? '\"' + s + '\"' : s; }\n// A field \"looks boolean\" when the recruiter has already written their own\n// query syntax (AND / OR / quoted phrases / minus). In that case we trust it\n// verbatim and DO NOT wrap it in another pair of quotes (that nested-quote\n// wrapping is what produced 0-result searches before).\nfunction looksBoolean(s) {\n  s = String(s);\n  return /\\s(OR|AND)\\s/i.test(s) || s.indexOf('\"') !== -1 || /(^|\\s)-\\w/.test(s);\n}\n\n// --- role: honour recruiter boolean, else quote + optional synonym expansion ---\nconst synMap = {\n  'software engineer': ['software engineer','software developer','sde','backend engineer','full stack developer'],\n  'backend engineer': ['backend engineer','back end engineer','software engineer','java developer','backend developer'],\n  'frontend engineer': ['frontend engineer','front end engineer','ui engineer','react developer','javascript developer'],\n  'full stack developer': ['full stack developer','fullstack developer','software engineer','web developer'],\n  'data scientist': ['data scientist','machine learning engineer','ml engineer','ai engineer'],\n  'data engineer': ['data engineer','big data engineer','etl developer','analytics engineer'],\n  'data analyst': ['data analyst','business analyst','bi analyst'],\n  'product manager': ['product manager','product owner','program manager','technical product manager'],\n  'devops engineer': ['devops engineer','site reliability engineer','sre','platform engineer','infrastructure engineer'],\n  'qa engineer': ['qa engineer','sdet','test engineer','automation engineer','quality engineer'],\n  'designer': ['designer','ux designer','ui designer','product designer','ui/ux designer'],\n  'mobile developer': ['mobile developer','android developer','ios developer','react native developer'],\n  'sales': ['sales','account executive','business development','bdm','sales manager','account manager','inside sales'],\n  'marketing': ['marketing','digital marketing','marketing manager','growth marketer','performance marketing','brand manager'],\n  'hr': ['hr','human resources','talent acquisition','recruiter','hr manager','people operations','hrbp'],\n  'recruiter': ['recruiter','talent acquisition','technical recruiter','hr recruiter','sourcer'],\n  'accountant': ['accountant','accounts','chartered accountant','ca','finance executive','accounts manager','audit'],\n  'finance': ['finance','financial analyst','fp&a','finance manager','financial planning','financial controller'],\n  'operations': ['operations','operations manager','ops','business operations','operations executive'],\n  'customer success': ['customer success','customer success manager','csm','account manager','customer support'],\n  'content writer': ['content writer','copywriter','content marketer','editor','technical writer'],\n  'project manager': ['project manager','program manager','delivery manager','scrum master','pmo'],\n  'business analyst': ['business analyst','ba','business systems analyst','functional consultant']\n};\nlet roleTerm = '';\nif (role) {\n  if (looksBoolean(role)) {\n    // recruiter wrote their own boolean expression -> use as-is, grouped\n    roleTerm = '(' + role + ')';\n  } else {\n    let variants = ['\"' + role + '\"'];\n    if (expand === 'yes' || expand === 'true') {\n      const key = role.toLowerCase();\n      if (synMap[key]) { variants = synMap[key].map(function(v){ return '\"' + v + '\"'; }); }\n    }\n    roleTerm = variants.length > 1 ? '(' + variants.join(' OR ') + ')' : variants[0];\n  }\n}\n\n// --- skills: primary (must-have) required OR-group + secondary (nice-to-have) OR-group ---\nfunction orGroup(raw){\n  if (!String(raw).trim()) return '';\n  if (looksBoolean(raw)) return '(' + String(raw).trim() + ')';\n  const arr = String(raw).split(',').map(function(s){return s.trim();}).filter(Boolean);\n  if (!arr.length) return '';\n  const quoted = arr.map(q);\n  return quoted.length > 1 ? '(' + quoted.join(' OR ') + ')' : quoted[0];\n}\nconst primaryRaw = form['Primary Skills'] || '';\nconst secondaryRaw = form['Secondary Skills'] || '';\nlet primaryTerm = orGroup(primaryRaw);\nlet secondaryTerm = orGroup(secondaryRaw);\n// backward-compat: if the form didn't split skills, fall back to the combined field\nlet skillsTerm = '';\nif (!primaryTerm && !secondaryTerm) { skillsTerm = orGroup(skillsRaw); }\n\n// --- exclude keywords ---\nconst excludes = String(excludeRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\nconst excludeTerm = excludes.map(function(s){ return '-' + q(s); }).join(' ');\n\n// --- current employer ---\nconst employerTerm = employer ? q(employer) : '';\n\n// --- education level: loose OR-group of common variants ---\nconst eduMap = {\n  'bachelors / degree': ['bachelor','bachelors','\"b.e\"','\"b.tech\"','btech','bsc','\"b.sc\"','degree'],\n  'masters': ['master','masters','\"m.e\"','\"m.tech\"','mtech','msc','\"m.sc\"'],\n  'phd': ['phd','\"ph.d\"','doctorate'],\n  'mba': ['mba','\"m.b.a\"']\n};\nlet eduTerm = '';\nif (education && !/^any$/i.test(education)) {\n  const ekey = education.toLowerCase();\n  const variants = eduMap[ekey];\n  if (variants && variants.length) { eduTerm = '(' + variants.join(' OR ') + ')'; }\n  else { eduTerm = q(education); }\n}\n\n// --- platform site: filters ---\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) {\n  platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n}\nconst siteMap = {\n  'LinkedIn': ['site:linkedin.com/in/'],\n  'Github': ['site:github.com'],\n  'GitHub': ['site:github.com'],\n  'X (Twitter)': ['site:twitter.com','site:x.com'],\n  'Stack Overflow': ['site:stackoverflow.com/users'],\n  'Dribbble': ['site:dribbble.com'],\n  'Behance': ['site:behance.net'],\n  'Hacker News': ['site:news.ycombinator.com']\n};\nconst openWeb = platforms.some(function(pl){ return /google|open web/i.test(pl); });\nlet sites = [];\nif (!openWeb) {\n  for (const pl of platforms) {\n    if (siteMap[pl]) { sites = sites.concat(siteMap[pl]); }\n  }\n  if (sites.length === 0) {\n    sites = ['site:linkedin.com/in/','site:github.com','site:twitter.com','site:x.com'];\n  }\n}\n\n// --- JD keyword extraction: pull distinctive keywords to strengthen the search ---\nlet jdText = '';\ntry { jdText = String($('Prep JD').first().json.jd_text || ''); } catch (e) { jdText = ''; }\nlet jdTerm = '';\nif (jdText) {\n  const STOP = {'the':1,'and':1,'for':1,'with':1,'you':1,'your':1,'our':1,'are':1,'will':1,'that':1,'this':1,'have':1,'has':1,'from':1,'not':1,'but':1,'all':1,'can':1,'who':1,'what':1,'when':1,'how':1,'why':1,'their':1,'they':1,'them':1,'about':1,'into':1,'over':1,'more':1,'most':1,'such':1,'per':1,'via':1,'etc':1,'role':1,'roles':1,'work':1,'working':1,'team':1,'teams':1,'years':1,'year':1,'experience':1,'experiences':1,'strong':1,'good':1,'great':1,'excellent':1,'ability':1,'skills':1,'skill':1,'knowledge':1,'understanding':1,'responsibilities':1,'requirements':1,'preferred':1,'plus':1,'must':1,'should':1,'including':1,'across':1,'within':1,'using':1,'help':1,'build':1,'building':1,'develop':1,'developing':1,'design':1,'designing':1,'candidate':1,'candidates':1,'company':1,'companies':1,'job':1,'jobs':1,'position':1,'positions':1,'looking':1,'join':1,'we':1,'us':1,'is':1,'to':1,'of':1,'in':1,'on':1,'as':1,'at':1,'be':1,'or':1,'an':1,'a':1,'by':1,'it':1,'if':1,'do':1,'up':1,'new':1,'like':1,'well':1,'also':1,'may':1,'get':1,'one':1,'two':1,'end':1,'day':1,'days':1};\n  const freq = {};\n  const toks = jdText.toLowerCase().replace(/[^a-z0-9+#. ]/g, ' ').split(/\\s+/);\n  for (const t0 of toks) {\n    const t = t0.replace(/^[.]+|[.]+$/g, '');\n    if (t.length < 3 || t.length > 30) continue;\n    if (STOP[t]) continue;\n    if (/^\\d+$/.test(t)) continue;\n    freq[t] = (freq[t] || 0) + 1;\n  }\n  const ranked = Object.keys(freq).sort(function(a, b){ return freq[b] - freq[a]; });\n  // keep only meaningfully repeated keywords, cap to 6 to avoid over-narrowing\n  const kw = ranked.filter(function(w){ return freq[w] >= 2; }).slice(0, 6);\n  if (kw.length) {\n    jdTerm = '(' + kw.map(function(w){ return /\\s/.test(w) ? '\"' + w + '\"' : w; }).join(' OR ') + ')';\n  }\n}\n\n// --- expert noise filter (Boolean Black Belt / SocialTalent best practice) ---\n// People-search returns job posts, ATS pages & directories unless we exclude them.\n// Site-restricted profile searches (e.g. linkedin.com/in/) already avoid most of\n// this, so only apply the noise NOT-block on broad Open Web searches.\nlet noiseTerm = '';\nlet cvIntentTerm = '';\nif (openWeb) {\n  const noise = [\n    'intitle:jobs', 'inurl:/jobs/', 'inurl:/careers/', 'inurl:job',\n    '\"job description\"', '\"apply now\"', '\"post a job\"', '\"we are looking\"',\n    '\"job opening\"', 'site:indeed.com', 'site:glassdoor.com',\n    'site:naukri.com', 'site:ziprecruiter.com', 'site:lever.co',\n    'site:greenhouse.io', 'site:workday.com', 'site:monster.com',\n    'site:shine.com', 'site:timesjobs.com', 'site:foundit.in',\n    'site:instahyre.com', 'site:cutshort.io', 'site:hirist.com',\n    'site:wellfound.com/jobs', 'site:linkedin.com/jobs'\n  ];\n  noiseTerm = noise.map(function(t){ return '-' + t; }).join(' ');\n\n  // --- CV / personal-blog intent booster (open web only) ---\n  // Candidates publish resumes/CVs on personal blogs & doc hosts. Actively TARGET\n  // those pages so open-web search surfaces PEOPLE (and their CVs) not job posts.\n  // We OR together: (a) resume/CV wording, (b) downloadable CV file types,\n  // (c) common personal-blog / CV-hosting domains where people post their CV.\n  const cvWords = '(\"resume\" OR \"curriculum vitae\" OR \"cv\" OR \"portfolio\" OR \"about me\" OR \"my work\" OR \"personal website\")';\n  const cvFiletypes = '(filetype:pdf OR filetype:doc OR filetype:docx)';\n  const cvHosts = '(site:medium.com OR site:github.io OR site:dev.to OR site:hashnode.dev OR site:notion.site OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:super.site OR site:substack.com OR site:wordpress.com OR site:blogspot.com OR site:wixsite.com OR site:carrd.co OR site:about.me OR site:behance.net OR site:gitconnected.com OR site:hackernoon.com OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms)';\n  const cvInurl = '(inurl:resume OR inurl:cv OR intitle:resume OR intitle:\\\"curriculum vitae\\\" OR inurl:portfolio)';\n  cvIntentTerm = '(' + cvWords + ' OR ' + cvFiletypes + ' OR ' + cvHosts + ' OR ' + cvInurl + ')';\n}\n\n// --- search region -> Serper gl country code ---\nconst regionMap = {\n  'india':'in','united states':'us','usa':'us','us':'us','america':'us',\n  'united kingdom':'gb','uk':'gb','britain':'gb','england':'gb',\n  'canada':'ca','australia':'au','germany':'de','france':'fr',\n  'netherlands':'nl','holland':'nl','singapore':'sg',\n  'united arab emirates':'ae','uae':'ae','dubai':'ae',\n  'ireland':'ie','spain':'es','italy':'it','japan':'jp','brazil':'br'\n};\nconst regionRaw = String(form['Search Region'] || '').trim();\nlet gl = '';\nif (regionRaw && !/^global|^all/i.test(regionRaw)) {\n  const rkey = regionRaw.toLowerCase().replace(/\\s*\\(.*\\)\\s*/, '').trim();\n  gl = regionMap[rkey] || '';\n}\n\n// --- assemble query ---\nconst parts = [];\nif (sites.length) { parts.push(sites.length > 1 ? '(' + sites.join(' OR ') + ')' : sites[0]); }\nif (roleTerm) parts.push(roleTerm);\nif (primaryTerm) parts.push(primaryTerm);\nif (secondaryTerm) parts.push(secondaryTerm);\nif (!primaryTerm && !secondaryTerm && skillsTerm) parts.push(skillsTerm);\nif (jdTerm) parts.push(jdTerm);\nif (employerTerm) parts.push(employerTerm);\nif (eduTerm) parts.push(eduTerm);\nif (cvIntentTerm) parts.push(cvIntentTerm);\nif (loc) parts.push(q(loc));\nif (excludeTerm) parts.push(excludeTerm);\nif (noiseTerm) parts.push(noiseTerm);\n\nconst query = parts.join(' ').trim();\nconst PAGES = 3; // Serper: 1 credit per page (each page ~10 results)\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { q: query, page: pg };\n  if (gl) body.gl = gl;\n  out.push({ json: { q: query, page: pg, pages_total: PAGES, gl: gl || 'global', serper_body: body, jd_keywords: jdTerm || 'none', cv_intent: cvIntentTerm ? 'applied' : 'none', noise_filter: noiseTerm ? 'applied' : 'none', platforms_used: openWeb ? 'Open Web' : (sites.join(', ') || 'default'), excludes_used: excludeTerm || 'none' } });\n}\nreturn out;\n"
       },
       "id": "b82dcab5-ef4f-449d-9282-213c15fce065",
       "name": "Build Search Query",
@@ -1057,7 +1556,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $json || {};\nconst url = cand.profile_url || '';\nconst isGH = /github\\.com\\/[A-Za-z0-9-]+/i.test(url) && !/github\\.com\\/orgs\\//i.test(url);\nconst isLI = /linkedin\\.com/i.test(url);\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: url,\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: '',\n  pdl_skills: '',\n  github_url: isGH ? url : '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  // LinkedIn column: only a real LinkedIn URL, or a non-GitHub fallback (e.g. Stack Overflow) so the URL is not lost\n  verified_linkedin: isLI ? url : (isGH ? '' : url),\n  enrichment_status: 'skipped - no linkedin (apollo not used)'\n} };"
+        "jsCode": "const cand = $json || {};\nconst url = cand.profile_url || '';\nconst isGH = /github\\.com\\/[A-Za-z0-9-]+/i.test(url) && !/github\\.com\\/orgs\\//i.test(url);\nconst isLI = /linkedin\\.com/i.test(url);\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: url,\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: '',\n  pdl_skills: '',\n  github_url: isGH ? url : '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  // LinkedIn column: only a real LinkedIn URL, or a non-GitHub fallback (e.g. Stack Overflow) so the URL is not lost\n  verified_linkedin: isLI ? url : '',\n  enrichment_status: 'skipped - no linkedin (apollo not used)'\n} };"
       },
       "id": "6803e6bd-6eb1-4a0f-8bbc-896e4be47157",
       "name": "Combine No Apollo",
@@ -1153,7 +1652,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\nlet dkey;\nif (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else if (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('skipped') !== -1) reasons.push('not Apollo-verified (no LinkedIn)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
+        "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  if (u.indexOf('kaggle.com') !== -1) return 'Kaggle';\n  if (u.indexOf('gitlab.com') !== -1) return 'GitLab';\n  if (u.indexOf('huggingface.co') !== -1) return 'Hugging Face';\n  if (u.indexOf('dev.to') !== -1) return 'Dev.to';\n  if (u.indexOf('reddit.com') !== -1) return 'Reddit';\n  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\n// Stable identity: prefer the profile URL (never changes across runs) so the\n// same person UPDATES their row even when Apollo later adds an email. Fall back\n// to email, then name+role+location.\nlet dkey;\nif (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else if (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('skipped') !== -1) reasons.push('not Apollo-verified (no LinkedIn)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
       },
       "id": "dbabb3dd-ea1a-4837-b877-406102b84a62",
       "name": "Parse Contact",
@@ -1437,7 +1936,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return $input.all().filter(function(i){\n  const r = i.json || {};\n  const flag = String(r['Send Email?']).toLowerCase().trim();\n  const ready = flag === 'true' || flag === 'yes' || flag === '1' || r['Send Email?'] === true;\n  const status = String(r['Outreach Status'] || '').toLowerCase().trim();\n  const notContacted = status === '' || status === 'not contacted';\n  const hasEmail = String(r['Email'] || '').indexOf('@') !== -1;\n  return ready && notContacted && hasEmail;\n});"
+        "jsCode": "return $input.all().filter(function(i){\n  const r = i.json || {};\n  const flag = String(r['Send Email?']).toLowerCase().trim();\n  const ready = flag === 'true' || flag === 'yes' || flag === '1' || r['Send Email?'] === true;\n  const status = String(r['Outreach Status'] || '').toLowerCase().trim();\n  const notContacted = status === '' || status === 'not contacted';\n  const hasEmail = String(r['Email'] || '').indexOf('@') !== -1;\n  // confidence guard: skip Low-confidence rows (junk/scraped/anonymous) from\n  // the AUTO-sender, so a stray Send Email?=TRUE can't fire to a bad address.\n  const conf = String(r['Confidence'] || '').toLowerCase().trim();\n  const notLow = conf.indexOf('low') !== 0;\n  return ready && notContacted && hasEmail && notLow;\n});"
       },
       "id": "d400d902-14fc-4276-815f-79414b65033b",
       "name": "Filter Outreach Queue",
@@ -1528,7 +2027,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().map(function(i){ return i.json; });\nconst count = rows.length;\nlet nums = [];\nfor (const r of rows) { const n = Number(r.row_number || r.rowNumber); if (!isNaN(n) && n > 0) nums.push(n); }\nlet rangeText = '';\nif (nums.length) { nums.sort(function(a,b){return a-b;}); rangeText = 'rows ' + nums[0] + ' to ' + nums[nums.length-1]; }\nelse { rangeText = 'the latest ' + count + ' rows'; }\nlet role = '', loc = '';\ntry { const f = $('Search Criteria').first().json; role = f['Target Role'] || ''; loc = f['Location'] || ''; } catch(e) {}\n\nlet resumeSearches = 0;\ntry { resumeSearches = $('Resume Search').all().length; } catch(e) { resumeSearches = count; }\nlet mainPages = 1;\ntry { mainPages = $('Serper Search').all().length || 1; } catch(e) { mainPages = 1; }\nconst serperThisRun = mainPages + resumeSearches;\nlet apolloThisRun = 0;\ntry { apolloThisRun = $('Apollo Enrich').all().length; } catch(e) { apolloThisRun = 0; }\n\nlet prevSerper = 0, prevApollo = 0, month = '', trackerRow = null;\ntry {\n  const g = $('Budget Gate').first().json;\n  prevSerper = Number(g.Serper_Used) || 0;\n  prevApollo = Number(g.PDL_Used) || 0;\n  month = g.Month || '';\n  trackerRow = g.tracker_row || null;\n} catch(e) {}\n\nconst serperTotal = prevSerper + serperThisRun;\nconst apolloTotal = prevApollo + apolloThisRun;\n\nconst SERPER_CAP = 1000, APOLLO_CAP = 100;\nlet warnParts = [];\nif (serperTotal >= SERPER_CAP * 0.8) warnParts.push('Serper at ' + serperTotal + '/' + SERPER_CAP);\nif (apolloTotal >= APOLLO_CAP * 0.8) warnParts.push('Apollo at ' + apolloTotal + '/' + APOLLO_CAP);\nconst nearCap = warnParts.length > 0;\n\nreturn [{ json: {\n  count: count,\n  range_text: rangeText,\n  search_role: role,\n  search_location: loc,\n  month: month,\n  tracker_row: trackerRow,\n  serper_used_run: serperThisRun,\n  apollo_used_run: apolloThisRun,\n  serper_used_total: serperTotal,\n  apollo_used_total: apolloTotal,\n  near_cap: nearCap,\n  warning_text: warnParts.join(' | ')\n} }];"
+        "jsCode": "const rows = $input.all().map(function(i){ return i.json; });\nconst count = rows.length;\nlet nums = [];\nfor (const r of rows) { const n = Number(r.row_number || r.rowNumber); if (!isNaN(n) && n > 0) nums.push(n); }\nlet rangeText = '';\nif (nums.length) { nums.sort(function(a,b){return a-b;}); rangeText = 'rows ' + nums[0] + ' to ' + nums[nums.length-1]; }\nelse { rangeText = 'the latest ' + count + ' rows'; }\nlet role = '', loc = '';\ntry { const f = $('Search Criteria').first().json; role = f['Target Role'] || ''; loc = f['Location'] || ''; } catch(e) {}\n\nlet resumeSearches = 0;\ntry { resumeSearches = $('Resume Search').all().length; } catch(e) { resumeSearches = count; }\nlet mainPages = 1;\ntry { mainPages = $('Serper Search').all().length || 1; } catch(e) { mainPages = 1; }\nconst serperThisRun = mainPages + resumeSearches;\nlet apolloThisRun = 0;\ntry { apolloThisRun = $('Apollo Enrich').all().length; } catch(e) { apolloThisRun = 0; }\ntry { apolloThisRun += $('Apollo People Search').all().length; } catch(e) {}\n\nlet prevSerper = 0, prevApollo = 0, month = '', trackerRow = null;\ntry {\n  const g = $('Budget Gate').first().json;\n  prevSerper = Number(g.Serper_Used) || 0;\n  prevApollo = Number(g.PDL_Used) || 0;\n  month = g.Month || '';\n  trackerRow = g.tracker_row || null;\n} catch(e) {}\n\nconst serperTotal = prevSerper + serperThisRun;\nconst apolloTotal = prevApollo + apolloThisRun;\n\nconst SERPER_CAP = 1000, APOLLO_CAP = 100;\nlet warnParts = [];\nif (serperTotal >= SERPER_CAP * 0.8) warnParts.push('Serper at ' + serperTotal + '/' + SERPER_CAP);\nif (apolloTotal >= APOLLO_CAP * 0.8) warnParts.push('Apollo at ' + apolloTotal + '/' + APOLLO_CAP);\nconst nearCap = warnParts.length > 0;\n\nreturn [{ json: {\n  count: count,\n  range_text: rangeText,\n  search_role: role,\n  search_location: loc,\n  month: month,\n  tracker_row: trackerRow,\n  serper_used_run: serperThisRun,\n  apollo_used_run: apolloThisRun,\n  serper_used_total: serperTotal,\n  apollo_used_total: apolloTotal,\n  near_cap: nearCap,\n  warning_text: warnParts.join(' | ')\n} }];"
       },
       "id": "220a7a8d-a262-4fbd-8429-58fa5eaa3c8d",
       "name": "Sourcing Summary",
@@ -1581,10 +2080,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "value": "YOUR_USAGE_TRACKER_GID",
+          "value": 2134273428,
           "mode": "list",
           "cachedResultName": "Usage Tracker",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=YOUR_USAGE_TRACKER_GID"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=2134273428"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -1723,7 +2222,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nlet parsed = [];\ntry {\n  const j = (items[0] && items[0].json) || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) {\n    raw = j.output[0].content[0].text;\n  } else if (typeof j.text === 'string') {\n    raw = j.text;\n  } else {\n    raw = '[]';\n  }\n  parsed = JSON.parse(raw);\n  if (!Array.isArray(parsed)) { parsed = [parsed]; }\n} catch (e) { parsed = []; }\n\nconst valid = parsed.filter(function(c){\n  return c && c.candidate_name && (Number(c.fit_score) || 0) > 0;\n});\n\nif (valid.length > 0) { return []; }\n\nlet role = '', loc = '', queryStr = '', platforms = '';\ntry {\n  const f = $('Search Criteria').first().json;\n  role = f['Target Role'] || '';\n  loc = f['Location'] || '';\n} catch (e) {}\ntry {\n  const g = $('Build Search Query').first().json;\n  queryStr = g.q || '';\n  platforms = g.platforms_used || '';\n} catch (e) {}\n\nreturn [{ json: {\n  role: role,\n  location: loc,\n  platforms: platforms,\n  query: queryStr,\n  scanned: parsed.length\n} }];\n"
+        "jsCode": "// Scan EVERY input item (Message a model can deliver in more than one wave as\n// the parallel source branches converge on Merge Pages). Aggregate all valid\n// candidates across every item, not just items[0].\nconst items = $input.all();\nlet totalParsed = 0;\nlet validCount = 0;\nfor (const it of items) {\n  const j = (it && it.json) || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) {\n    raw = j.output[0].content[0].text;\n  } else if (typeof j.text === 'string') {\n    raw = j.text;\n  } else {\n    raw = '[]';\n  }\n  let parsed;\n  try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }\n  if (!Array.isArray(parsed)) { parsed = [parsed]; }\n  totalParsed += parsed.length;\n  for (const c of parsed) {\n    if (c && c.candidate_name && (Number(c.fit_score) || 0) > 0) validCount++;\n  }\n}\n\n// If ANY valid candidate was found, do not fire the zero-results alert.\nif (validCount > 0) { return []; }\n\nlet role = '', loc = '', queryStr = '', platforms = '';\ntry {\n  const f = $('Search Criteria').first().json;\n  role = f['Target Role'] || '';\n  loc = f['Location'] || '';\n} catch (e) {}\ntry {\n  const g = $('Build Search Query').first().json;\n  queryStr = g.q || '';\n  platforms = g.platforms_used || '';\n} catch (e) {}\n\n// GUARD: only fire the '0 candidates' alert once the real search has actually\n// run (query string present). An empty query here means this is an early/partial\n// wave before the Serper branch completed -> stay silent to avoid a FALSE alert.\nif (!String(queryStr).trim()) { return []; }\n\nreturn [{ json: {\n  role: role,\n  location: loc,\n  platforms: platforms,\n  query: queryStr,\n  scanned: totalParsed\n} }];\n"
       },
       "id": "f32481fb-d99b-4772-a5d6-c43e68445f93",
       "name": "Results Gate",
@@ -1977,7 +2476,7 @@
         "responses": {
           "values": [
             {
-              "content": "=Natural language hiring request (may be empty):\n\"\"\"\n{{ $('On form submission').first().json['Natural Language Search'] || '' }}\n\"\"\"\n\nJob description (may be empty):\n\"\"\"\n{{ $('Prep JD').first().json.jd_text || '' }}\n\"\"\"\n\nExtract the hiring criteria as a JSON object with EXACTLY these keys (use \"\" or [] when not mentioned):\n- target_role (string)\n- key_skills (string, comma-separated)\n- location (string, city or region)\n- preferred_industry (string)\n- current_employer (string)\n- keywords_exclude (string, comma-separated terms to exclude)\n- education (one of \"Any\",\"Bachelors / Degree\",\"Masters\",\"PhD\",\"MBA\" or \"\")\n- expand_synonyms (\"Yes\",\"No\" or \"\")\n- experience_range (EXACTLY one of \"0-2 years\",\"3-5 years\",\"5-8 years\",\"8+ years\" or \"\"). Map seniority words: intern/junior/entry/graduate => \"0-2 years\"; mid-level => \"3-5 years\"; senior => \"5-8 years\"; lead/principal/staff/head/very senior => \"8+ years\". If a number of years is stated, choose the band containing its lower bound.\n- gender_preference (\"Any\",\"Female\",\"Male\" or \"\")\n- platforms (array, any of \"LinkedIn\",\"Github\",\"X (Twitter)\",\"Stack Overflow\",\"Dribbble\",\"Behance\",\"Wellfound\",\"Hacker News\",\"Google / Open Web\")\nIf BOTH inputs are empty, return every value empty."
+              "content": "=Natural language hiring request (may be empty):\n\"\"\"\n{{ $('On form submission').first().json['Natural Language Search'] || '' }}\n\"\"\"\n\nJob description (may be empty):\n\"\"\"\n{{ $('Prep JD').first().json.jd_text || '' }}\n\"\"\"\n\nExtract the hiring criteria as a JSON object with EXACTLY these keys (use \"\" or [] when not mentioned):\n- target_role (string)\n- key_skills (string, comma-separated)\n- location (string, city or region)\n- preferred_industry (string)\n- current_employer (string)\n- keywords_exclude (string, comma-separated terms to exclude)\n- education (one of \"Any\",\"Bachelors / Degree\",\"Masters\",\"PhD\",\"MBA\" or \"\")\n- expand_synonyms (\"Yes\",\"No\" or \"\")\n- experience_range (EXACTLY one of \"0-2 years\",\"3-5 years\",\"5-8 years\",\"8+ years\" or \"\"). Map seniority words: intern/junior/entry/graduate => \"0-2 years\"; mid-level => \"3-5 years\"; senior => \"5-8 years\"; lead/principal/staff/head/very senior => \"8+ years\". If a number of years is stated, choose the band containing its lower bound.\n- gender_preference (\"Any\",\"Female\",\"Male\" or \"\")\n- platforms (array, any of \"LinkedIn\",\"Github\",\"X (Twitter)\",\"Stack Overflow\",\"Dribbble\",\"Behance\",\"Wellfound\",\"Hacker News\",\"Reddit\",\"Dev.to\",\"GitLab\",\"Hugging Face\",\"Kaggle\",\"Google / Open Web\")\nIf BOTH inputs are empty, return every value empty."
             },
             {
               "role": "system",
@@ -2007,7 +2506,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const form = $('On form submission').first().json;\nlet p = {};\ntry {\n  const j = $('Parse NL Search').first().json || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) raw = j.output[0].content[0].text;\n  else if (typeof j.text === 'string') raw = j.text;\n  else raw = '{}';\n  p = JSON.parse(raw);\n  if (!p || typeof p !== 'object' || Array.isArray(p)) p = {};\n} catch (e) { p = {}; }\n\nfunction pick(formVal, parsedVal, def) {\n  const f = (formVal === undefined || formVal === null) ? '' : String(formVal).trim();\n  if (f && !/^auto/i.test(f)) return formVal;\n  const pv = (parsedVal === undefined || parsedVal === null) ? '' : String(parsedVal).trim();\n  if (pv) return parsedVal;\n  return def;\n}\n\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nif (!platforms.length && Array.isArray(p.platforms)) platforms = p.platforms.filter(Boolean);\nif (!platforms.length) platforms = ['LinkedIn', 'Github'];\n\nconst nlUsed = String(form['Natural Language Search'] || '').trim().length > 0;\n\nreturn [{ json: {\n  'Target Role': pick(form['Target Role'], p.target_role, ''),\n  'Key Skills & Criteria': pick(form['Key Skills & Criteria'], p.key_skills, ''),\n  'Location': pick(form['Location'], p.location, ''),\n  'Preferred Industry': pick(form['Preferred Industry'], p.preferred_industry, ''),\n  'Current Employer': pick(form['Current Employer'], p.current_employer, ''),\n  'Keywords to Exclude': pick(form['Keywords to Exclude'], p.keywords_exclude, ''),\n  'Education': pick(form['Education'], p.education, 'Any'),\n  'Expand Job Title Synonyms': pick(form['Expand Job Title Synonyms'], p.expand_synonyms, 'No'),\n  'Experience Range (Years)': pick(form['Experience Range (Years)'], p.experience_range, '0-2 years'),\n  'Gender Preference': pick(form['Gender Preference'], p.gender_preference, 'Any'),\n  'Target Platforms': platforms,\n  'Search Region': pick(form['Search Region (Geography)'], p.search_region, ''),\n  'nl_used': nlUsed\n} }];"
+        "jsCode": "const form = $('On form submission').first().json;\nlet p = {};\ntry {\n  const j = $('Parse NL Search').first().json || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) raw = j.output[0].content[0].text;\n  else if (typeof j.text === 'string') raw = j.text;\n  else raw = '{}';\n  p = JSON.parse(raw);\n  if (!p || typeof p !== 'object' || Array.isArray(p)) p = {};\n} catch (e) { p = {}; }\n\nfunction pick(formVal, parsedVal, def) {\n  const f = (formVal === undefined || formVal === null) ? '' : String(formVal).trim();\n  if (f && !/^auto/i.test(f)) return formVal;\n  const pv = (parsedVal === undefined || parsedVal === null) ? '' : String(parsedVal).trim();\n  if (pv) return parsedVal;\n  return def;\n}\nfunction toArr(v){ if (Array.isArray(v)) return v.map(function(s){return String(s).trim();}).filter(Boolean); return v ? String(v).split(',').map(function(s){return s.trim();}).filter(Boolean) : []; }\n\n// --- primary / secondary skills: multiselect dropdown + free-text 'other' ---\nlet primary = toArr(form['2) Primary Skills (must-have)']).concat(toArr(form['2b) Add other primary skills']));\nlet secondary = toArr(form['2c) Secondary Skills (nice-to-have)']).concat(toArr(form['2d) Add other secondary skills']));\nconst useSecRaw = String(form['2e) Use Secondary Skills?'] || '').toLowerCase();\nconst useSecondary = !/^no/.test(useSecRaw); // default = include secondary\nif (!useSecondary) secondary = [];\n// de-dupe case-insensitively, primary keeps precedence over secondary\nconst seen = {};\nprimary = primary.filter(function(s){ const k=s.toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });\nsecondary = secondary.filter(function(s){ const k=s.toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });\n// NL fallback: if the recruiter gave no skills in the form, use the parsed key_skills\nif (!primary.length && !secondary.length) { primary = toArr(p.key_skills); }\nconst combinedSkills = primary.concat(secondary).join(', ');\n\nlet platforms = form['11) Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nif (!platforms.length && Array.isArray(p.platforms)) platforms = p.platforms.filter(Boolean);\nif (!platforms.length) platforms = ['LinkedIn', 'Github'];\n\nconst nlUsed = String(form['Natural Language Search'] || '').trim().length > 0;\n\nreturn [{ json: {\n  'Target Role': pick(form['1) Target Role'], p.target_role, ''),\n  'Key Skills & Criteria': combinedSkills,\n  'Primary Skills': primary.join(', '),\n  'Secondary Skills': secondary.join(', '),\n  'Use Secondary Skills': useSecondary,\n  'Location': pick(form['3) Location'], p.location, ''),\n  'Preferred Industry': pick(form['4) Preferred Industry'], p.preferred_industry, ''),\n  'Current Employer': pick(form['5) Current Employer'], p.current_employer, ''),\n  'Keywords to Exclude': pick(form['6) Keywords to Exclude'], p.keywords_exclude, ''),\n  'Education': pick(form['7) Education'], p.education, 'Any'),\n  'Expand Job Title Synonyms': pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'No'),\n  'Experience Range (Years)': pick(form['9) Experience Range (Years)'], p.experience_range, '0-2 years'),\n  'Gender Preference': pick(form['10) Gender Preference'], p.gender_preference, 'Any'),\n  'Target Platforms': platforms,\n  'Search Region': pick(form['12) Search Region (Geography)'], p.search_region, ''),\n  'nl_used': nlUsed\n} }];"
       },
       "id": "bb22dd33-nl00-4a00-9000-0000000000p2",
       "name": "Search Criteria",
@@ -2026,7 +2525,7 @@
           "__rl": true,
           "mode": "list",
           "value": "YOUR_SLACK_USER_ID",
-          "cachedResultName": "YOUR_NAME"
+          "cachedResultName": "your-slack-username"
         },
         "text": "=:checkered_flag: *Sourcing run complete* — {{ $json.count }} new candidate(s) for *{{ $json.search_role }}* ({{ $json.search_location }}).\nResults are in the Google Sheet ({{ $json.range_text }}). Tick *Send Email?* for anyone you want to reach out to.",
         "otherOptions": {}
@@ -2538,6 +3037,418 @@
         0,
         0
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n// Apollo's DB is corporate/LinkedIn-identified people -> only run it when\n// LinkedIn is a requested platform (skip for pure GitHub/HN/SO searches).\nconst liSelected = platforms.some(function(p){ return /linkedin/i.test(String(p)); });\nif (!liSelected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst employer = String(form['Current Employer'] || '').trim();\nif (!role && !skillsRaw) return [];\n// tuneable for Professional plan: raise PER_PAGE / PAGES once upgraded.\nconst PER_PAGE = 25;   // records per page (Apollo: 1 search credit per page)\nconst PAGES = 1;       // number of pages to pull per run\n// map experience band -> Apollo seniority buckets (best-effort)\nconst exp = String(form['Experience Range (Years)'] || '').toLowerCase();\nlet seniorities = [];\nif (exp.indexOf('8+') !== -1) seniorities = ['director','vp','head','manager','senior'];\nelse if (exp.indexOf('5-8') !== -1) seniorities = ['senior','manager'];\nelse if (exp.indexOf('3-5') !== -1) seniorities = ['senior','entry'];\nconst titles = role ? [role] : [];\nconst keywords = skillsRaw ? skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean).join(' ') : '';\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { page: pg, per_page: PER_PAGE };\n  if (titles.length) body.person_titles = titles;\n  if (loc) body.person_locations = [loc];\n  if (keywords) body.q_keywords = keywords;\n  if (employer) body.q_organization_domains = null, body.organization_names = [employer];\n  if (seniorities.length) body.person_seniorities = seniorities;\n  out.push({ json: { apollo_body: body, apollo_page: pg } });\n}\nreturn out;\n"
+      },
+      "id": "apollo-search-000-4a00-9000-000000000071",
+      "name": "Build Apollo Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/api/v1/mixed_people/api_search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.apollo_body) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "apollo-search-000-4a00-9000-000000000072",
+      "name": "Apollo People Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -576
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Header Auth account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Apollo people-search results into the shared 'organic' shape so they\n// join the same ranking/enrichment pool as Serper/GitHub/HN/SO. Apollo\n// search does NOT return emails (that needs the enrich step downstream);\n// it gives verified name + title + company + LinkedIn URL.\nconst out = [];\nfor (const it of $input.all()) {\n  const people = (it.json && (it.json.people || it.json.contacts)) ? (it.json.people || it.json.contacts) : [];\n  for (const p of people) {\n    const name = String(p.name || ((p.first_name||'') + ' ' + (p.last_name||''))).trim();\n    if (!name) continue;\n    const li = String(p.linkedin_url || '').trim();\n    const title = String(p.title || '').trim();\n    const org = (p.organization && p.organization.name) ? String(p.organization.name) : String(p.organization_name || '');\n    const loc = [p.city, p.state, p.country].filter(Boolean).join(', ');\n    let snippet = title;\n    if (org) snippet += (snippet ? ' at ' : '') + org;\n    if (loc) snippet += (snippet ? ' | ' : '') + loc;\n    snippet += '. Apollo-sourced professional profile; enrich for verified work email.';\n    // prefer the LinkedIn URL as the link so downstream Apollo enrich + LinkedIn routing works\n    const link = li || ('https://www.apollo.io/people/' + (p.id || ''));\n    out.push({ title: name + (title ? (' - ' + title) : ''), snippet: snippet, link: link });\n  }\n}\nreturn [{ json: { organic: out, source: 'apollo', results_count: out.length } }];\n"
+      },
+      "id": "apollo-search-000-4a00-9000-000000000073",
+      "name": "Apollo To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst selected = platforms.some(function(p){ return /reddit/i.test(String(p)); });\nif (!selected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst terms = [];\nif (skillsRaw) skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean).slice(0,3).forEach(function(s){ terms.push(s); });\nif (!terms.length && role) terms.push(role);\nif (loc) terms.push(loc);\nlet query = terms.join(' ').trim();\nif (!query) return [];\n// restrict to the hiring / for-hire subreddits where people advertise themselves\nconst subs = '(subreddit:forhire OR subreddit:jobbit OR subreddit:hireaprogrammer OR subreddit:jobbitcanada OR subreddit:remotejs OR subreddit:cscareerquestions)';\nconst q = subs + ' ' + query;\nconst url = 'https://www.reddit.com/search.json?sort=new&limit=40&q=' + encodeURIComponent(q);\nreturn [{ json: { reddit_query: q, reddit_url: url } }];\n"
+      },
+      "id": "native-rd-000-4a00-9000-000000000081",
+      "name": "Build Reddit Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -720
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.reddit_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing/1.0 (recruiting research)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-rd-000-4a00-9000-000000000082",
+      "name": "Reddit Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -720
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Reddit hiring-subreddit posts into the shared 'organic' shape.\n// We keep posts that read like an individual offering themselves for work\n// ([For Hire] / SEEKING WORK / resume) and skip employer 'hiring' posts.\nfunction clean(t){ return String(t||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,\"'\").replace(/\\s+/g,' ').trim(); }\nconst out = [];\nconst seen = {};\nfor (const it of $input.all()) {\n  const kids = (it.json && it.json.data && it.json.data.children) ? it.json.data.children : [];\n  for (const k of kids) {\n    const p = k.data || {};\n    const title = clean(p.title);\n    const body = clean(p.selftext);\n    const author = String(p.author || '').trim();\n    if (!author || author === '[deleted]' || seen[author]) continue;\n    const blob = (title + ' ' + body).toLowerCase();\n    // candidate-offering signals vs employer-hiring signals\n    const offering = /\\[for ?hire\\]|seeking work|available for|open to work|looking for work|\\bmy resume\\b|\\bmy cv\\b|freelanc|for hire/.test(blob);\n    const hiring = /\\[hiring\\]|we are hiring|we're hiring|looking to hire|join our team/.test(blob);\n    if (hiring && !offering) continue;\n    seen[author] = true;\n    let snippet = title;\n    if (body) snippet += ' | ' + body.slice(0, 300);\n    snippet += ' | Reddit user u/' + author;\n    const link = 'https://www.reddit.com' + (p.permalink || ('/user/' + author));\n    out.push({ title: 'u/' + author + ' (Reddit)', snippet: snippet, link: link });\n    if (out.length >= 25) break;\n  }\n}\nreturn [{ json: { organic: out, source: 'reddit', results_count: out.length } }];\n"
+      },
+      "id": "native-rd-000-4a00-9000-000000000083",
+      "name": "Reddit To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst selected = platforms.some(function(p){ return /dev\\.?to/i.test(String(p)); });\nif (!selected) return [];\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst role = String(form['Target Role'] || '').trim();\n// dev.to tags are single lowercase words (no spaces/dots): java, python, react...\nconst tagMap = {'spring boot':'java','springboot':'java','node.js':'node','nodejs':'node','reactjs':'react','react.js':'react','c#':'csharp','.net':'dotnet','golang':'go','k8s':'kubernetes','postgresql':'postgres'};\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\nlet tag = '';\nfor (const s of skills) { const k = s.toLowerCase(); const mapped = tagMap[k] || k.replace(/[^a-z0-9]/g,''); if (mapped) { tag = mapped; break; } }\nif (!tag && role) tag = role.toLowerCase().replace(/[^a-z0-9]/g,'');\nif (!tag) return [];\nconst url = 'https://dev.to/api/articles?per_page=30&tag=' + encodeURIComponent(tag);\nreturn [{ json: { devto_tag: tag, devto_url: url } }];\n"
+      },
+      "id": "native-dt-000-4a00-9000-000000000091",
+      "name": "Build DevTo Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -864
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.devto_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.forem.api-v1+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-dt-000-4a00-9000-000000000092",
+      "name": "DevTo Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -864
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Dev.to articles -> their authors into the shared 'organic' shape.\n// Prefer the author's GitHub profile as the link so Apollo/GitHub routing\n// downstream can enrich them; fall back to their Dev.to profile.\nconst out = [];\nconst seen = {};\n// The HTTP node splits Dev.to's top-level array into one item per article,\n// so each $input item IS a single article. Also handle array / {data:[]} shapes.\nconst articles = [];\nfor (const it of $input.all()) {\n  const j = it.json;\n  if (Array.isArray(j)) { for (const a of j) articles.push(a); }\n  else if (j && Array.isArray(j.data)) { for (const a of j.data) articles.push(a); }\n  else if (j && (j.user || j.title || j.id)) { articles.push(j); }\n}\n{\n  for (const a of articles) {\n    const u = a.user || {};\n    const name = String(u.name || u.username || '').trim();\n    const username = String(u.username || '').trim();\n    if (!name || seen[username || name]) continue;\n    seen[username || name] = true;\n    const gh = String(u.github_username || '').trim();\n    const link = gh ? ('https://github.com/' + gh) : ('https://dev.to/' + username);\n    const tags = Array.isArray(a.tag_list) ? a.tag_list.join(', ') : String(a.tags || '');\n    let snippet = 'Dev.to author';\n    if (a.title) snippet += ' — wrote \"' + String(a.title).slice(0,120) + '\"';\n    if (tags) snippet += ' (topics: ' + tags + ')';\n    snippet += '. Developer who publishes technical content; enrich for role and contact.';\n    out.push({ title: name + ' (Dev.to)', snippet: snippet, link: link });\n    if (out.length >= 25) break;\n  }\n}\nreturn [{ json: { organic: out, source: 'devto', results_count: out.length } }];\n"
+      },
+      "id": "native-dt-000-4a00-9000-000000000093",
+      "name": "DevTo To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -864
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst selected = platforms.some(function(p){ return /gitlab/i.test(String(p)); });\nif (!selected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\n// GitLab user search matches name/username, not skills. Use the most\n// specific single term available (first skill, else role).\nlet term = skills.length ? skills[0] : role;\nterm = String(term || '').trim();\nif (!term) return [];\n// GitLab public users API (no key needed for public data; rate-limited)\nconst url = 'https://gitlab.com/api/v4/users?search=' + encodeURIComponent(term) + '&per_page=30&active=true';\nreturn [{ json: { gitlab_term: term, gitlab_url: url } }];\n"
+      },
+      "id": "native-gl-000-4a00-9000-000000000101",
+      "name": "Build GitLab Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -1008
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.gitlab_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gitlabApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-gl-000-4a00-9000-000000000102",
+      "name": "GitLab Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -1008
+      ],
+      "credentials": {
+        "gitlabApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "GitLab account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map GitLab public users into the shared 'organic' shape. The HTTP node\n// splits the top-level array into one item per user; also handle array shape.\nconst users = [];\nfor (const it of $input.all()) {\n  const j = it.json;\n  if (Array.isArray(j)) { for (const u of j) users.push(u); }\n  else if (j && (j.username || j.id)) { users.push(j); }\n}\nconst out = [];\nconst seen = {};\nfor (const u of users) {\n  const username = String(u.username || '').trim();\n  const name = String(u.name || username).trim();\n  if (!name || seen[username || name]) continue;\n  seen[username || name] = true;\n  const link = String(u.web_url || (username ? 'https://gitlab.com/' + username : ''));\n  if (!link) continue;\n  const bio = String(u.bio || '').replace(/\\s+/g, ' ').trim();\n  const org = String(u.organization || '').trim();\n  const loc = String(u.location || '').trim();\n  let snippet = 'GitLab developer';\n  if (org) snippet += ' at ' + org;\n  if (loc) snippet += ' (' + loc + ')';\n  if (bio) snippet += '. ' + bio.slice(0, 200);\n  snippet += '. Public GitLab contributor; enrich for role and contact details.';\n  out.push({ title: name + ' (GitLab)', snippet: snippet, link: link });\n  if (out.length >= 25) break;\n}\nreturn [{ json: { organic: out, source: 'gitlab', results_count: out.length } }];\n"
+      },
+      "id": "native-gl-000-4a00-9000-000000000103",
+      "name": "GitLab To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -1008
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst selected = platforms.some(function(p){ return /hugging\\s*face/i.test(String(p)); });\nif (!selected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\n// Hugging Face model search matches names/tags. Use the most specific term.\nlet term = skills.length ? skills[0] : role;\nterm = String(term || '').trim();\nif (!term) return [];\n// keyless public API: models carry an author we can turn into a candidate\nconst url = 'https://huggingface.co/api/models?search=' + encodeURIComponent(term) + '&limit=40&full=false&sort=downloads&direction=-1';\nreturn [{ json: { hf_term: term, hf_url: url } }];\n"
+      },
+      "id": "native-hf-000-4a00-9000-000000000111",
+      "name": "Build HF Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -1136
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.hf_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "native-hf-000-4a00-9000-000000000112",
+      "name": "HF Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -1136
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Hugging Face model authors into the shared 'organic' shape. The HTTP\n// node splits the top-level array into one item per model; dedupe by author\n// and skip org accounts (heuristic) so we surface individual AI builders.\nconst models = [];\nfor (const it of $input.all()) {\n  const j = it.json;\n  if (Array.isArray(j)) { for (const m of j) models.push(m); }\n  else if (j && (j.modelId || j.id || j.author)) { models.push(j); }\n}\nconst out = [];\nconst seen = {};\n// well-known ORG accounts to skip (not individuals)\nconst ORGS = {'google':1,'meta-llama':1,'microsoft':1,'openai':1,'facebook':1,'stabilityai':1,'huggingface':1,'nvidia':1,'mistralai':1,'bigscience':1,'amazon':1,'apple':1,'intel':1,'qualcomm':1,'deepseek-ai':1,'ibm':1,'salesforce':1,'tiiuae':1,'databricks':1,'cohere':1,'allenai':1};\nfor (const m of models) {\n  const modelId = String(m.modelId || m.id || '').trim();\n  let author = String(m.author || '').trim();\n  if (!author && modelId.indexOf('/') !== -1) author = modelId.split('/')[0];\n  if (!author) continue;\n  const alow = author.toLowerCase();\n  if (ORGS[alow]) continue;                 // skip big org accounts\n  if (seen[alow]) continue;\n  seen[alow] = true;\n  const link = 'https://huggingface.co/' + author;\n  const downloads = (typeof m.downloads === 'number') ? m.downloads : '';\n  const likes = (typeof m.likes === 'number') ? m.likes : '';\n  const tags = Array.isArray(m.tags) ? m.tags.filter(function(t){ return String(t).length < 25; }).slice(0,6).join(', ') : '';\n  let snippet = 'Hugging Face AI/ML author';\n  if (modelId) snippet += ' — published model \"' + modelId + '\"';\n  const ex = [];\n  if (downloads !== '') ex.push(downloads + ' downloads');\n  if (likes !== '') ex.push(likes + ' likes');\n  if (ex.length) snippet += ' (' + ex.join(', ') + ')';\n  if (tags) snippet += '. Topics: ' + tags;\n  snippet += '. Individual AI/ML practitioner; enrich for role and contact.';\n  out.push({ title: author + ' (Hugging Face)', snippet: snippet, link: link });\n  if (out.length >= 25) break;\n}\nreturn [{ json: { organic: out, source: 'huggingface', results_count: out.length } }];\n"
+      },
+      "id": "native-hf-000-4a00-9000-000000000113",
+      "name": "HF To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -1136
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst selected = platforms.some(function(p){ return /kaggle/i.test(String(p)); });\nif (!selected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\nlet term = skills.length ? skills.slice(0,2).join(' ') : role;\nterm = String(term || '').trim();\nif (!term) return [];\n// Kaggle kernels(notebooks) search; sortBy=hotness surfaces active authors\nconst url = 'https://www.kaggle.com/api/v1/kernels/list?search=' + encodeURIComponent(term) + '&pageSize=40&sortBy=hotness';\nreturn [{ json: { kaggle_term: term, kaggle_url: url } }];\n"
+      },
+      "id": "native-kg-000-4a00-9000-000000000121",
+      "name": "Build Kaggle Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -1280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.kaggle_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "native-kg-000-4a00-9000-000000000122",
+      "name": "Kaggle Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -1280
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Kaggle API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Kaggle authors into the shared 'organic' shape. Kaggle has no public\n// profile/bio API, so we build a RICH evidence snippet from the author's whole\n// body of work in the result set (all their notebooks, not just one): number of\n// notebooks, top notebook titles, languages used, and total upvotes. This gives\n// the AI ranker real depth/seniority signal so strong Kaggle contributors rank\n// competitively against LinkedIn candidates. All data is real (no invented bios).\nconst kernels = [];\nfor (const it of $input.all()) {\n  const j = it.json;\n  if (Array.isArray(j)) { for (const k of j) kernels.push(k); }\n  else if (j && (j.ref || j.author)) { kernels.push(j); }\n}\n\n// group every kernel by its author\nconst byAuthor = {};\nfor (const k of kernels) {\n  const ref = String(k.ref || '').trim();\n  let author = String(k.author || '').trim();\n  if (!author && ref.indexOf('/') !== -1) author = ref.split('/')[0];\n  if (!author) continue;\n  const key = author.toLowerCase();\n  if (!byAuthor[key]) byAuthor[key] = { author: author, kernels: [] };\n  byAuthor[key].kernels.push(k);\n}\n\nfunction num(v){ return (typeof v === 'number' && !isNaN(v)) ? v : 0; }\n\nconst out = [];\nfor (const key of Object.keys(byAuthor)) {\n  const rec = byAuthor[key];\n  const author = rec.author;\n  const ks = rec.kernels;\n  const nbCount = ks.length;\n  // total upvotes across all this author's notebooks\n  let totalVotes = 0;\n  for (const k of ks) totalVotes += num(k.totalVotes);\n  // distinct languages\n  const langSet = {};\n  for (const k of ks) { const l = String(k.language || '').trim(); if (l) langSet[l] = 1; }\n  const langs = Object.keys(langSet);\n  // top notebook titles by votes (up to 3) as evidence of topic depth\n  const titled = ks.filter(function(k){ return String(k.title||'').trim(); })\n                   .sort(function(a,b){ return num(b.totalVotes) - num(a.totalVotes); });\n  const topTitles = titled.slice(0,3).map(function(k){ return '\"' + String(k.title).slice(0,80) + '\"'; });\n\n  let snippet = 'Kaggle data-science / ML practitioner';\n  const ev = [];\n  ev.push(nbCount + (nbCount === 1 ? ' public notebook' : ' public notebooks'));\n  if (totalVotes > 0) ev.push(totalVotes + ' total upvotes');\n  if (langs.length) ev.push('uses ' + langs.join(', '));\n  if (ev.length) snippet += ' — ' + ev.join('; ');\n  if (topTitles.length) snippet += '. Notable work: ' + topTitles.join(', ');\n  // seniority hint from breadth of contribution (real signal, not invented)\n  if (nbCount >= 5 || totalVotes >= 500) snippet += '. Prolific, highly-voted contributor (signals strong hands-on depth)';\n  else if (nbCount >= 2) snippet += '. Active contributor with multiple published notebooks';\n  snippet += '. Individual data scientist; enrich for role and contact.';\n\n  out.push({ title: author + ' (Kaggle)', snippet: snippet, link: 'https://www.kaggle.com/' + author });\n  if (out.length >= 25) break;\n}\nreturn [{ json: { organic: out, source: 'kaggle', results_count: out.length } }];\n"
+      },
+      "id": "native-kg-000-4a00-9000-000000000123",
+      "name": "Kaggle To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -1280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n// Repo contributors are GitHub users -> only run when GitHub is a chosen platform.\nconst ghSelected = platforms.some(function(p){ return /^git\\s*hub$/i.test(String(p).trim()); });\nif (!ghSelected) return [];\nconst role = String(form['Target Role'] || '').toLowerCase();\nconst skills = String(form['Key Skills & Criteria'] || '').toLowerCase();\nconst blob = ' ' + role + ' ' + skills + ' ';\n// Curated flagship repos per tech domain. The recruiter NEVER types a repo name;\n// they pick a role/skills and we map that to the projects that matter.\nconst domains = [\n  { name: 'ml_llm', kw: ['machine learning','ml engineer','ml ','llm','nlp','deep learning','data scientist','ai engineer',' ai ','pytorch','tensorflow','transformers','generative','hugging face','langchain'],\n    repos: ['huggingface/transformers','EleutherAI/gpt-neox','pytorch/pytorch','vllm-project/vllm','langchain-ai/langchain'] },\n  { name: 'backend', kw: ['backend','back end','java','spring','django','fastapi','node','golang',' go ','microservice','api developer','server'],\n    repos: ['spring-projects/spring-boot','django/django','gin-gonic/gin','fastapi/fastapi','nestjs/nest'] },\n  { name: 'frontend', kw: ['frontend','front end','react','vue','angular','svelte','javascript','typescript','ui engineer','web developer'],\n    repos: ['facebook/react','vuejs/core','angular/angular','sveltejs/svelte'] },\n  { name: 'devops', kw: ['devops','sre','site reliability','platform engineer','infrastructure','kubernetes','terraform','docker','ansible','cloud engineer'],\n    repos: ['kubernetes/kubernetes','hashicorp/terraform','prometheus/prometheus','ansible/ansible'] },\n  { name: 'data_eng', kw: ['data engineer','data engineering','spark','airflow','etl','kafka','dbt','big data','analytics engineer'],\n    repos: ['apache/spark','apache/airflow','dbt-labs/dbt-core','apache/kafka'] },\n  { name: 'mobile', kw: ['mobile','android','ios','flutter','react native','kotlin','swift'],\n    repos: ['flutter/flutter','facebook/react-native','square/retrofit'] }\n];\nlet picked = null;\nfor (const dm of domains) { if (dm.kw.some(function(k){ return blob.indexOf(k) !== -1; })) { picked = dm; break; } }\nif (!picked) return []; // non-tech / unrecognised domain -> skip gracefully (no repos)\nconst repos = picked.repos.slice(0, 3); // cap to 3 repos/run to control API calls\nreturn repos.map(function(r){ return { json: { repo: r, domain: picked.name, repo_url: 'https://api.github.com/repos/' + r + '/contributors?per_page=10' } }; });\n"
+      },
+      "id": "repo-contrib-000-4a00-9000-000000000131",
+      "name": "Build Repo Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -1424
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.repo_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "talentrubric-sourcing"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "repo-contrib-000-4a00-9000-000000000132",
+      "name": "Repo Contributors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -1424
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "GitHub account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map GitHub repo contributors into the shared 'organic' shape. The HTTP node\n// splits the contributors array into one item per contributor, so handle both\n// array and single-object shapes. These are individual developers who ship code\n// in flagship projects for the requested domain; enrich them downstream.\nconst contributors = [];\nfor (const it of $input.all()) {\n  const j = it.json;\n  if (Array.isArray(j)) { for (const c of j) contributors.push(c); }\n  else if (j && Array.isArray(j.body)) { for (const c of j.body) contributors.push(c); }\n  else if (j && j.login) { contributors.push(j); }\n}\nconst out = [];\nconst seen = {};\nfor (const c of contributors) {\n  const login = String(c.login || '').trim();\n  if (!login || seen[login]) continue;\n  if (/\\[bot\\]/i.test(login) || c.type === 'Bot') continue;\n  seen[login] = true;\n  const link = String(c.html_url || ('https://github.com/' + login));\n  const contribs = (typeof c.contributions === 'number') ? c.contributions : '';\n  let snippet = 'Open-source contributor to a flagship project matching the requested domain';\n  if (contribs !== '') snippet += ' (' + contribs + ' commits)';\n  snippet += '. Individual developer who ships code in a leading GitHub repo; enrich for bio, company and contact details.';\n  out.push({ title: login + ' (GitHub open-source contributor)', snippet: snippet, link: link });\n  if (out.length >= 45) break;\n}\nreturn [{ json: { organic: out, source: 'github-repos', results_count: out.length } }];\n"
+      },
+      "id": "repo-contrib-000-4a00-9000-000000000133",
+      "name": "Repo To Organic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -1424
+      ]
     }
   ],
   "pinData": {},
@@ -2860,6 +3771,41 @@
           },
           {
             "node": "Build SO Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Apollo Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Reddit Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build DevTo Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build GitLab Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build HF Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Kaggle Query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Repo Query",
             "type": "main",
             "index": 0
           }
@@ -3256,19 +4202,252 @@
           }
         ]
       ]
+    },
+    "Build Apollo Query": {
+      "main": [
+        [
+          {
+            "node": "Apollo People Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo People Search": {
+      "main": [
+        [
+          {
+            "node": "Apollo To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reddit Query": {
+      "main": [
+        [
+          {
+            "node": "Reddit Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit Search": {
+      "main": [
+        [
+          {
+            "node": "Reddit To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build DevTo Query": {
+      "main": [
+        [
+          {
+            "node": "DevTo Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DevTo Search": {
+      "main": [
+        [
+          {
+            "node": "DevTo To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DevTo To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build GitLab Query": {
+      "main": [
+        [
+          {
+            "node": "GitLab Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitLab Search": {
+      "main": [
+        [
+          {
+            "node": "GitLab To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitLab To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HF Query": {
+      "main": [
+        [
+          {
+            "node": "HF Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HF Search": {
+      "main": [
+        [
+          {
+            "node": "HF To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HF To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Kaggle Query": {
+      "main": [
+        [
+          {
+            "node": "Kaggle Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaggle Search": {
+      "main": [
+        [
+          {
+            "node": "Kaggle To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaggle To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Repo Query": {
+      "main": [
+        [
+          {
+            "node": "Repo Contributors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Repo Contributors": {
+      "main": [
+        [
+          {
+            "node": "Repo To Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Repo To Organic": {
+      "main": [
+        [
+          {
+            "node": "Merge Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-        "availableInMCP": false,
-    "errorWorkflow": ""
+    "availableInMCP": false,
+    "errorWorkflow": "(leave the Replace box empty)"
   },
+  "versionId": "da09f541-4b37-4348-be5a-0261b10d2115",
   "meta": {
-    "templateCredsSetupCompleted": true
+    "templateCredsSetupCompleted": true,
+    "instanceId": "af5434bdd9f370ccb2261f964c22b46a295258d48e54e40b9b96c5da67019c9f"
   },
   "nodeGroups": [],
-  "id": "TEMPLATE_WORKFLOW_ID",
+  "id": "Xh5JQOMy2rATeSsL",
   "tags": []
 }
