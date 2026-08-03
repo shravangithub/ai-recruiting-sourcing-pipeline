@@ -1,6 +1,6 @@
 <p align="center">
-  <a href="https://talentrubric.app.n8n.cloud/webhook/c388c70c-6b89-44d5-b347-7d90ca6e5df3/chat" target="_blank">
-    <img src="https://img.shields.io/badge/%F0%9F%92%AC_Try_TalentRubric_Scout-2f6df6?style=for-the-badge" alt="Try TalentRubric Scout — AI Engineer Sourcing">
+  <a href="#-live-demo-optional">
+    <img src="https://img.shields.io/badge/%F0%9F%92%AC_TalentRubric_Scout_(chat_demo)-grey?style=for-the-badge" alt="TalentRubric Scout — chat demo (activate to enable)">
   </a>
 </p>
 
