@@ -1,4 +1,8 @@
-[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![stars](https://img.shields.io/github/stars/shravangithub/ai-recruiting-sourcing-pipeline?style=social)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/stargazers) [![demo](https://img.shields.io/badge/demo-live-blue)](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/) [![built on n8n](https://img.shields.io/badge/built%20on-n8n-orange)](https://n8n.io)
+<p align="center">
+  <img src="assets/talent-rubric-banner.jpg" alt="Talent Rubric" height="58">
+</p>
+
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![stars](https://img.shields.io/github/stars/shravangithub/ai-recruiting-sourcing-pipeline?style=social)](https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/stargazers) [![demo](https://img.shields.io/badge/demo-live-crimson)](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/) [![built on n8n](https://img.shields.io/badge/built%20on-n8n-orange)](https://n8n.io)
 
 # AI Recruiting Sourcing Pipeline
 
@@ -67,8 +71,8 @@ flowchart TD
     GOV["Governance<br/>monthly budget · 80% alert"] -. monitors .-> D
     GOV -. monitors .-> F
 
-    classDef stage fill:#0b1630,stroke:#60a5fa,stroke-width:1px,color:#e8effc;
-    classDef gate fill:#10285a,stroke:#22d3ee,stroke-width:1px,color:#e8effc;
+    classDef stage fill:#202329,stroke:#BF1E2D,stroke-width:1px,color:#eef1f5;
+    classDef gate fill:#2a1517,stroke:#E5424F,stroke-width:1px,color:#eef1f5;
     class A,B,C,D,E,F,G,H,I,K stage;
     class J,GOV gate;
 ```
