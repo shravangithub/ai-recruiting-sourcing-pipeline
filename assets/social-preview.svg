@@ -4,75 +4,92 @@
       <stop offset="0" stop-color="#070f22"/>
       <stop offset="1" stop-color="#0b1630"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.82" cy="0.12" r="0.6">
-      <stop offset="0" stop-color="#10285a" stop-opacity="0.9"/>
-      <stop offset="1" stop-color="#10285a" stop-opacity="0"/>
+    <radialGradient id="glow" cx="0.85" cy="0.08" r="0.7">
+      <stop offset="0" stop-color="#12386f" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#12386f" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glow2" cx="0.08" cy="0.9" r="0.6">
-      <stop offset="0" stop-color="#0c2145" stop-opacity="0.8"/>
+    <radialGradient id="glow2" cx="0.05" cy="0.95" r="0.65">
+      <stop offset="0" stop-color="#0c2145" stop-opacity="0.85"/>
       <stop offset="1" stop-color="#0c2145" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#60a5fa"/>
-      <stop offset="1" stop-color="#38bdf8"/>
+      <stop offset=".55" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
-    <linearGradient id="logo" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#60a5fa"/>
-      <stop offset="1" stop-color="#38bdf8"/>
+      <stop offset=".55" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
+    <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1.5" fill="#ffffff" fill-opacity="0.035"/>
+    </pattern>
   </defs>
 
   <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#dots)"/>
   <rect width="1280" height="640" fill="url(#glow)"/>
   <rect width="1280" height="640" fill="url(#glow2)"/>
-  <rect x="8" y="8" width="1264" height="624" rx="20" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+  <rect x="8" y="8" width="1264" height="624" rx="22" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2"/>
+  <!-- top accent bar -->
+  <rect x="8" y="8" width="1264" height="5" rx="2.5" fill="url(#accent)" fill-opacity="0.9"/>
 
-  <!-- brand row -->
-  <g transform="translate(96,92)">
-    <rect width="64" height="64" rx="16" fill="url(#logo)"/>
-    <text x="32" y="43" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="28" font-weight="800" fill="#04122b" text-anchor="middle">AI</text>
-    <text x="84" y="27" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="22" font-weight="700" fill="#e8effc">AI Recruiting Sourcing Pipeline</text>
+  <!-- brand row: logo glyph + wordmark -->
+  <g transform="translate(96,86)">
+    <rect width="64" height="64" rx="16" fill="url(#tile)"/>
+    <g stroke="#04122b" stroke-width="2.4" stroke-linecap="round" fill="#04122b">
+      <path d="M18 18 L31 32" fill="none"/>
+      <path d="M18 32 L31 32" fill="none"/>
+      <path d="M18 46 L31 32" fill="none"/>
+      <circle cx="17" cy="18" r="3.4"/>
+      <circle cx="17" cy="32" r="3.4"/>
+      <circle cx="17" cy="46" r="3.4"/>
+      <circle cx="32" cy="32" r="3.4"/>
+    </g>
+    <path d="M36 33 L42 40 L52 24" fill="none" stroke="#04122b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="84" y="27" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="23" font-weight="800" fill="#e8effc" letter-spacing="-0.2">AI Recruiting Sourcing Pipeline</text>
     <text x="84" y="53" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="16" fill="#9fb3d6">by Shravan Kumar Shesham</text>
   </g>
 
+  <!-- footer url top-right -->
+  <text x="1184" y="118" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="15" fill="#8ea6cf" text-anchor="end">github.com/shravangithub/ai-recruiting-sourcing-pipeline</text>
+
   <!-- pill -->
-  <g transform="translate(96,210)">
-    <rect width="330" height="38" rx="19" fill="#60a5fa" fill-opacity="0.12" stroke="#60a5fa" stroke-opacity="0.35"/>
-    <text x="20" y="25" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="16" font-weight="600" fill="#7cc0ff">Built on n8n · Evidence-based sourcing</text>
+  <g transform="translate(96,204)">
+    <rect width="360" height="40" rx="20" fill="#60a5fa" fill-opacity="0.12" stroke="#60a5fa" stroke-opacity="0.38"/>
+    <circle cx="24" cy="20" r="4" fill="#22d3ee"/>
+    <text x="40" y="26" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="16" font-weight="600" fill="#8fd0ff">Built on n8n · Evidence-based sourcing</text>
   </g>
 
   <!-- headline -->
-  <text x="96" y="330" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="60" font-weight="800" fill="#e8effc" letter-spacing="-1">From a hiring brief to a</text>
-  <text x="96" y="404" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="60" font-weight="800" fill="url(#accent)" letter-spacing="-1">ranked, verified shortlist.</text>
+  <text x="96" y="330" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="62" font-weight="800" fill="#e8effc" letter-spacing="-1.5">From a hiring brief to a</text>
+  <text x="96" y="406" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="62" font-weight="800" fill="url(#accent)" letter-spacing="-1.5">ranked, verified shortlist.</text>
 
   <!-- subtitle -->
-  <text x="96" y="462" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="24" fill="#9fb3d6">AI candidate sourcing, enrichment &amp; recruiter-approved outreach — end to end.</text>
+  <text x="96" y="462" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="23" fill="#9fb3d6">Source across many channels, then rank &amp; verify — AI candidate sourcing built on n8n.</text>
 
   <!-- stat chips -->
   <g font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" transform="translate(96,512)">
     <g transform="translate(0,0)">
-      <rect width="250" height="88" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-      <text x="24" y="46" font-size="34" font-weight="800" fill="url(#accent)">11</text>
-      <text x="24" y="70" font-size="15" fill="#9fb3d6">automated stages</text>
+      <rect width="250" height="88" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <text x="24" y="47" font-size="34" font-weight="800" fill="url(#accent)">11</text>
+      <text x="24" y="71" font-size="15" fill="#9fb3d6">automated stages</text>
     </g>
     <g transform="translate(274,0)">
-      <rect width="250" height="88" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-      <text x="24" y="46" font-size="34" font-weight="800" fill="url(#accent)">0–10</text>
-      <text x="24" y="70" font-size="15" fill="#9fb3d6">AI relevance score</text>
+      <rect width="250" height="88" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <text x="24" y="47" font-size="34" font-weight="800" fill="url(#accent)">6+</text>
+      <text x="24" y="71" font-size="15" fill="#9fb3d6">sources searched</text>
     </g>
     <g transform="translate(548,0)">
-      <rect width="250" height="88" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-      <text x="24" y="46" font-size="34" font-weight="800" fill="url(#accent)">25+</text>
-      <text x="24" y="70" font-size="15" fill="#9fb3d6">CRM fields tracked</text>
+      <rect width="250" height="88" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <text x="24" y="47" font-size="34" font-weight="800" fill="url(#accent)">0–10</text>
+      <text x="24" y="71" font-size="15" fill="#9fb3d6">AI relevance score</text>
     </g>
     <g transform="translate(822,0)">
-      <rect width="262" height="88" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-      <text x="24" y="46" font-size="34" font-weight="800" fill="url(#accent)">High/Med/Low</text>
-      <text x="24" y="70" font-size="15" fill="#9fb3d6">confidence scoring</text>
+      <rect width="262" height="88" rx="14" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.09"/>
+      <text x="24" y="47" font-size="30" font-weight="800" fill="url(#accent)">High/Med/Low</text>
+      <text x="24" y="71" font-size="15" fill="#9fb3d6">confidence scoring</text>
     </g>
   </g>
-
-  <!-- footer url -->
-  <text x="1184" y="120" font-family="system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="16" fill="#9fb3d6" text-anchor="end">github.com/shravangithub/ai-recruiting-sourcing-pipeline</text>
 </svg>
-
