@@ -1,4 +1,10 @@
 <p align="center">
+  <a href="https://talentrubric.app.n8n.cloud/webhook/c388c70c-6b89-44d5-b347-7d90ca6e5df3/chat" target="_blank">
+    <img src="https://img.shields.io/badge/%F0%9F%92%AC_Try_the_AI_Sourcing_Chat-2f6df6?style=for-the-badge" alt="Try the AI Sourcing Chat">
+  </a>
+</p>
+
+<p align="center">
   <img src="assets/talent-rubric-banner.jpg" alt="Talent Rubric" height="58">
 </p>
 
