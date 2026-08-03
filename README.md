@@ -16,9 +16,9 @@
 
 ![social preview](assets/social-preview.svg)
 
-▶ **[Watch the demo](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/#demo)** — see the pipeline turn a brief into a ranked, verified shortlist. ([direct MP4](https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/assets/demo.mp4))
+▶ **[Watch the demo](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/#demo)** — see the pipeline turn a brief into a ranked, verified shortlist. ([direct MP4](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/demo.mp4))
 
-![Pipeline demo — a hiring brief becoming a ranked, confidence-scored shortlist](assets/demo.gif)
+[![Pipeline demo — a hiring brief becoming a ranked, confidence-scored shortlist](assets/demo.gif)](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/#demo)
 
 An evidence-based, AI-powered candidate **sourcing** pipeline built on [n8n](https://n8n.io) —
 it **sources across many channels, then ranks and verifies.**
