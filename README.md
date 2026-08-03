@@ -10,10 +10,12 @@
 
 ![Pipeline demo — a hiring brief becoming a ranked, confidence-scored shortlist](assets/demo.gif)
 
-An evidence-based, AI-powered candidate sourcing and outreach system built on [n8n](https://n8n.io).
+An evidence-based, AI-powered candidate **sourcing** pipeline built on [n8n](https://n8n.io) —
+it **sources across many channels, then ranks and verifies.**
 
 It turns a plain-English hiring brief (or an uploaded job description) into a ranked, enriched,
-confidence-scored shortlist of real candidates — and manages recruiter-approved outreach end to end.
+confidence-scored shortlist of real candidates — sourced from LinkedIn, GitHub, Stack Overflow, X,
+Reddit and the open web — and manages recruiter-approved outreach end to end.
 
 > **Why this exists.** Modern talent acquisition increasingly rewards recruiters who can *build*,
 > not just operate an ATS. This project is my working proof of that: a production sourcing pipeline
@@ -66,7 +68,7 @@ flowchart TD
     GOV -. monitors .-> F
 
     classDef stage fill:#0b1630,stroke:#60a5fa,stroke-width:1px,color:#e8effc;
-    classDef gate fill:#10285a,stroke:#38bdf8,stroke-width:1px,color:#e8effc;
+    classDef gate fill:#10285a,stroke:#22d3ee,stroke-width:1px,color:#e8effc;
     class A,B,C,D,E,F,G,H,I,K stage;
     class J,GOV gate;
 ```
