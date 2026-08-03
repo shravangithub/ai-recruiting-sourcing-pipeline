@@ -19,40 +19,46 @@
 <meta name="twitter:title" content="AI Recruiting Sourcing Pipeline" />
 <meta name="twitter:description" content="Turn a hiring brief into a ranked, enriched, confidence-scored shortlist — with recruiter-approved outreach, built on n8n." />
 <meta name="twitter:image" content="https://raw.githubusercontent.com/shravangithub/ai-recruiting-sourcing-pipeline/main/assets/social-preview.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet" />
 <style>
 :root{
 --bg:#070f22; --bg2:#0b1630; --card:rgba(255,255,255,.035); --card-brd:rgba(255,255,255,.08);
---accent:#60a5fa; --accent2:#38bdf8; --text:#e8effc; --muted:#9fb3d6;
+--accent:#60a5fa; --accent2:#38bdf8; --accent3:#22d3ee; --text:#e8effc; --muted:#9fb3d6;
 --ok:#22c55e; --warn:#f59e0b; --chip:rgba(96,165,250,.12);
+--disp:"Space Grotesk",system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+--grad:linear-gradient(90deg,var(--accent),var(--accent2) 55%,var(--accent3));
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{
-font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 background:radial-gradient(1200px 700px at 80% -10%, #10285a 0%, transparent 55%),
 radial-gradient(1000px 600px at -10% 10%, #0c2145 0%, transparent 50%),
 linear-gradient(180deg,var(--bg) 0%, var(--bg2) 100%);
 color:var(--text); margin:0; line-height:1.55; -webkit-font-smoothing:antialiased;
 }
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:4px;background:var(--grad);z-index:20}
 .wrap{max-width:1040px; margin:0 auto; padding:28px 22px 64px}
 a{color:var(--accent)}
 /* header */
 header.top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:28px}
 .brand{display:flex; align-items:center; gap:12px}
-.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#04122b;font-size:18px}
-.brand h2{margin:0;font-size:15px;letter-spacing:.2px}
+.logo{width:44px;height:44px;display:block;flex:none}
+.brand h2{margin:0;font-size:15px;letter-spacing:.2px;font-family:var(--disp);font-weight:700}
 .brand span{display:block;color:var(--muted);font-size:12px;font-weight:400}
 nav a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:16px}
 nav a:hover{color:var(--text)}
 /* hero */
 .hero{padding:14px 0 8px}
 .pill{display:inline-block;background:var(--chip);color:var(--accent);border:1px solid rgba(96,165,250,.25);padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.3px}
-h1{font-size:clamp(28px,5vw,46px);line-height:1.1;margin:16px 0 10px;letter-spacing:-.5px}
-h1 .grad{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(29px,5vw,48px);line-height:1.08;margin:16px 0 10px;letter-spacing:-1px}
+h1 .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 p.lead{color:var(--muted);font-size:clamp(15px,2.2vw,18px);max-width:720px;margin:0 0 22px}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0 10px}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04122b}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent3));color:#04122b}
 .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--card-brd)}
 .btn:hover{transform:translateY(-1px)}
 .btn{transition:transform .12s ease}
@@ -74,7 +80,7 @@ ol.pipe span{color:var(--muted);font-size:13px}
 /* stats */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
 .stat{background:var(--card);border:1px solid var(--card-brd);border-radius:14px;padding:18px;text-align:center}
-.stat b{display:block;font-size:26px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat b{display:block;font-family:var(--disp);font-weight:700;font-size:28px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .stat span{color:var(--muted);font-size:12.5px}
 /* resources */
 .res{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
@@ -99,7 +105,15 @@ footer a{color:var(--accent);text-decoration:none}
 
 <header class="top">
 <div class="brand">
-<div class="logo">AI</div>
+<svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="AI Recruiting Sourcing Pipeline logo">
+<defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".55" stop-color="#38bdf8"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+<rect width="64" height="64" rx="16" fill="url(#tile)"/>
+<g stroke="#04122b" stroke-width="2.4" stroke-linecap="round" fill="#04122b">
+<path d="M18 18 L31 32" fill="none"/><path d="M18 32 L31 32" fill="none"/><path d="M18 46 L31 32" fill="none"/>
+<circle cx="17" cy="18" r="3.4"/><circle cx="17" cy="32" r="3.4"/><circle cx="17" cy="46" r="3.4"/><circle cx="32" cy="32" r="3.4"/>
+</g>
+<path d="M36 33 L42 40 L52 24" fill="none" stroke="#04122b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
 <div>
 <h2>AI Recruiting Sourcing Pipeline</h2>
 <span>by Shravan Kumar Shesham</span>
@@ -139,7 +153,7 @@ MIT Licensed
 <div class="stats">
 <div class="stat"><b>11</b><span>automated stages, brief → outreach</span></div>
 <div class="stat"><b>0–10</b><span>AI relevance score per candidate</span></div>
-<div class="stat"><b>25+</b><span>fields written to the CRM tracker</span></div>
+<div class="stat"><b>6+</b><span>sources searched, plus the open web</span></div>
 <div class="stat"><b>3</b><span>confidence tiers: High / Med / Low</span></div>
 </div>
 </section>
