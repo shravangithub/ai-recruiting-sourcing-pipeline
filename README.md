@@ -37,7 +37,8 @@ Reddit and the open web — and manages recruiter-approved outreach end to end.
 ## Quick links
 
 - Live demo / docs: **[shravangithub.github.io/ai-recruiting-sourcing-pipeline](https://shravangithub.github.io/ai-recruiting-sourcing-pipeline/)** (source in `docs/index.html`)
-- Importable n8n template: `ai-recruiting-pipeline.template.json`
+- **One-click setup (recommended):** [`SETUP.md`](SETUP.md) – paste your keys, your n8n configures itself
+- Importable n8n template (manual setup): `ai-recruiting-pipeline.template.json`
 - Release notes: [`RELEASES/v1.0.md`](RELEASES/v1.0.md)
 
 ---
@@ -129,7 +130,9 @@ control and to minimize what it collects and retains.
   its own — outreach only sends after a recruiter explicitly ticks "Send Email?" on a row. AI scores
   are decision *support*, not decisions.
 - **Credentials stay in n8n.** API keys and tokens live in n8n's credential store, never in this repo
-  or the exported template (which ships with `YOUR_*` placeholders). Don't commit real secrets.
+  or the exported template (which ships with `YOUR_*` placeholders). Don't commit real secrets. The
+  one-click setup runs inside your own n8n, passes keys straight into that credential store, and has
+  execution logging switched off so keys never appear in your execution history.
 - **Data minimization.** Only publicly available professional data is used; enrichment is credit-aware
   and skipped where it isn't needed; and the confidence labels exist so recruiters can set aside
   low-trust rows rather than act on them.
@@ -156,6 +159,12 @@ xdg-open ai-recruiting-sourcing-pipeline/docs/index.html || open ai-recruiting-s
 ```
 
 ## Install & usage
+
+**Easiest: one-click setup.** Import [`setup/setup.workflow.json`](setup/setup.workflow.json) into
+your n8n, switch it on and open its setup page. Paste your keys, sign in to Google, click
+**Configure my pipeline** – done in about 5 minutes. Full guide: [`SETUP.md`](SETUP.md).
+
+**Manual setup** (if you'd rather wire it yourself):
 
 1. Install n8n: https://docs.n8n.io/getting-started/installation/
 2. Start n8n and import the workflow from `ai-recruiting-pipeline.template.json` (n8n → **Import from File**).

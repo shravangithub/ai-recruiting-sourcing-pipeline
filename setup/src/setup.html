@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sourcing Pipeline Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1c1636;--muted:#6b6880;--line:#e6e3f2;--soft:#faf9fe;--violet:#7c3aed;--pink:#ec4899;--amber:#f59e0b;--cyan:#06b6d4;--green:#10b981;--red:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:#1a103d;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.bg{position:fixed;inset:0;z-index:-1;background:radial-gradient(900px 700px at 0% 0%,#7c3aed 0,transparent 60%),radial-gradient(800px 700px at 100% 0%,#ec4899 0,transparent 60%),radial-gradient(800px 700px at 0% 100%,#f59e0b 0,transparent 55%),radial-gradient(800px 700px at 100% 100%,#06b6d4 0,transparent 55%),#1a103d}
+.wrap{max-width:1080px;margin:0 auto;padding:40px 16px 80px}
+.hero{color:#fff;text-align:center;margin-bottom:28px}
+.hero .tag{display:inline-block;padding:8px 18px;border-radius:999px;background:rgba(255,255,255,.18);font-weight:600;font-size:14px;margin-bottom:16px}
+.hero h1{font-size:clamp(30px,5vw,52px);font-weight:800;letter-spacing:-1.5px;line-height:1.05}
+.hero p{opacity:.9;margin-top:10px;font-size:17px}
+.steps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
+.step-chip{display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-weight:600;font-size:14px}
+.step-chip b{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.25);font-size:13px}
+.step-chip.on{background:#fff;color:var(--ink)}.step-chip.on b{background:var(--violet);color:#fff}
+.step-chip.done b{background:var(--green);color:#fff}
+.card{background:#fff;border-radius:24px;box-shadow:0 40px 100px rgba(20,0,60,.4);padding:36px}
+h2{font-size:30px;font-weight:800;letter-spacing:-.5px}
+.sub{color:var(--muted);margin-top:6px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px;margin-top:26px}
+.k{border:2px solid var(--line);border-radius:20px;padding:20px;position:relative;transition:border-color .2s}
+.k .ic{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:21px}
+.k h3{font-size:19px;margin-top:12px}.k .why{color:var(--muted);font-size:14px;margin-top:2px}
+.k .badge{position:absolute;top:20px;right:18px;font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;background:#f1effa;color:var(--muted)}
+.k .badge.req{background:#f1ebff;color:var(--violet)}
+.k .get{font-size:13px;margin-top:8px}.k .get a{color:var(--violet);font-weight:600}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+input,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--soft);border:2px solid var(--line);border-radius:12px;padding:12px 14px;outline:none}
+input:focus,textarea:focus{border-color:var(--violet)}
+textarea{min-height:84px;resize:vertical}
+.row{display:flex;gap:10px;align-items:center;margin-top:12px}
+.row input{flex:1}
+.btn{font:inherit;font-weight:700;border:0;border-radius:14px;padding:13px 22px;cursor:pointer;font-size:16px;color:#fff;background:linear-gradient(90deg,var(--violet),var(--pink));white-space:nowrap}
+.btn.small{padding:11px 16px;font-size:14px;background:var(--ink)}
+.btn.ghost{background:#fff;color:var(--ink);border:2px solid var(--line)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.status{margin-top:10px;font-size:14px;font-weight:600;min-height:20px}
+.ok{color:#059669}.bad{color:#dc2626}.wait{color:#d97706}
+.k.isok{border-color:var(--green)}.k.isbad{border-color:var(--red)}
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:30px;gap:12px;flex-wrap:wrap}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0 20px}
+details{margin-top:22px;border:2px dashed var(--line);border-radius:16px;padding:14px 18px}
+summary{cursor:pointer;font-weight:700}
+details p{color:var(--muted);font-size:14px;margin-top:8px}
+.sign{display:flex;align-items:center;gap:14px;border:2px solid var(--line);border-radius:18px;padding:16px 18px;margin-top:12px;flex-wrap:wrap}
+.sign .dot{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}
+.sign .nm{flex:1;min-width:180px;font-weight:700}
+.sign .nm small{display:block;font-weight:500;color:var(--muted);font-size:13px;margin-top:2px}
+.sign a.btn{text-decoration:none;display:inline-block}
+.sign input[type=checkbox]{width:22px;height:22px;accent-color:var(--green)}
+.checks{margin-top:24px}
+.chk{display:flex;align-items:center;gap:14px;font-size:18px;font-weight:600;padding:10px 0;opacity:.35;transition:opacity .3s}
+.chk.on{opacity:1}
+.chk i{width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-weight:800;border:3px solid var(--line)}
+.chk.spin i{border-color:var(--violet);border-top-color:transparent;animation:sp .8s linear infinite}
+.chk.done i{background:var(--green);border-color:var(--green)}
+.chk.fail i{background:var(--red);border-color:var(--red)}
+@keyframes sp{to{transform:rotate(360deg)}}
+.live{margin-top:26px;border-radius:22px;padding:28px;color:#fff;background:linear-gradient(135deg,var(--green),var(--cyan))}
+.live h3{font-size:28px;font-weight:800}
+.live .links{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+.live a{color:var(--ink);background:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:12px}
+.copy{font-size:13px;margin-top:12px;word-break:break-all;opacity:.95}
+.err{margin-top:18px;padding:14px 16px;border-radius:14px;background:#fef2f2;color:#991b1b;font-weight:600;display:none}
+.note{margin-top:18px;padding:14px 16px;border-radius:14px;background:#f1ebff;color:#4c1d95;font-size:14px}
+.hidden{display:none}
+.foot{color:rgba(255,255,255,.8);text-align:center;font-size:13px;margin-top:22px}
+.foot a{color:#fff}
+@media (max-width:600px){.card{padding:22px}h2{font-size:24px}.row{flex-wrap:wrap}.row .btn{width:100%}}
+</style></head>
+<body><div class="bg"></div>
+<div class="wrap">
+ <div class="hero"><div class="tag">AI Recruiting Sourcing Pipeline · open source</div>
+  <h1>Set up your sourcing pipeline</h1><p>Paste your keys. Your own n8n configures itself. Nothing leaves your workspace.</p></div>
+
+ <div class="steps" id="chips"></div>
+
+ <!-- STEP 0 -->
+ <section class="card" data-step="0">
+  <h2>Connect this n8n</h2>
+  <p class="sub">Setup uses your n8n API key to create connections and install the pipeline in this n8n. The key is used for this setup only and is never saved.</p>
+  <label for="n8nKey">n8n API key</label>
+  <div class="row"><input id="n8nKey" type="password" autocomplete="off" placeholder="Paste your n8n API key"><button class="btn small" id="pingBtn">Check</button></div>
+  <div class="status" id="pingStatus"></div>
+  <div class="note">Where to get it: in n8n open <b>Settings → n8n API → Create an API key</b>. The n8n API isn't available on n8n Cloud's free trial.</div>
+  <div class="nav"><span></span><button class="btn" id="next0" disabled>Next: your keys</button></div>
+ </section>
+
+ <!-- STEP 1 -->
+ <section class="card hidden" data-step="1">
+  <h2>Connect your tools</h2>
+  <p class="sub">Each key is tested before it's saved. OpenAI and Serper are required; the rest add more sources.</p>
+  <div class="grid" id="keyGrid"></div>
+  <div class="nav"><button class="btn ghost" data-back>Back</button><button class="btn" id="next1" disabled>Next: your details</button></div>
+ </section>
+
+ <!-- STEP 2 -->
+ <section class="card hidden" data-step="2">
+  <h2>Your details</h2>
+  <p class="sub">Used in the AI scoring prompt, your search form and your outreach emails.</p>
+  <div class="three">
+   <div><label for="company">Your company or agency name *</label><input id="company" placeholder="e.g. Northwind Talent Partners"></div>
+   <div><label for="slackChannel">Slack alerts channel (optional)</label><input id="slackChannel" placeholder="#sourcing-alerts"></div>
+   <div><label for="slackUser">Your Slack member ID (optional)</label><input id="slackUser" placeholder="U0123ABCD — for a DM when runs finish"></div>
+  </div>
+  <label for="signature">Outreach email signature</label>
+  <textarea id="signature" placeholder="Priya Sharma&#10;Talent Partner, Northwind Talent Partners"></textarea>
+  <details><summary>Advanced: your own sign-in apps (self-hosted n8n only)</summary>
+   <p>n8n Cloud signs you in to Google and Slack with its own apps, so leave these empty there. On self-hosted n8n, create an OAuth app in Google Cloud (Sheets, Drive and Gmail APIs enabled) and, if you use Slack, a Slack app, then paste their client ID and secret.</p>
+   <div class="three">
+    <div><label>Google client ID</label><input id="gId" autocomplete="off"></div>
+    <div><label>Google client secret</label><input id="gSecret" type="password" autocomplete="off"></div>
+   </div>
+   <div class="three">
+    <div><label>Slack client ID</label><input id="sId" autocomplete="off"></div>
+    <div><label>Slack client secret</label><input id="sSecret" type="password" autocomplete="off"></div>
+   </div>
+  </details>
+  <div class="nav"><button class="btn ghost" data-back>Back</button><button class="btn" id="next2">Next: sign in</button></div>
+ </section>
+
+ <!-- STEP 3 -->
+ <section class="card hidden" data-step="3">
+  <h2>Sign in once</h2>
+  <p class="sub">First we create your connections in n8n. Then open each sign-in link, click <b>Sign in</b> on the page that opens, and come back here.</p>
+  <div class="row" style="margin-top:20px"><button class="btn" id="connectBtn">Create connections</button><span class="status" id="connectStatus" style="margin:0"></span></div>
+  <div id="signList"></div>
+  <div class="err" id="err3"></div>
+  <div class="nav"><button class="btn ghost" data-back>Back</button><button class="btn" id="next3" disabled>Next: launch</button></div>
+ </section>
+
+ <!-- STEP 4 -->
+ <section class="card hidden" data-step="4">
+  <h2>Launch your pipeline</h2>
+  <p class="sub">One click. Your results sheet, Drive folder and pipeline are created in your own accounts.</p>
+  <button class="btn" id="installBtn" style="margin-top:22px;padding:18px 30px;font-size:19px">Configure my pipeline</button>
+  <div class="checks" id="checks"></div>
+  <div class="err" id="err4"></div>
+  <div class="note hidden" id="note4"></div>
+  <div class="live hidden" id="live">
+   <h3>✓ You're live</h3>
+   <p style="margin-top:6px">Open your search form, describe the role, and your ranked shortlist lands in your sheet. This setup page has switched itself off.</p>
+   <div class="links"><a id="formLink" target="_blank" rel="noopener">Open search form</a><a id="sheetLink" target="_blank" rel="noopener">Open results sheet</a><a id="wfLink" target="_blank" rel="noopener">See the pipeline</a></div>
+   <div class="copy">Search form: <span id="formUrlTxt"></span></div>
+  </div>
+  <div class="nav"><button class="btn ghost" data-back>Back</button><span></span></div>
+ </section>
+
+ <div class="foot">Open source · MIT · <a href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">GitHub</a> · Recruiter approves every outreach email</div>
+</div>
+
+<script>
+const API = '__API_URL__';
+const $ = (id) => document.getElementById(id);
+const S = { step: 0, ok: {}, ids: null, sheetId: '', folderId: '', formId: '' };
+const STEPS = ['n8n', 'Your keys', 'Your details', 'Sign in', 'Launch'];
+
+const KEYS = [
+  { id: 'openai', name: 'OpenAI', why: 'Reads the brief and scores every candidate', color: '#10b981', letter: 'O', req: true, url: 'https://platform.openai.com/api-keys', get: 'Get a key' },
+  { id: 'serper', name: 'Serper', why: 'Searches LinkedIn, X, Reddit and the open web', color: '#3b82f6', letter: 'S', req: true, url: 'https://serper.dev/api-key', get: 'Get a key (free credits)' },
+  { id: 'github', name: 'GitHub', why: 'Reads real code activity', color: '#7c3aed', letter: 'G', rec: true, url: 'https://github.com/settings/tokens', get: 'Create a token (no scopes needed)' },
+  { id: 'apollo', name: 'Apollo', why: 'Verifies email, title and company', color: '#f59e0b', letter: 'A', url: 'https://app.apollo.io/#/settings/integrations/api', get: 'Get a key' },
+  { id: 'gitlab', name: 'GitLab', why: 'More code activity', color: '#ef4444', letter: 'L', url: 'https://gitlab.com/-/user_settings/personal_access_tokens', get: 'Create a token (read_api)' },
+  { id: 'kaggle', name: 'Kaggle', why: 'Data-science proof of work', color: '#06b6d4', letter: 'K', user: true, url: 'https://www.kaggle.com/settings', get: 'Create a key under API' },
+];
+
+function call(payload) {
+  payload.n8nKey = $('n8nKey').value.trim();
+  // text/plain keeps this a "simple" request (no CORS preflight)
+  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) })
+    .then((r) => r.text()).then((t) => { try { return JSON.parse(t); } catch (e) { return { ok: false, error: 'Unexpected answer from n8n: ' + t.slice(0, 160) }; } })
+    .catch((e) => ({ ok: false, error: 'Could not reach this n8n: ' + e.message }));
+}
+function setStatus(el, cls, text) { el.className = 'status ' + cls; el.textContent = text; }
+
+function renderChips() {
+  $('chips').innerHTML = STEPS.map((s, i) => `<div class="step-chip ${i === S.step ? 'on' : ''} ${i < S.step ? 'done' : ''}"><b>${i < S.step ? '✓' : i + 1}</b>${s}</div>`).join('');
+}
+function go(n) {
+  S.step = n;
+  document.querySelectorAll('section[data-step]').forEach((s) => s.classList.toggle('hidden', +s.dataset.step !== n));
+  renderChips(); window.scrollTo(0, 0);
+}
+document.querySelectorAll('[data-back]').forEach((b) => b.onclick = () => go(Math.max(0, S.step - 1)));
+
+// step 0
+$('pingBtn').onclick = async () => {
+  setStatus($('pingStatus'), 'wait', 'Checking…'); $('pingBtn').disabled = true;
+  const r = await call({ action: 'ping' });
+  $('pingBtn').disabled = false;
+  if (r.ok) { setStatus($('pingStatus'), 'ok', '✓ Connected to this n8n'); $('next0').disabled = false; }
+  else { setStatus($('pingStatus'), 'bad', r.error); $('next0').disabled = true; }
+};
+$('next0').onclick = () => go(1);
+
+// step 1
+$('keyGrid').innerHTML = KEYS.map((k) => `
+ <div class="k" id="k_${k.id}">
+  <div class="ic" style="background:${k.color}">${k.letter}</div>
+  <span class="badge ${k.req ? 'req' : ''}">${k.req ? 'Required' : k.rec ? 'Recommended' : 'Optional'}</span>
+  <h3>${k.name}</h3><div class="why">${k.why}</div>
+  <div class="get"><a href="${k.url}" target="_blank" rel="noopener">${k.get} ↗</a></div>
+  ${k.user ? `<input id="v_${k.id}_user" placeholder="Kaggle username" autocomplete="off" style="margin-top:12px">` : ''}
+  <div class="row"><input id="v_${k.id}" type="password" autocomplete="off" placeholder="${k.user ? 'Kaggle API key' : 'Paste key'}"><button class="btn small" data-test="${k.id}">Test</button></div>
+  <div class="status" id="s_${k.id}"></div>
+ </div>`).join('');
+function keyValues(id) { return { key: $('v_' + id).value.trim(), user: $('v_' + id + '_user') ? $('v_' + id + '_user').value.trim() : '' }; }
+function refreshNext1() { $('next1').disabled = !(S.ok.openai && S.ok.serper); }
+async function testKey(id) {
+  const card = $('k_' + id), st = $('s_' + id);
+  card.classList.remove('isok', 'isbad'); setStatus(st, 'wait', 'Testing…');
+  const r = await call({ action: 'test', service: id, values: keyValues(id) });
+  S.ok[id] = !!r.ok;
+  if (r.ok) { card.classList.add('isok'); setStatus(st, 'ok', '✓ Connected'); }
+  else { card.classList.add('isbad'); setStatus(st, 'bad', r.error); }
+  refreshNext1();
+}
+document.querySelectorAll('[data-test]').forEach((b) => b.onclick = () => testKey(b.dataset.test));
+KEYS.forEach((k) => $('v_' + k.id).addEventListener('input', () => { S.ok[k.id] = false; $('k_' + k.id).classList.remove('isok', 'isbad'); setStatus($('s_' + k.id), '', ''); refreshNext1(); }));
+$('next1').onclick = () => {
+  const skipped = KEYS.filter((k) => !k.req && keyValues(k.id).key && !S.ok[k.id]);
+  if (skipped.length) { skipped.forEach((k) => setStatus($('s_' + k.id), 'bad', 'Test this key, or clear it to skip this source.')); return; }
+  go(2);
+};
+
+// step 2
+$('next2').onclick = () => {
+  if (!$('company').value.trim()) { $('company').focus(); $('company').style.borderColor = '#ef4444'; return; }
+  go(3);
+};
+
+// step 3
+function payloadBase() {
+  const v = (id) => S.ok[id] ? keyValues(id) : { key: '', user: '' };
+  return {
+    keys: { openai: v('openai').key, serper: v('serper').key, github: v('github').key, apollo: v('apollo').key, gitlab: v('gitlab').key, kaggleUser: v('kaggle').user, kaggleKey: v('kaggle').key },
+    oauth: { googleClientId: $('gId').value.trim(), googleClientSecret: $('gSecret').value.trim(), slackClientId: $('sId').value.trim(), slackClientSecret: $('sSecret').value.trim() },
+    details: { company: $('company').value.trim(), signature: $('signature').value.trim(), slackChannel: $('slackChannel').value.trim(), slackUser: $('slackUser').value.trim() },
+  };
+}
+const SIGN = { SHEETS: ['Google Sheets', 'Where your shortlist is saved', '#10b981', 'G'], DRIVE: ['Google Drive', 'Saves CVs and job descriptions', '#3b82f6', 'D'], GMAIL: ['Gmail', 'Sends outreach you approve and spots replies', '#ef4444', 'M'], SLACK: ['Slack', 'Posts alerts to your channel', '#7c3aed', 'S'] };
+function refreshNext3() { const boxes = [...document.querySelectorAll('#signList input[type=checkbox]')]; $('next3').disabled = !boxes.length || !boxes.every((b) => b.checked); }
+$('connectBtn').onclick = async () => {
+  $('err3').style.display = 'none'; $('connectBtn').disabled = true; setStatus($('connectStatus'), 'wait', 'Creating connections…');
+  const r = await call(Object.assign({ action: 'connect', ids: S.ids || {} }, payloadBase()));
+  $('connectBtn').disabled = false;
+  if (!r.ok) { setStatus($('connectStatus'), 'bad', ''); $('err3').textContent = r.error; $('err3').style.display = 'block'; return; }
+  S.ids = r.ids; setStatus($('connectStatus'), 'ok', '✓ ' + Object.keys(r.ids).length + ' connections ready');
+  $('connectBtn').textContent = 'Re-create connections';
+  $('signList').innerHTML = r.signIn.map((s) => { const m = SIGN[s.key]; return `
+   <div class="sign"><div class="dot" style="background:${m[2]}">${m[3]}</div>
+    <div class="nm">${m[0]}<small>${m[1]}</small></div>
+    <a class="btn small" href="${s.url}" target="_blank" rel="noopener">Open & sign in ↗</a>
+    <label style="margin:0;display:flex;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" data-done> Signed in</label>
+   </div>`; }).join('') + `<p class="sub" style="font-size:13px;margin-top:12px">If a link doesn't open, open your n8n, go to <b>Credentials</b> and find the "Sourcing · …" items.</p>`;
+  document.querySelectorAll('#signList input[type=checkbox]').forEach((c) => c.onchange = refreshNext3);
+  refreshNext3();
+};
+$('next3').onclick = () => go(4);
+
+// step 4
+const CHECKS = ['Creating your results sheet and Drive folder', 'Installing the 11-stage pipeline', 'Personalising scoring and outreach for your firm', 'Switching it on'];
+function renderChecks(state, failAt) {
+  $('checks').innerHTML = CHECKS.map((c, i) => {
+    let cls = '';
+    if (state === 'run') cls = i <= S.tick ? (i < S.tick ? 'on done' : 'on spin') : '';
+    if (state === 'done') cls = 'on done';
+    if (state === 'fail') cls = i < failAt ? 'on done' : i === failAt ? 'on fail' : '';
+    return `<div class="chk ${cls}"><i>${cls.includes('done') ? '✓' : cls.includes('fail') ? '!' : ''}</i>${c}</div>`;
+  }).join('');
+}
+$('installBtn').onclick = async () => {
+  $('err4').style.display = 'none'; $('installBtn').disabled = true; $('live').classList.add('hidden');
+  S.tick = 0; renderChecks('run');
+  const timer = setInterval(() => { if (S.tick < CHECKS.length - 1) { S.tick++; renderChecks('run'); } }, 2500);
+  const r = await call(Object.assign({ action: 'install', ids: S.ids, sheetId: S.sheetId, folderId: S.folderId, formId: S.formId }, payloadBase()));
+  clearInterval(timer); $('installBtn').disabled = false;
+  if (r.sheetId) S.sheetId = r.sheetId; if (r.folderId) S.folderId = r.folderId; if (r.formId) S.formId = r.formId;
+  if (!r.ok) {
+    const at = /sheet|google sheets/i.test(r.error || '') && !r.sheetId ? 0 : /switch on/i.test(r.error || '') ? 3 : 1;
+    renderChecks('fail', at); $('err4').textContent = r.error; $('err4').style.display = 'block'; return;
+  }
+  renderChecks('done');
+  if (r.note) { $('note4').textContent = r.note; $('note4').classList.remove('hidden'); }
+  $('formLink').href = r.formUrl; $('sheetLink').href = r.sheetUrl; $('wfLink').href = r.workflowUrl; $('formUrlTxt').textContent = r.formUrl;
+  $('live').classList.remove('hidden'); $('installBtn').classList.add('hidden');
+};
+
+renderChips(); renderChecks('idle');
+</script>
+</body></html>
