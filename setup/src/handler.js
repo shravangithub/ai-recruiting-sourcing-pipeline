@@ -3,6 +3,7 @@
 // Execution saving is switched off for this workflow, so keys never land in n8n's logs.
 
 const TEMPLATE_URL = '__TEMPLATE_URL__';
+const EMBEDDED_TEMPLATE = __EMBEDDED_TEMPLATE__; // null = download TEMPLATE_URL
 
 const req = $input.first().json;
 let body = req.body;
@@ -305,10 +306,12 @@ async function install() {
   }
 
   // 2. pipeline from the published template
-  const t = await http({ method: 'GET', url: TEMPLATE_URL, json: false });
-  if (t.status !== 200) return fail('Could not download the pipeline template (' + t.status + ').');
-  let wf;
-  try { wf = typeof t.body === 'string' ? JSON.parse(t.body) : t.body; } catch (e) { return fail('The pipeline template is not valid JSON.'); }
+  let wf = EMBEDDED_TEMPLATE ? JSON.parse(JSON.stringify(EMBEDDED_TEMPLATE)) : null;
+  if (!wf) {
+    const t = await http({ method: 'GET', url: TEMPLATE_URL, json: false });
+    if (t.status !== 200) return fail('Could not download the pipeline template (' + t.status + ').');
+    try { wf = typeof t.body === 'string' ? JSON.parse(t.body) : t.body; } catch (e) { return fail('The pipeline template is not valid JSON.'); }
+  }
 
   const existing = await findWorkflow(PIPELINE_NAME);
   const formId = String(body.formId || '').trim() || uuid();

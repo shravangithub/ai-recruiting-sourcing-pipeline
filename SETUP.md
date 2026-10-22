@@ -83,4 +83,5 @@ python3 setup/build_setup.py      # setup/src/* -> setup/setup.workflow.json
 - `setup/pipeline.workflow.json` – the pipeline with `__TOKENS__` that setup fills in
 
 Forks: point setup at your own template with
-`python3 setup/build_setup.py --template https://raw.githubusercontent.com/<you>/<repo>/main/setup/pipeline.workflow.json`.
+`python3 setup/build_setup.py --template https://raw.githubusercontent.com/<you>/<repo>/main/setup/pipeline.workflow.json`,
+or bundle the pipeline inside the setup file with `python3 setup/build_setup.py --embed`.

@@ -36,10 +36,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--template", default=DEFAULT_TEMPLATE)
     ap.add_argument("--out", default=str(ROOT / "setup.workflow.json"))
+    ap.add_argument("--embed", action="store_true", help="bundle the pipeline inside the setup workflow (works offline / before publishing)")
     a = ap.parse_args()
 
     html = (SRC / "setup.html").read_text()
-    handler = (SRC / "handler.js").read_text().replace("__TEMPLATE_URL__", a.template)
+    embedded = (ROOT / "pipeline.workflow.json").read_text().strip() if a.embed else "null"
+    handler = (SRC / "handler.js").read_text().replace("__TEMPLATE_URL__", a.template).replace("__EMBEDDED_TEMPLATE__", embedded)
 
     nodes = [
         {"id": "s1", "name": "Open setup page", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0],
