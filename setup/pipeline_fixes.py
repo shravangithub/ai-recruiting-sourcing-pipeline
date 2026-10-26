@@ -776,3 +776,35 @@ def apply_round2(nodes, conns):
         "  if (/\\.github\\.io/.test(link)) score += 35;\n"
         "  if (link.indexOf('read.cv') !== -1 ||")
     return nodes, conns
+
+
+# ======================================================================
+# Round 3 (third live run, 159 rows): drop unknown-location rows from
+# sources that cannot filter by city; Reddit via Google; clean platform names.
+# ======================================================================
+def apply_round3(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def code(name):
+        return N[name]["parameters"]
+
+    def R(text, old, new):
+        assert old in text, "round3: anchor not found: " + old[:80]
+        return text.replace(old, new)
+
+    lc = code("Location Check & Rank")
+    lc["jsCode"] = R(lc["jsCode"], "  if (tier === 9) { dropped++; return; }",
+        "  // Stack Overflow, GitLab, Dev.to, Hugging Face, Kaggle, Hacker News and Reddit cannot search by city:\n"
+        "  // when a city was asked for, keep their people only if a location confirms it.\n"
+        "  const globalSource = /(stackoverflow\\.com|gitlab\\.com|dev\\.to|huggingface\\.co|kaggle\\.com|ycombinator\\.com|reddit\\.com)/i.test(String(c.profile_url || ''));\n"
+        "  if (wanted && globalSource && tier === 1) tier = 9;\n"
+        "  if (tier === 9) { dropped++; return; }")
+    # Reddit's API now refuses scripts (403): search it through Google instead
+    code("Build Reddit Query")["jsCode"] = "// Reddit blocks direct API calls; Reddit is searched via Google (Build Search Query).\nreturn [];\n"
+    bq = code("Build Search Query")
+    bq["jsCode"] = R(bq["jsCode"], "  'Behance': ['site:behance.net']\n};",
+        "  'Behance': ['site:behance.net'],\n  'Reddit': ['site:reddit.com/r/forhire', 'site:reddit.com/user']\n};")
+    pc = code("Parse Contact")
+    pc["jsCode"] = R(pc["jsCode"], "  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }",
+        "  return 'Open Web';")
+    return nodes, conns
