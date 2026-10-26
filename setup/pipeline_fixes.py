@@ -882,3 +882,20 @@ def apply_round5(nodes, conns):
     mc["jsCode"] = mc["jsCode"].replace(old2, "  merged.send_email = 'FALSE';\n  merged.is_new = true;")
     N["Append row in sheet"]["parameters"]["columns"]["value"]["Send Email?"] = "={{ $json.send_email || 'FALSE' }}"
     return nodes, conns
+
+
+def apply_round6(nodes, conns):
+    """UAT: Apollo people search over-narrowed; confirmation text promised Slack."""
+    N = {n["name"]: n for n in nodes}
+    aq = N["Build Apollo Query"]["parameters"]
+    old = "  if (keywords) body.q_keywords = keywords;"
+    assert old in aq["jsCode"]
+    aq["jsCode"] = aq["jsCode"].replace(old,
+        "  // keywords are ANDed by Apollo: only use them when there is no title to search on\n"
+        "  if (keywords && !titles.length) body.q_keywords = keywords;")
+    opt = N["On form submission"]["parameters"]["options"]["respondWithOptions"]["values"]
+    old2 = "Ranked candidates also post to the recruitment Slack channel."
+    assert old2 in opt["formSubmittedText"]
+    opt["formSubmittedText"] = opt["formSubmittedText"].replace(old2,
+        "Large searches across many sources can take up to 10 minutes. If Slack is connected, a summary is posted there too.")
+    return nodes, conns

@@ -244,3 +244,9 @@ test('UAT: re-running a search keeps the recruiter\'s ticks and statuses', async
   const [n] = await runNode('Merge CRM State', [{ dedupe_key: 'url:https://github.com/new', profile_url: 'https://github.com/new' }], { 'Load CRM Rows': [sheetRow] });
   assert.equal(String(n.send_email).toUpperCase(), 'FALSE');
 });
+
+test('UAT: Apollo people search is not over-narrowed by skill keywords when a title is given', async () => {
+  const [a] = await runNode('Build Apollo Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'HR Business Partner', 'Key Skills & Criteria': 'Employee Relations, Talent Management', 'Experience Range (Years)': '8+ years', Location: 'Mumbai' })] });
+  assert.equal(a.apollo_body.q_keywords, undefined);
+  assert.deepEqual(a.apollo_body.person_titles, ['HR Business Partner']);
+});

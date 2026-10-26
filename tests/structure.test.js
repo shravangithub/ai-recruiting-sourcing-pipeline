@@ -86,3 +86,8 @@ test('UAT: a zero-result search still marks the Search Log row Complete', () => 
 test('UAT: the sheet write never overwrites "Send Email?" with a constant', () => {
   assert.notEqual(NODES['Append row in sheet'].parameters.columns.value['Send Email?'], 'FALSE');
 });
+
+test('UAT: confirmation page does not promise Slack posts', () => {
+  const t = NODES['On form submission'].parameters.options.respondWithOptions.values.formSubmittedText;
+  assert.ok(!/also post to the recruitment Slack channel/.test(t));
+});
