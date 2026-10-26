@@ -899,3 +899,29 @@ def apply_round6(nodes, conns):
     opt["formSubmittedText"] = opt["formSubmittedText"].replace(old2,
         "Large searches across many sources can take up to 10 minutes. If Slack is connected, a summary is posted there too.")
     return nodes, conns
+
+
+def apply_round7(nodes, conns):
+    """'Send Email?' checkbox on every row the pipeline writes (validation only:
+    writing values into empty rows would push later results below a gap)."""
+    N = {n["name"]: n for n in nodes}
+    ap = N["Append row in sheet"]
+    col = list(ap["parameters"]["columns"]["value"].keys())
+    sheet_cols = ['Rank', 'Name', 'Role', 'Fit Score', 'Summary', 'Key Skills', 'Verified Gender', 'Current Company',
+                  'Verified Title', 'Location', 'Email', 'Phone', 'GitHub', 'Work History', 'Education', 'LinkedIn', 'Resume Link',
+                  'Date Added', 'Source Platform', 'Resume Source', 'Contact Source', 'Search Role', 'Search Location',
+                  'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL']
+    assert set(col) <= set(sheet_cols)
+    idx = sheet_cols.index('Send Email?')
+    body = {"requests": [{"setDataValidation": {
+        "range": {"sheetId": 0, "startRowIndex": 1, "startColumnIndex": idx, "endColumnIndex": idx + 1},
+        "rule": {"condition": {"type": "BOOLEAN"}, "showCustomUi": True}}}]}
+    pos = ap["position"]
+    nodes.append({"parameters": {"method": "POST", "url": "https://sheets.googleapis.com/v4/spreadsheets/__SHEET_ID__:batchUpdate",
+                                 "authentication": "predefinedCredentialType", "nodeCredentialType": "googleSheetsOAuth2Api",
+                                 "sendBody": True, "specifyBody": "json", "jsonBody": json.dumps(body), "options": {}},
+                  "id": "fix-tick-boxes", "name": "Tick Boxes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                  "position": [pos[0] + 220, pos[1] + 160], "executeOnce": True, "onError": "continueRegularOutput",
+                  "credentials": json.loads(json.dumps(ap["credentials"]))})
+    conns["Append row in sheet"]["main"][0].append({"node": "Tick Boxes", "type": "main", "index": 0})
+    return nodes, conns

@@ -91,3 +91,20 @@ test('UAT: confirmation page does not promise Slack posts', () => {
   const t = NODES['On form submission'].parameters.options.respondWithOptions.values.formSubmittedText;
   assert.ok(!/also post to the recruitment Slack channel/.test(t));
 });
+
+test('UAT: new rows get a "Send Email?" checkbox after every search (rule only, no values, so no gaps)', () => {
+  const targets = (WF.connections['Append row in sheet'].main[0] || []).map((t) => t.node);
+  assert.ok(targets.includes('Tick Boxes'));
+  const n = NODES['Tick Boxes'];
+  assert.equal(n.executeOnce, true);
+  assert.equal(n.onError, 'continueRegularOutput');
+  const body = JSON.parse(n.parameters.jsonBody);
+  const req = body.requests[0].setDataValidation;
+  assert.equal(req.rule.condition.type, 'BOOLEAN');
+  assert.equal(req.range.endRowIndex, undefined, 'a fixed end row can exceed the sheet and fail');
+  assert.equal(req.range.startColumnIndex, SHEET_COLUMNS.indexOf('Send Email?'));
+});
+
+test('UAT: setup checkbox rule is open-ended too', () => {
+  assert.ok(!/endRowIndex: 5000/.test(handler));
+});

@@ -213,7 +213,7 @@ async function createSheetAndFolder(ids, company) {
       { id: 'h5', name: 'Add checkbox', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [330, 0], onError: 'continueRegularOutput',
         parameters: { method: 'POST', url: "={{ 'https://sheets.googleapis.com/v4/spreadsheets/' + $('Create sheet').first().json.spreadsheetId + ':batchUpdate' }}",
           authentication: 'predefinedCredentialType', nodeCredentialType: 'googleSheetsOAuth2Api', sendBody: true, specifyBody: 'json',
-          jsonBody: JSON.stringify({ requests: [{ setDataValidation: { range: { sheetId: 0, startRowIndex: 1, endRowIndex: 5000,
+          jsonBody: JSON.stringify({ requests: [{ setDataValidation: { range: { sheetId: 0, startRowIndex: 1,
             startColumnIndex: SHEET_COLUMNS.indexOf('Send Email?'), endColumnIndex: SHEET_COLUMNS.indexOf('Send Email?') + 1 },
             rule: { condition: { type: 'BOOLEAN' }, showCustomUi: true } } }] }), options: {} },
         credentials: { googleSheetsOAuth2Api: { id: ids.SHEETS, name: CRED_NAMES.SHEETS } } },

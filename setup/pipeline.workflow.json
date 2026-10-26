@@ -3589,6 +3589,34 @@
     }
    },
    "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://sheets.googleapis.com/v4/spreadsheets/__SHEET_ID__:batchUpdate",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "googleSheetsOAuth2Api",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "{\"requests\": [{\"setDataValidation\": {\"range\": {\"sheetId\": 0, \"startRowIndex\": 1, \"startColumnIndex\": 26, \"endColumnIndex\": 27}, \"rule\": {\"condition\": {\"type\": \"BOOLEAN\"}, \"showCustomUi\": true}}}]}",
+    "options": {}
+   },
+   "id": "fix-tick-boxes",
+   "name": "Tick Boxes",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3452,
+    -48
+   ],
+   "executeOnce": true,
+   "onError": "continueRegularOutput",
+   "credentials": {
+    "googleSheetsOAuth2Api": {
+     "id": "__CRED_SHEETS__",
+     "name": "Sourcing · Google Sheets"
+    }
+   }
   }
  ],
  "connections": {
@@ -4000,6 +4028,11 @@
     [
      {
       "node": "Sourcing Summary",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Tick Boxes",
       "type": "main",
       "index": 0
      }
