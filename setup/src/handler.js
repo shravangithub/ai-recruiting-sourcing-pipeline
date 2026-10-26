@@ -210,6 +210,13 @@ async function createSheetAndFolder(ids, company) {
         parameters: { method: 'POST', url: 'https://sheets.googleapis.com/v4/spreadsheets', authentication: 'predefinedCredentialType',
           nodeCredentialType: 'googleSheetsOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: JSON.stringify(sheetBody(company)), options: {} },
         credentials: { googleSheetsOAuth2Api: { id: ids.SHEETS, name: CRED_NAMES.SHEETS } } },
+      { id: 'h5', name: 'Add checkbox', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [330, 0], onError: 'continueRegularOutput',
+        parameters: { method: 'POST', url: "={{ 'https://sheets.googleapis.com/v4/spreadsheets/' + $('Create sheet').first().json.spreadsheetId + ':batchUpdate' }}",
+          authentication: 'predefinedCredentialType', nodeCredentialType: 'googleSheetsOAuth2Api', sendBody: true, specifyBody: 'json',
+          jsonBody: JSON.stringify({ requests: [{ setDataValidation: { range: { sheetId: 0, startRowIndex: 1, endRowIndex: 5000,
+            startColumnIndex: SHEET_COLUMNS.indexOf('Send Email?'), endColumnIndex: SHEET_COLUMNS.indexOf('Send Email?') + 1 },
+            rule: { condition: { type: 'BOOLEAN' }, showCustomUi: true } } }] }), options: {} },
+        credentials: { googleSheetsOAuth2Api: { id: ids.SHEETS, name: CRED_NAMES.SHEETS } } },
       { id: 'h3', name: 'Create folder', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [440, 0], onError: 'continueRegularOutput',
         parameters: { method: 'POST', url: 'https://www.googleapis.com/drive/v3/files', authentication: 'predefinedCredentialType',
           nodeCredentialType: 'googleDriveOAuth2Api', sendBody: true, specifyBody: 'json',
@@ -220,7 +227,8 @@ async function createSheetAndFolder(ids, company) {
     ],
     connections: {
       Webhook: { main: [[{ node: 'Create sheet', type: 'main', index: 0 }]] },
-      'Create sheet': { main: [[{ node: 'Create folder', type: 'main', index: 0 }]] },
+      'Create sheet': { main: [[{ node: 'Add checkbox', type: 'main', index: 0 }]] },
+      'Add checkbox': { main: [[{ node: 'Create folder', type: 'main', index: 0 }]] },
       'Create folder': { main: [[{ node: 'Respond', type: 'main', index: 0 }]] },
     },
   };

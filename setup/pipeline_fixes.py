@@ -808,3 +808,60 @@ def apply_round3(nodes, conns):
     pc["jsCode"] = R(pc["jsCode"], "  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }",
         "  return 'Open Web';")
     return nodes, conns
+
+
+# ======================================================================
+# Round 4 (SDET + recruiter UAT)
+# ======================================================================
+RESULTS_GATE_V2 = r"""
+// Runs after the candidate branch has finished (n8n runs branches in order).
+// If nothing reached the sheet - no results, or everyone filtered out - send
+// the zero-result notice AND close the Search Log row, so it never stays
+// "Processing".
+try { if ($('Location Check & Rank').all().length > 0) return []; } catch (e) { /* step never ran */ }
+let scanned = 0, valid = 0;
+for (const it of $input.all()) {
+  const j = (it && it.json) || {};
+  let raw = (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) ? j.output[0].content[0].text : (typeof j.text === 'string' ? j.text : '[]');
+  raw = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  let parsed; try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }
+  if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.candidates)) parsed = parsed.candidates;
+  if (!Array.isArray(parsed)) parsed = [parsed];
+  scanned += parsed.length;
+  for (const c of parsed) if (c && c.candidate_name && c.is_person !== false) valid++;
+}
+let role = '', loc = '', queryStr = '', platforms = '';
+try { const f = $('Search Criteria').first().json; role = f['Target Role'] || ''; loc = f['Location'] || ''; } catch (e) {}
+try { const g = $('Build Search Query').first().json; queryStr = g.q || ''; platforms = g.platforms_used || ''; } catch (e) {}
+const reason = valid > 0 ? (valid + ' people found, but none in ' + (loc || 'the requested location')) : 'no matching profiles found';
+return [{ json: { role: role, location: loc, platforms: platforms, query: queryStr, scanned: scanned,
+  count: 0, range_text: reason, search_role: role, search_location: loc } }];
+"""
+
+
+def apply_round4(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def code(name):
+        return N[name]["parameters"]
+
+    def R(text, old, new):
+        assert old in text, "round4: anchor not found: " + old[:80]
+        return text.replace(old, new)
+
+    # GitHub is searched automatically only for tech roles (an HR search must
+    # not return random developers in that city)
+    gq = code("Build GH Query")
+    gq["jsCode"] = R(gq["jsCode"], "const locs = aliasesFor(loc)",
+        "// no programming language in the role/skills -> not a developer search\n"
+        "if (!lang) return [];\nconst locs = aliasesFor(loc)")
+    # zero results: notice + close the Search Log row
+    code("Results Gate")["jsCode"] = RESULTS_GATE_V2
+    conns["Results Gate"] = {"main": [[{"node": "No Results Alert", "type": "main", "index": 0},
+                                       {"node": "Log Search Complete", "type": "main", "index": 0}]]}
+    # outreach: no n8n footer, subject that fits agency recruiting, poll every 15 min
+    oe = N["Send Outreach Email"]["parameters"]
+    oe["options"] = dict(oe.get("options") or {}, appendAttribution=False)
+    oe["subject"] = "={{ $json['Search Role'] }} role{{ $json['Search Location'] ? ' in ' + $json['Search Location'] : '' }} - quick chat?"
+    N["Outreach Schedule"]["parameters"]["rule"] = {"interval": [{"field": "minutes", "minutesInterval": 15}]}
+    return nodes, conns

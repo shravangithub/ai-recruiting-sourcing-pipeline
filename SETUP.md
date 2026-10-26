@@ -81,6 +81,8 @@ python3 setup/build_setup.py      # setup/src/* -> setup/setup.workflow.json
 - `setup/src/setup.html` – the setup screens (plain HTML/CSS/JS, no build step)
 - `setup/src/handler.js` – the setup API (runs in an n8n Code node; uses n8n's public REST API)
 - `setup/pipeline.workflow.json` – the pipeline with `__TOKENS__` that setup fills in
+- `setup/pipeline_fixes.py` – quality fixes applied on top of the original template
+- `tests/` – automated checks (wiring, sheet columns, and every step with realistic recruiter inputs): run `node --test tests/*.test.js`
 
 Forks: point setup at your own template with
 `python3 setup/build_setup.py --template https://raw.githubusercontent.com/<you>/<repo>/main/setup/pipeline.workflow.json`,
