@@ -51,7 +51,7 @@ const PIPELINE_NAME = 'AI Recruiting Sourcing Pipeline';
 const SHEET_COLUMNS = ['Rank', 'Name', 'Role', 'Fit Score', 'Summary', 'Key Skills', 'Verified Gender', 'Current Company',
   'Verified Title', 'Location', 'Email', 'Phone', 'GitHub', 'Work History', 'Education', 'LinkedIn', 'Resume Link',
   'Date Added', 'Source Platform', 'Resume Source', 'Contact Source', 'Search Role', 'Search Location',
-  'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'PDL Skills'];
+  'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL'];
 const LOG_COLUMNS = ['Run ID', 'Status', 'Role', 'Location', 'Candidates', 'Rows', 'Started At', 'Completed At'];
 const USAGE_TAB_ID = 2134273428; // the pipeline's Sheets nodes point at this tab id
 
@@ -72,7 +72,10 @@ async function testService(service, v) {
   switch (service) {
     case 'openai':
       if (!need(v.key)) return 'Paste a key first.';
-      r = await http({ method: 'GET', url: 'https://api.openai.com/v1/models', headers: { Authorization: 'Bearer ' + need(v.key) } });
+      // a 1-token request: proves the key works AND the account has credits
+      r = await http({ method: 'POST', url: 'https://api.openai.com/v1/chat/completions', headers: { Authorization: 'Bearer ' + need(v.key) },
+        body: { model: 'gpt-4o-mini', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] } });
+      if (r.status === 429 && /quota|credit|billing/i.test(msg(r))) return 'This key works, but the OpenAI account has no credits. Add credit at platform.openai.com/settings/organization/billing, then test again.';
       break;
     case 'serper':
       if (!need(v.key)) return 'Paste a key first.';

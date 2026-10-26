@@ -67,8 +67,12 @@ def swap(obj):
 
 def main():
     src = json.loads(SRC.read_text())
+    import sys
+    sys.path.insert(0, str(ROOT / "setup"))
+    import pipeline_fixes
+    src_nodes, src_conns = pipeline_fixes.apply(src["nodes"], src["connections"])
     nodes = []
-    for n in src["nodes"]:
+    for n in src_nodes:
         n = swap(n)
         t = n["type"]
         # credentials -> tokens
@@ -97,12 +101,20 @@ def main():
     out = {
         "name": "AI Recruiting Sourcing Pipeline",
         "nodes": nodes,
-        "connections": src["connections"],
+        "connections": src_conns,
         "settings": {"executionOrder": "v1"},
     }
     text = json.dumps(out, ensure_ascii=False, indent=1)
     for leftover in ("YOUR_", "REPLACE_WITH", "TalentRubric", "recruitment-alerts", "n8n credits"):
         assert leftover not in text, f"leftover placeholder: {leftover}"
+    # every quality fix must have landed (guards against silent no-op replaces)
+    for marker in ("Wait For All Sources", "Location Check & Rank", "Rejoin Candidates", "GH User Details",
+                   "candidate_location: cand.candidate_location", "location: cand.candidate_location || ''",
+                   "merged.candidate_name = ghName", "backend_python", "const cand = $('Location Check & Rank').item.json",
+                   "Profile URL", "count = $('Location Check & Rank').all().length", "outside top", "location not confirmed",
+                   "skipped - below top", "STRICT HONESTY"):
+        assert marker in text, f"fix not applied: {marker}"
+    assert "$('Merge GitHub').item" not in text and "PDL Skills" not in text
     OUT.write_text(text + "\n")
     print(f"wrote {OUT.relative_to(ROOT)}: {len(nodes)} nodes")
 

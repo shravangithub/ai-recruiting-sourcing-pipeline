@@ -12,7 +12,7 @@
     "responses": {
      "values": [
       {
-       "content": "=You are an expert recruiter evaluating candidates for __COMPANY__.\n\n--- HIRING CRITERIA ---\nTarget Role: {{ $('Search Criteria').first().json['Target Role'] }}\nKey Skills & Requirements: {{ $('Search Criteria').first().json['Key Skills & Criteria'] }}\nExperience Range (Years): {{ $('Search Criteria').first().json['Experience Range (Years)'] }}\nGender Preference: {{ $('Search Criteria').first().json['Gender Preference'] }}\n\n--- FULL JOB DESCRIPTION (may be empty; if present, treat as the authoritative source of requirements) ---\n{{ $('Prep JD').first().json.jd_text || 'No job description was provided; use the criteria above only.' }}\n\n--- SCRAPED CANDIDATE CONTENT (each line is one candidate: Title | Snippet | URL) ---\n{{ $json.page_text }}\n\n--- INSTRUCTIONS ---\n--- SOURCING PLAYBOOK (expert best practices from Glen Cathey / Boolean Black Belt / SocialTalent — apply these) ---\n1. PERSON vs JOB POSTING (most important): A real candidate line names an INDIVIDUAL and describes THEIR experience (a personal name, \"Senior X at Y\", \"I built...\"). A JOB POSTING describes a role to be filled — signals include \"We are looking\", \"Responsibilities\", \"Apply\", \"job description\", \"N jobs in <city>\", salary ranges, and company careers/ATS URLs (careers.*, jobs.*, boards.greenhouse.io, lever.co, workday, indeed, glassdoor, naukri). Any job posting, ATS page, directory or aggregator listing MUST get candidate_name \"\" and fit_score 0 so it is excluded — never turn a job title into a fake candidate name.\n2. SEMANTIC INFERENCE: credit skills and seniority that are implied but not stated verbatim (e.g. \"led/mentored a team\" implies seniority; \"GAAP\" implies accounting; \"Kubernetes + Terraform\" implies DevOps/SRE; \"published research\" implies depth). Do not require exact keyword matches.\n3. TITLE VARIETY: the same role carries many titles across companies — judge on substance, not exact title match (SDE ≈ Software Engineer; SRE ≈ Platform/Infrastructure Engineer; Applied Scientist ≈ ML Engineer). Reward adjacent/synonymous titles that demonstrate the required capability.\n4. SIGNAL QUALITY: prefer candidates with concrete, verifiable evidence (specific technologies, measurable impact, named employers) over vague self-description.\n\nEvaluate EVERY candidate line in the scraped content against the HIRING CRITERIA above.\nIf a FULL JOB DESCRIPTION is provided above, weigh it heavily: match each candidate against the specific responsibilities, must-have skills and seniority described in it, and reference JD-specific requirements in the match_summary. If no job description was provided, rely on the hiring criteria fields only.\nIf a line is NOT an individual person (e.g. a job posting, a company page, or a hiring announcement), give it fit_score 0 so it can be filtered out.\nCRITICAL EXPERIENCE MINIMUM (hard filter): The requested Experience Range defines a MINIMUM number of years of professional experience. Map the lower bound as: '0-2 years' => 0, '3-5 years' => 3, '5-8 years' => 5, '8+ years' => 8. Estimate each candidate's total years of professional experience from their title, snippet and seniority. ANY candidate whose estimated experience is clearly BELOW this minimum MUST be given fit_score 0 (so they are excluded), no matter how well their skills match. Interns, students, fresh graduates and recent grads must get fit_score 0 unless the minimum is 0. Only assign a fit_score of 1 or higher to candidates who meet or exceed the minimum years.\nAlso factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.\nReturn a JSON ARRAY where each element is one candidate object with exactly these fields:\n1. candidate_name (string) - the person's ACTUAL full name exactly as it appears in the source line. If the line does NOT contain an identifiable personal name (e.g. a Hacker News monthly hiring thread, a job posting, a directory or company page), set candidate_name to an empty string \"\" and give it fit_score 0 so it is excluded. NEVER invent a name such as 'Candidate from July 2019'.\n2. current_role (string)\n3. fit_score (number 1-10 based on match with target role, skills, experience range & gender preference; use 0 for non-candidates)\n4. match_summary (string, 2 sentences explaining fit)\n5. key_skills (array of strings)\n6. profile_url (string, the LinkedIn/GitHub/source URL for that candidate taken from the URL at the end of their scraped line)\nSort the array by fit_score descending."
+       "content": "=You are an expert recruiter evaluating candidates for __COMPANY__.\n\n--- HIRING CRITERIA ---\nTarget Role: {{ $('Search Criteria').first().json['Target Role'] }}\nKey Skills & Requirements: {{ $('Search Criteria').first().json['Key Skills & Criteria'] }}\nExperience Range (Years): {{ $('Search Criteria').first().json['Experience Range (Years)'] }}\nGender Preference: {{ $('Search Criteria').first().json['Gender Preference'] }}\nTarget Location: {{ $('Search Criteria').first().json['Location'] || 'any' }}\nMust-have skills: {{ $('Search Criteria').first().json['Primary Skills'] || $('Search Criteria').first().json['Key Skills & Criteria'] }}\nNice-to-have skills: {{ $('Search Criteria').first().json['Secondary Skills'] || 'none' }}\n\n--- FULL JOB DESCRIPTION (may be empty; if present, treat as the authoritative source of requirements) ---\n{{ $('Prep JD').first().json.jd_text || 'No job description was provided; use the criteria above only.' }}\n\n--- SCRAPED CANDIDATE CONTENT (each line is one candidate: Title | Snippet | URL) ---\n{{ $json.page_text }}\n\n--- INSTRUCTIONS ---\n--- SOURCING PLAYBOOK (expert best practices from Glen Cathey / Boolean Black Belt / SocialTalent — apply these) ---\n1. PERSON vs JOB POSTING (most important): A real candidate line names an INDIVIDUAL and describes THEIR experience (a personal name, \"Senior X at Y\", \"I built...\"). A JOB POSTING describes a role to be filled — signals include \"We are looking\", \"Responsibilities\", \"Apply\", \"job description\", \"N jobs in <city>\", salary ranges, and company careers/ATS URLs (careers.*, jobs.*, boards.greenhouse.io, lever.co, workday, indeed, glassdoor, naukri). Any job posting, ATS page, directory or aggregator listing MUST get candidate_name \"\" and fit_score 0 so it is excluded — never turn a job title into a fake candidate name.\n2. SEMANTIC INFERENCE: credit skills and seniority that are implied but not stated verbatim (e.g. \"led/mentored a team\" implies seniority; \"GAAP\" implies accounting; \"Kubernetes + Terraform\" implies DevOps/SRE; \"published research\" implies depth). Do not require exact keyword matches.\n3. TITLE VARIETY: the same role carries many titles across companies — judge on substance, not exact title match (SDE ≈ Software Engineer; SRE ≈ Platform/Infrastructure Engineer; Applied Scientist ≈ ML Engineer). Reward adjacent/synonymous titles that demonstrate the required capability.\n4. SIGNAL QUALITY: prefer candidates with concrete, verifiable evidence (specific technologies, measurable impact, named employers) over vague self-description.\n\nEvaluate EVERY candidate line in the scraped content against the HIRING CRITERIA above.\nIf a FULL JOB DESCRIPTION is provided above, weigh it heavily: match each candidate against the specific responsibilities, must-have skills and seniority described in it, and reference JD-specific requirements in the match_summary. If no job description was provided, rely on the hiring criteria fields only.\nIf a line is NOT an individual person (a job posting, company page, directory, list, article or hiring announcement), set is_person to false.\nEVERY real person MUST be returned with is_person true and a fit_score from 1 to 10. Never drop or zero-score a real person: the recruiter decides. Score must-have skills and role match highest, then seniority, then nice-to-have skills.\nEXPERIENCE: compare against the requested Experience Range only when the line actually states years, dates or seniority. If it does, lower the score for clearly too-junior people (students/interns -> 1-3) and say so. If it does not, write 'experience not stated' - NEVER guess a number of years.\nSTRICT HONESTY: use ONLY facts present in the candidate's line. Do not invent employers, years, skills or locations. key_skills must be skills the line actually shows (a Java/Spring maintainer is not a Python developer).\nAlso factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.\nReturn a JSON ARRAY with one object for EVERY line (same order), each with exactly these fields:\n1. candidate_name (string) - the person's real full name as written; for a GitHub/GitLab/Kaggle line with no real name, use the username. Never invent a name. \"\" if no person.\n2. is_person (boolean)\n3. current_role (string, as stated, else \"\")\n4. fit_score (number 1-10 for people, 0 only when is_person is false)\n5. match_summary (string, 2 short sentences: why they fit and what is missing/unknown)\n6. key_skills (array of strings, only skills evidenced in the line)\n7. candidate_location (string - city/region/country exactly as stated in the line, else \"\")\n8. experience_evidence (string - years/seniority as stated, else \"not stated\")\n9. profile_url (string - the URL at the end of their line, copied exactly)\nSort the array by fit_score descending. Return ONLY the JSON array."
       },
       {
        "role": "system",
@@ -40,7 +40,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  let raw;\n  if (item.json.output && item.json.output[0] && item.json.output[0].content && item.json.output[0].content[0]) {\n    raw = item.json.output[0].content[0].text;\n  } else if (typeof item.json.text === 'string') {\n    raw = item.json.text;\n  } else {\n    raw = '[]';\n  }\n  let parsed;\n  try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }\n  if (!Array.isArray(parsed)) { parsed = [parsed]; }\n  for (const c of parsed) {\n    out.push({ json: {\n      candidate_name: c.candidate_name || '',\n      current_role: c.current_role || '',\n      fit_score: typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0,\n      match_summary: c.match_summary || '',\n      key_skills: Array.isArray(c.key_skills) ? c.key_skills : [],\n      profile_url: c.profile_url || ''\n    } });\n  }\n}\nreturn out;"
+    "jsCode": "\nconst out = [];\nconst seen = {};\nfor (const item of $input.all()) {\n  let raw;\n  if (item.json.output && item.json.output[0] && item.json.output[0].content && item.json.output[0].content[0]) raw = item.json.output[0].content[0].text;\n  else if (typeof item.json.text === 'string') raw = item.json.text;\n  else raw = '[]';\n  raw = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();\n  let parsed;\n  try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }\n  if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.candidates)) parsed = parsed.candidates;\n  if (!Array.isArray(parsed)) parsed = [parsed];\n  for (const c of parsed) {\n    if (!c) continue;\n    const url = String(c.profile_url || '').trim();\n    const key = url.toLowerCase().replace(/\\/+$/, '') || String(c.candidate_name || '').toLowerCase();\n    if (!key || seen[key]) continue;\n    seen[key] = true;\n    out.push({ json: {\n      candidate_name: c.candidate_name || '',\n      is_person: c.is_person !== false && !!c.candidate_name,\n      current_role: c.current_role || '',\n      fit_score: typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0,\n      match_summary: c.match_summary || '',\n      key_skills: Array.isArray(c.key_skills) ? c.key_skills : [],\n      candidate_location: String(c.candidate_location || '').trim(),\n      experience_evidence: String(c.experience_evidence || '').trim(),\n      profile_url: url\n    } });\n  }\n}\nreturn out;\n"
    },
    "id": "0f3ce84b-7362-43fd-b910-b7ac5879941a",
    "name": "Split Candidates",
@@ -62,7 +62,17 @@
      },
      "conditions": [
       {
-       "id": "aa11bb22-0001-4a00-9000-000000000021",
+       "id": "fix-person",
+       "leftValue": "={{ $json.is_person }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      },
+      {
+       "id": "fix-score",
        "leftValue": "={{ $json.fit_score }}",
        "rightValue": 0,
        "operator": {
@@ -86,7 +96,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const items = $input.all().map(function(it, idx) { return { json: it.json, pairedItem: { item: idx } }; });\nitems.sort(function(a, b) { return (Number(b.json.fit_score) || 0) - (Number(a.json.fit_score) || 0); });\nconst top = items.slice(0, 10);\nreturn top.map(function(it, i) { return { json: Object.assign({}, it.json, { rank: i + 1 }), pairedItem: it.pairedItem }; });"
+    "jsCode": "\n// Rank EVERY candidate (no top-10 cap). Rank here is provisional; the final\n// rank is set after enrichment + location check.\nconst items = $input.all().map(function(it, idx) { return { json: it.json, pairedItem: { item: idx } }; });\nitems.sort(function(a, b) { return (Number(b.json.fit_score) || 0) - (Number(a.json.fit_score) || 0); });\nreturn items.map(function(it, i) { return { json: Object.assign({}, it.json, { rank: i + 1 }), pairedItem: it.pairedItem }; });\n"
    },
    "id": "1e1eb982-537e-4c39-9f3d-19711cd6b778",
    "name": "Rank Top 10",
@@ -107,8 +117,12 @@
     "queryParameters": {
      "parameters": [
       {
+       "name": "id",
+       "value": "={{ ($json.profile_url.match(/apollo\\.io\\/people\\/([A-Za-z0-9]+)/) || [])[1] || '' }}"
+      },
+      {
        "name": "name",
-       "value": "={{ $json.candidate_name }}"
+       "value": "={{ /apollo\\.io/i.test($json.profile_url) ? '' : $json.candidate_name }}"
       },
       {
        "name": "linkedin_url",
@@ -154,7 +168,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $('Rank Top 10').item.json;\nconst resp = $json || {};\nconst p = resp.person || null;\n\nfunction s(v) { return (typeof v === 'string') ? v : ''; }\n\nlet email = '';\nlet email_status = '';\nlet location = '';\nlet current_company = '';\nlet verified_title = '';\nlet work_history = '';\nlet linkedin = cand.profile_url || '';\n\nif (p) {\n  const e = s(p.email);\n  if (e && e.toLowerCase().indexOf('not_unlocked') === -1 && e.toLowerCase().indexOf('domain.com') === -1) {\n    email = e;\n  }\n  email_status = s(p.email_status);\n  verified_title = s(p.title);\n  if (p.organization && p.organization.name) { current_company = s(p.organization.name); }\n  location = [s(p.city), s(p.state), s(p.country)].filter(Boolean).join(', ');\n  if (p.linkedin_url) { linkedin = s(p.linkedin_url); }\n  if (Array.isArray(p.employment_history)) {\n    work_history = p.employment_history.slice(0, 3).map(function(h) {\n      const t = s(h.title);\n      const o = s(h.organization_name);\n      let line = t;\n      if (o) line += ' @ ' + o;\n      return line;\n    }).filter(Boolean).join(' | ');\n  }\n}\n\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: cand.profile_url || '',\n  verified_gender: '',\n  current_company: current_company,\n  verified_title: verified_title,\n  location: location,\n  pdl_skills: '',\n  github_url: '',\n  email: email,\n  email_status: email_status,\n  phone: '',\n  work_history: work_history,\n  education: '',\n  verified_linkedin: /linkedin\\.com/i.test(linkedin) ? linkedin : '',\n  enrichment_status: p ? 'enriched' : 'not found'\n} };"
+    "jsCode": "const cand = $('Rank Top 10').item.json;\nconst resp = $json || {};\nconst p = resp.person || null;\n\nfunction s(v) { return (typeof v === 'string') ? v : ''; }\n\nlet email = '';\nlet email_status = '';\nlet location = '';\nlet current_company = '';\nlet verified_title = '';\nlet work_history = '';\nlet linkedin = cand.profile_url || '';\n\nif (p) {\n  const e = s(p.email);\n  if (e && e.toLowerCase().indexOf('not_unlocked') === -1 && e.toLowerCase().indexOf('domain.com') === -1) {\n    email = e;\n  }\n  email_status = s(p.email_status);\n  verified_title = s(p.title);\n  if (p.organization && p.organization.name) { current_company = s(p.organization.name); }\n  location = [s(p.city), s(p.state), s(p.country)].filter(Boolean).join(', ');\n  if (p.linkedin_url) { linkedin = s(p.linkedin_url); }\n  if (Array.isArray(p.employment_history)) {\n    work_history = p.employment_history.slice(0, 3).map(function(h) {\n      const t = s(h.title);\n      const o = s(h.organization_name);\n      let line = t;\n      if (o) line += ' @ ' + o;\n      return line;\n    }).filter(Boolean).join(' | ');\n  }\n}\n\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: (p && p.name && String(p.name).length > String(cand.candidate_name || '').length) ? p.name : (cand.candidate_name || ''),\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: (/apollo\\.io/i.test(cand.profile_url || '') && p && p.linkedin_url) ? p.linkedin_url : (cand.profile_url || ''),\n  candidate_location: cand.candidate_location || '',\n  experience_evidence: cand.experience_evidence || '',\n\n  verified_gender: '',\n  current_company: current_company,\n  verified_title: verified_title,\n  location: location,\n  pdl_skills: '',\n  github_url: '',\n  email: email,\n  email_status: email_status,\n  phone: '',\n  work_history: work_history,\n  education: '',\n  verified_linkedin: /linkedin\\.com/i.test(linkedin) ? linkedin : '',\n  enrichment_status: p ? 'enriched' : 'not found'\n} };"
    },
    "id": "c0dfdff4-a6d3-410d-b9f3-50279caa0def",
    "name": "Combine Enrichment",
@@ -173,7 +187,7 @@
     "genericAuthType": "httpHeaderAuth",
     "sendBody": true,
     "specifyBody": "json",
-    "jsonBody": "={\n  \"q\": \"\\\"{{ $json.candidate_name }}\\\" (resume OR cv OR curriculum vitae) (filetype:pdf OR filetype:doc OR filetype:docx OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:notion.site) {{ $json.current_role }} {{ $('Search Criteria').first().json['Location'].split('-')[0].trim() }}\"\n}",
+    "jsonBody": "={\n  \"q\": \"\\\"{{ $json.candidate_name }}\\\" (resume OR cv OR curriculum vitae) (filetype:pdf OR filetype:doc OR filetype:docx OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:notion.site) {{ $('Search Criteria').first().json['Location'].split('-')[0].trim() }}\"\n}",
     "options": {}
    },
    "id": "82c323f6-9362-4f40-a1d6-65c8b18932cd",
@@ -195,7 +209,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $('Merge GitHub').item.json;\nconst resp = $json || {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\n\n// Hosts that are almost never a candidate's own CV: government / regulator\n// registries, courts, gazettes, news/classified PDFs, job boards, directories.\n// These are the recurring false positives for common names (e.g. ckycindia,\n// nodal-officer lists, Economic Times listings).\nconst BLOCK_HOST = /(ckycindia|\\.gov(\\.[a-z]{2})?\\b|\\.nic\\.in\\b|\\.gov\\.in\\b|courts?\\.|highcourt|gazette|sebi\\.gov|rbi\\.org|\\.mil\\b|economictimes|timesofindia|chronicleclub|thehindu|indianexpress|hindustantimes|scribd\\.com|slideshare|indeed\\.com|naukri\\.com|glassdoor|monster\\.com|shine\\.com|foundit|timesjobs|instahyre|cutshort|hirist|freshersworld|yumpu\\.com)/i;\n\n// A result snippet reads like a DIRECTORY / bulk list (many people) when it\n// contains several distinct emails or a long run of \"Name email  Name email\".\nfunction looksDirectory(blob) {\n  const emails = blob.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/gi) || [];\n  const uniq = {}; for (const e of emails) uniq[e.toLowerCase()] = 1;\n  if (Object.keys(uniq).length >= 2) return true;          // 2+ different emails = list\n  if (/\\b(list of|nodal officer|reporting entit|registered with|shareholders|merit list|selection list|directory|classifieds?)\\b/.test(blob)) return true;\n  return false;\n}\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // --- STRONG name match: for multi-token names require the FIRST name PLUS at\n  // least one other token in the SAME result (kills 'Vivek Kumar Bansal' matching\n  // 'Vivek kumar'); for single-token names require that token. ---\n  let strongName = false;\n  if (tokens.length >= 2) {\n    const firstHit = firstToken && blob.indexOf(firstToken) !== -1;\n    const otherHit = tokens.slice(1).some(function(t){ return blob.indexOf(t) !== -1; });\n    strongName = firstHit && otherHit;\n  } else if (tokens.length === 1) {\n    strongName = blob.indexOf(firstToken) !== -1;\n  }\n  if (strongName) score += 50;\n  else return { link: o.link || '', score: -999, nameHit: false }; // no strong name -> reject outright\n\n  // --- hard blocks: registry/court/news/job-board hosts, or directory-style pages ---\n  if (BLOCK_HOST.test(link)) return { link: o.link || '', score: -999, nameHit: true };\n  if (looksDirectory(blob)) return { link: o.link || '', score: -999, nameHit: true };\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: true };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// require BOTH a strong name match and a real format/host signal: threshold 95\n// (name 50 + at least one strong format/host signal). This is stricter than\n// before (was 60) so common-name registry/news PDFs no longer slip through.\nif (best && best.score >= 95) {\n  merged.resume_link = best.link;\n  merged.resume_status = 'likely (name + format match)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };\n"
+    "jsCode": "const cand = $('Location Check & Rank').item.json;\nconst resp = ($json && ($json.organic || $json.searchParameters)) ? $json : {};\nconst organic = (resp.organic && resp.organic.length) ? resp.organic : [];\n\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(cand.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\n\n// Hosts that are almost never a candidate's own CV: government / regulator\n// registries, courts, gazettes, news/classified PDFs, job boards, directories.\n// These are the recurring false positives for common names (e.g. ckycindia,\n// nodal-officer lists, Economic Times listings).\nconst BLOCK_HOST = /(ckycindia|\\.gov(\\.[a-z]{2})?\\b|\\.nic\\.in\\b|\\.gov\\.in\\b|courts?\\.|highcourt|gazette|sebi\\.gov|rbi\\.org|\\.mil\\b|economictimes|timesofindia|chronicleclub|thehindu|indianexpress|hindustantimes|scribd\\.com|slideshare|indeed\\.com|naukri\\.com|glassdoor|monster\\.com|shine\\.com|foundit|timesjobs|instahyre|cutshort|hirist|freshersworld|yumpu\\.com)/i;\n\n// A result snippet reads like a DIRECTORY / bulk list (many people) when it\n// contains several distinct emails or a long run of \"Name email  Name email\".\nfunction looksDirectory(blob) {\n  const emails = blob.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/gi) || [];\n  const uniq = {}; for (const e of emails) uniq[e.toLowerCase()] = 1;\n  if (Object.keys(uniq).length >= 2) return true;          // 2+ different emails = list\n  if (/\\b(list of|nodal officer|reporting entit|registered with|shareholders|merit list|selection list|directory|classifieds?)\\b/.test(blob)) return true;\n  return false;\n}\n\n// score each candidate result: higher = more likely a real resume for THIS person\nfunction scoreResult(o) {\n  const link = String(o.link || '').toLowerCase();\n  const blob = (link + ' ' + String(o.title || '') + ' ' + String(o.snippet || '')).toLowerCase();\n  let score = 0;\n\n  // --- STRONG name match: for multi-token names require the FIRST name PLUS at\n  // least one other token in the SAME result (kills 'Vivek Kumar Bansal' matching\n  // 'Vivek kumar'); for single-token names require that token. ---\n  let strongName = false;\n  if (tokens.length >= 2) {\n    const firstHit = firstToken && blob.indexOf(firstToken) !== -1;\n    const otherHit = tokens.slice(1).some(function(t){ return blob.indexOf(t) !== -1; });\n    strongName = firstHit && otherHit;\n  } else if (tokens.length === 1) {\n    strongName = blob.indexOf(firstToken) !== -1;\n  }\n  if (strongName) score += 50;\n  else return { link: o.link || '', score: -999, nameHit: false }; // no strong name -> reject outright\n\n  // --- hard blocks: registry/court/news/job-board hosts, or directory-style pages ---\n  if (BLOCK_HOST.test(link)) return { link: o.link || '', score: -999, nameHit: true };\n  if (looksDirectory(blob)) return { link: o.link || '', score: -999, nameHit: true };\n\n  // file-format / host signals (word, pdf, drive, dropbox, cv sites, etc.)\n  if (/\\.pdf(\\?|$)/.test(link)) score += 40;\n  else if (/\\.docx?(\\?|$)/.test(link)) score += 38;\n  if (link.indexOf('drive.google.com') !== -1 || link.indexOf('docs.google.com') !== -1) score += 35;\n  if (link.indexOf('dropbox.com') !== -1 || link.indexOf('1drv.ms') !== -1 || link.indexOf('onedrive') !== -1) score += 33;\n  if (link.indexOf('read.cv') !== -1 || link.indexOf('standardresume') !== -1 || link.indexOf('flowcv') !== -1 || link.indexOf('notion.site') !== -1) score += 30;\n\n  // keyword signals\n  if (blob.indexOf('resume') !== -1) score += 15;\n  if (blob.indexOf('curriculum vitae') !== -1) score += 15;\n  if (/\\bcv\\b/.test(blob)) score += 8;\n\n  // penalise obvious non-resume noise\n  if (link.indexOf('instagram.com') !== -1 || link.indexOf('facebook.com') !== -1 || link.indexOf('youtube.com') !== -1) score -= 60;\n  if (link.indexOf('quora.com') !== -1 || link.indexOf('reddit.com') !== -1) score -= 30;\n  // a bare linkedin profile is a profile, not a resume file\n  if (link.indexOf('linkedin.com') !== -1 && !/\\.(pdf|docx?)/.test(link)) score -= 25;\n\n  return { link: o.link || '', score: score, nameHit: true };\n}\n\nlet best = null;\nfor (const o of organic) {\n  const s = scoreResult(o);\n  if (!best || s.score > best.score) best = s;\n}\n\nconst merged = Object.assign({}, cand);\n// require BOTH a strong name match and a real format/host signal: threshold 95\n// (name 50 + at least one strong format/host signal). This is stricter than\n// before (was 60) so common-name registry/news PDFs no longer slip through.\nif (best && best.score >= 95) {\n  merged.resume_link = best.link;\n  merged.resume_status = 'likely (name + format match)';\n} else {\n  merged.resume_link = '';\n  merged.resume_status = 'none found';\n}\nreturn { json: merged };\n"
    },
    "id": "9d9b0af8-a857-4609-9d0c-092804ae6e90",
    "name": "Attach Resume",
@@ -230,12 +244,12 @@
       "Name": "={{ $json.candidate_name }}",
       "Role": "={{ $json.current_role }}",
       "Fit Score": "={{ $json.fit_score }}",
-      "Summary": "={{ $json.match_summary }}",
+      "Summary": "={{ $json.match_summary }}{{ $json.experience_evidence && $json.experience_evidence !== 'not stated' ? ' Experience: ' + $json.experience_evidence + '.' : '' }}",
       "Key Skills": "={{ $json.key_skills }}",
       "Verified Gender": "={{ $json.verified_gender }}",
       "Current Company": "={{ $json.current_company }}",
       "Verified Title": "={{ $json.verified_title }}",
-      "Location": "={{ $json.location }}",
+      "Location": "={{ $json.location }}{{ $json.location_check ? ' (' + $json.location_check + ')' : '' }}",
       "Email": "={{ $json.email }}",
       "Phone": "={{ $json.phone }}",
       "GitHub": "={{ $json.github_url }}",
@@ -254,7 +268,7 @@
       "Dedupe Key": "={{ $json.dedupe_key }}",
       "Send Email?": "FALSE",
       "Confidence": "={{ $json.confidence }}",
-      "PDL Skills": "={{ $json.profile_url }}"
+      "Profile URL": "={{ $json.profile_url }}"
      },
      "matchingColumns": [
       "Dedupe Key"
@@ -361,8 +375,8 @@
        "removed": false
       },
       {
-       "id": "PDL Skills",
-       "displayName": "PDL Skills",
+       "id": "Profile URL",
+       "displayName": "Profile URL",
        "required": false,
        "defaultMatch": false,
        "display": true,
@@ -1486,22 +1500,12 @@
   },
   {
    "parameters": {
-    "assignments": {
-     "assignments": [
-      {
-       "id": "f1a2b3c4-0001-4a00-9000-000000000002",
-       "name": "page_text",
-       "type": "string",
-       "value": "={{ ($json.organic || []).map(o => (o.title || '') + ' | ' + (o.snippet || '') + ' | ' + (o.link || '')).join('\\n') }}"
-      }
-     ]
-    },
-    "options": {}
+    "jsCode": "\n// Split the merged candidate pool into batches so every candidate is scored,\n// however many sources were searched.\nconst all = ($input.first().json.organic || []);\nconst BATCH = 25;\nconst lines = all.map(function(o){ return (o.title || '') + ' | ' + String(o.snippet || '').replace(/\\s+/g, ' ').slice(0, 700) + ' | ' + (o.link || ''); });\nconst out = [];\nfor (let i = 0; i < lines.length; i += BATCH) {\n  out.push({ json: { page_text: lines.slice(i, i + BATCH).join('\\n'), batch: out.length + 1, batch_size: Math.min(BATCH, lines.length - i), pool_size: lines.length } });\n}\nif (!out.length) out.push({ json: { page_text: '', batch: 1, batch_size: 0, pool_size: 0 } });\nreturn out;\n"
    },
    "id": "339e56f3-fbbc-4889-b6b2-e9746da4f7ca",
    "name": "Format Search Results",
-   "type": "n8n-nodes-base.set",
-   "typeVersion": 3.5,
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
    "position": [
     896,
     -48
@@ -1509,7 +1513,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const form = $('Search Criteria').first().json;\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = form['Key Skills & Criteria'] || '';\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst excludeRaw = form['Keywords to Exclude'] || '';\nconst employer = String(form['Current Employer'] || '').trim();\nconst education = String(form['Education'] || '').trim();\nconst expand = String(form['Expand Job Title Synonyms'] || '').toLowerCase();\n\nfunction q(s) { return /\\s/.test(s) ? '\"' + s + '\"' : s; }\n// A field \"looks boolean\" when the recruiter has already written their own\n// query syntax (AND / OR / quoted phrases / minus). In that case we trust it\n// verbatim and DO NOT wrap it in another pair of quotes (that nested-quote\n// wrapping is what produced 0-result searches before).\nfunction looksBoolean(s) {\n  s = String(s);\n  return /\\s(OR|AND)\\s/i.test(s) || s.indexOf('\"') !== -1 || /(^|\\s)-\\w/.test(s);\n}\n\n// --- role: honour recruiter boolean, else quote + optional synonym expansion ---\nconst synMap = {\n  'software engineer': ['software engineer','software developer','sde','backend engineer','full stack developer'],\n  'backend engineer': ['backend engineer','back end engineer','software engineer','java developer','backend developer'],\n  'frontend engineer': ['frontend engineer','front end engineer','ui engineer','react developer','javascript developer'],\n  'full stack developer': ['full stack developer','fullstack developer','software engineer','web developer'],\n  'data scientist': ['data scientist','machine learning engineer','ml engineer','ai engineer'],\n  'data engineer': ['data engineer','big data engineer','etl developer','analytics engineer'],\n  'data analyst': ['data analyst','business analyst','bi analyst'],\n  'product manager': ['product manager','product owner','program manager','technical product manager'],\n  'devops engineer': ['devops engineer','site reliability engineer','sre','platform engineer','infrastructure engineer'],\n  'qa engineer': ['qa engineer','sdet','test engineer','automation engineer','quality engineer'],\n  'designer': ['designer','ux designer','ui designer','product designer','ui/ux designer'],\n  'mobile developer': ['mobile developer','android developer','ios developer','react native developer'],\n  'sales': ['sales','account executive','business development','bdm','sales manager','account manager','inside sales'],\n  'marketing': ['marketing','digital marketing','marketing manager','growth marketer','performance marketing','brand manager'],\n  'hr': ['hr','human resources','talent acquisition','recruiter','hr manager','people operations','hrbp'],\n  'recruiter': ['recruiter','talent acquisition','technical recruiter','hr recruiter','sourcer'],\n  'accountant': ['accountant','accounts','chartered accountant','ca','finance executive','accounts manager','audit'],\n  'finance': ['finance','financial analyst','fp&a','finance manager','financial planning','financial controller'],\n  'operations': ['operations','operations manager','ops','business operations','operations executive'],\n  'customer success': ['customer success','customer success manager','csm','account manager','customer support'],\n  'content writer': ['content writer','copywriter','content marketer','editor','technical writer'],\n  'project manager': ['project manager','program manager','delivery manager','scrum master','pmo'],\n  'business analyst': ['business analyst','ba','business systems analyst','functional consultant']\n};\nlet roleTerm = '';\nif (role) {\n  if (looksBoolean(role)) {\n    // recruiter wrote their own boolean expression -> use as-is, grouped\n    roleTerm = '(' + role + ')';\n  } else {\n    let variants = ['\"' + role + '\"'];\n    if (expand === 'yes' || expand === 'true') {\n      const key = role.toLowerCase();\n      if (synMap[key]) { variants = synMap[key].map(function(v){ return '\"' + v + '\"'; }); }\n    }\n    roleTerm = variants.length > 1 ? '(' + variants.join(' OR ') + ')' : variants[0];\n  }\n}\n\n// --- skills: primary (must-have) required OR-group + secondary (nice-to-have) OR-group ---\nfunction orGroup(raw){\n  if (!String(raw).trim()) return '';\n  if (looksBoolean(raw)) return '(' + String(raw).trim() + ')';\n  const arr = String(raw).split(',').map(function(s){return s.trim();}).filter(Boolean);\n  if (!arr.length) return '';\n  const quoted = arr.map(q);\n  return quoted.length > 1 ? '(' + quoted.join(' OR ') + ')' : quoted[0];\n}\nconst primaryRaw = form['Primary Skills'] || '';\nconst secondaryRaw = form['Secondary Skills'] || '';\nlet primaryTerm = orGroup(primaryRaw);\nlet secondaryTerm = orGroup(secondaryRaw);\n// backward-compat: if the form didn't split skills, fall back to the combined field\nlet skillsTerm = '';\nif (!primaryTerm && !secondaryTerm) { skillsTerm = orGroup(skillsRaw); }\n\n// --- exclude keywords ---\nconst excludes = String(excludeRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\nconst excludeTerm = excludes.map(function(s){ return '-' + q(s); }).join(' ');\n\n// --- current employer ---\nconst employerTerm = employer ? q(employer) : '';\n\n// --- education level: loose OR-group of common variants ---\nconst eduMap = {\n  'bachelors / degree': ['bachelor','bachelors','\"b.e\"','\"b.tech\"','btech','bsc','\"b.sc\"','degree'],\n  'masters': ['master','masters','\"m.e\"','\"m.tech\"','mtech','msc','\"m.sc\"'],\n  'phd': ['phd','\"ph.d\"','doctorate'],\n  'mba': ['mba','\"m.b.a\"']\n};\nlet eduTerm = '';\nif (education && !/^any$/i.test(education)) {\n  const ekey = education.toLowerCase();\n  const variants = eduMap[ekey];\n  if (variants && variants.length) { eduTerm = '(' + variants.join(' OR ') + ')'; }\n  else { eduTerm = q(education); }\n}\n\n// --- platform site: filters ---\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) {\n  platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n}\nconst siteMap = {\n  'LinkedIn': ['site:linkedin.com/in/'],\n  'Github': ['site:github.com'],\n  'GitHub': ['site:github.com'],\n  'X (Twitter)': ['site:twitter.com','site:x.com'],\n  'Stack Overflow': ['site:stackoverflow.com/users'],\n  'Dribbble': ['site:dribbble.com'],\n  'Behance': ['site:behance.net'],\n  'Hacker News': ['site:news.ycombinator.com']\n};\nconst openWeb = platforms.some(function(pl){ return /google|open web/i.test(pl); });\nlet sites = [];\nif (!openWeb) {\n  for (const pl of platforms) {\n    if (siteMap[pl]) { sites = sites.concat(siteMap[pl]); }\n  }\n  if (sites.length === 0) {\n    sites = ['site:linkedin.com/in/','site:github.com','site:twitter.com','site:x.com'];\n  }\n}\n\n// --- JD keyword extraction: pull distinctive keywords to strengthen the search ---\nlet jdText = '';\ntry { jdText = String($('Prep JD').first().json.jd_text || ''); } catch (e) { jdText = ''; }\nlet jdTerm = '';\nif (jdText) {\n  const STOP = {'the':1,'and':1,'for':1,'with':1,'you':1,'your':1,'our':1,'are':1,'will':1,'that':1,'this':1,'have':1,'has':1,'from':1,'not':1,'but':1,'all':1,'can':1,'who':1,'what':1,'when':1,'how':1,'why':1,'their':1,'they':1,'them':1,'about':1,'into':1,'over':1,'more':1,'most':1,'such':1,'per':1,'via':1,'etc':1,'role':1,'roles':1,'work':1,'working':1,'team':1,'teams':1,'years':1,'year':1,'experience':1,'experiences':1,'strong':1,'good':1,'great':1,'excellent':1,'ability':1,'skills':1,'skill':1,'knowledge':1,'understanding':1,'responsibilities':1,'requirements':1,'preferred':1,'plus':1,'must':1,'should':1,'including':1,'across':1,'within':1,'using':1,'help':1,'build':1,'building':1,'develop':1,'developing':1,'design':1,'designing':1,'candidate':1,'candidates':1,'company':1,'companies':1,'job':1,'jobs':1,'position':1,'positions':1,'looking':1,'join':1,'we':1,'us':1,'is':1,'to':1,'of':1,'in':1,'on':1,'as':1,'at':1,'be':1,'or':1,'an':1,'a':1,'by':1,'it':1,'if':1,'do':1,'up':1,'new':1,'like':1,'well':1,'also':1,'may':1,'get':1,'one':1,'two':1,'end':1,'day':1,'days':1};\n  const freq = {};\n  const toks = jdText.toLowerCase().replace(/[^a-z0-9+#. ]/g, ' ').split(/\\s+/);\n  for (const t0 of toks) {\n    const t = t0.replace(/^[.]+|[.]+$/g, '');\n    if (t.length < 3 || t.length > 30) continue;\n    if (STOP[t]) continue;\n    if (/^\\d+$/.test(t)) continue;\n    freq[t] = (freq[t] || 0) + 1;\n  }\n  const ranked = Object.keys(freq).sort(function(a, b){ return freq[b] - freq[a]; });\n  // keep only meaningfully repeated keywords, cap to 6 to avoid over-narrowing\n  const kw = ranked.filter(function(w){ return freq[w] >= 2; }).slice(0, 6);\n  if (kw.length) {\n    jdTerm = '(' + kw.map(function(w){ return /\\s/.test(w) ? '\"' + w + '\"' : w; }).join(' OR ') + ')';\n  }\n}\n\n// --- expert noise filter (Boolean Black Belt / SocialTalent best practice) ---\n// People-search returns job posts, ATS pages & directories unless we exclude them.\n// Site-restricted profile searches (e.g. linkedin.com/in/) already avoid most of\n// this, so only apply the noise NOT-block on broad Open Web searches.\nlet noiseTerm = '';\nlet cvIntentTerm = '';\nif (openWeb) {\n  const noise = [\n    'intitle:jobs', 'inurl:/jobs/', 'inurl:/careers/', 'inurl:job',\n    '\"job description\"', '\"apply now\"', '\"post a job\"', '\"we are looking\"',\n    '\"job opening\"', 'site:indeed.com', 'site:glassdoor.com',\n    'site:naukri.com', 'site:ziprecruiter.com', 'site:lever.co',\n    'site:greenhouse.io', 'site:workday.com', 'site:monster.com',\n    'site:shine.com', 'site:timesjobs.com', 'site:foundit.in',\n    'site:instahyre.com', 'site:cutshort.io', 'site:hirist.com',\n    'site:wellfound.com/jobs', 'site:linkedin.com/jobs'\n  ];\n  noiseTerm = noise.map(function(t){ return '-' + t; }).join(' ');\n\n  // --- CV / personal-blog intent booster (open web only) ---\n  // Candidates publish resumes/CVs on personal blogs & doc hosts. Actively TARGET\n  // those pages so open-web search surfaces PEOPLE (and their CVs) not job posts.\n  // We OR together: (a) resume/CV wording, (b) downloadable CV file types,\n  // (c) common personal-blog / CV-hosting domains where people post their CV.\n  const cvWords = '(\"resume\" OR \"curriculum vitae\" OR \"cv\" OR \"portfolio\" OR \"about me\" OR \"my work\" OR \"personal website\")';\n  const cvFiletypes = '(filetype:pdf OR filetype:doc OR filetype:docx)';\n  const cvHosts = '(site:medium.com OR site:github.io OR site:dev.to OR site:hashnode.dev OR site:notion.site OR site:read.cv OR site:standardresume.co OR site:flowcv.com OR site:super.site OR site:substack.com OR site:wordpress.com OR site:blogspot.com OR site:wixsite.com OR site:carrd.co OR site:about.me OR site:behance.net OR site:gitconnected.com OR site:hackernoon.com OR site:drive.google.com OR site:docs.google.com OR site:dropbox.com OR site:1drv.ms)';\n  const cvInurl = '(inurl:resume OR inurl:cv OR intitle:resume OR intitle:\\\"curriculum vitae\\\" OR inurl:portfolio)';\n  cvIntentTerm = '(' + cvWords + ' OR ' + cvFiletypes + ' OR ' + cvHosts + ' OR ' + cvInurl + ')';\n}\n\n// --- search region -> Serper gl country code ---\nconst regionMap = {\n  'india':'in','united states':'us','usa':'us','us':'us','america':'us',\n  'united kingdom':'gb','uk':'gb','britain':'gb','england':'gb',\n  'canada':'ca','australia':'au','germany':'de','france':'fr',\n  'netherlands':'nl','holland':'nl','singapore':'sg',\n  'united arab emirates':'ae','uae':'ae','dubai':'ae',\n  'ireland':'ie','spain':'es','italy':'it','japan':'jp','brazil':'br'\n};\nconst regionRaw = String(form['Search Region'] || '').trim();\nlet gl = '';\nif (regionRaw && !/^global|^all/i.test(regionRaw)) {\n  const rkey = regionRaw.toLowerCase().replace(/\\s*\\(.*\\)\\s*/, '').trim();\n  gl = regionMap[rkey] || '';\n}\n\n// --- assemble query ---\nconst parts = [];\nif (sites.length) { parts.push(sites.length > 1 ? '(' + sites.join(' OR ') + ')' : sites[0]); }\nif (roleTerm) parts.push(roleTerm);\nif (primaryTerm) parts.push(primaryTerm);\nif (secondaryTerm) parts.push(secondaryTerm);\nif (!primaryTerm && !secondaryTerm && skillsTerm) parts.push(skillsTerm);\nif (jdTerm) parts.push(jdTerm);\nif (employerTerm) parts.push(employerTerm);\nif (eduTerm) parts.push(eduTerm);\nif (cvIntentTerm) parts.push(cvIntentTerm);\nif (loc) parts.push(q(loc));\nif (excludeTerm) parts.push(excludeTerm);\nif (noiseTerm) parts.push(noiseTerm);\n\nconst query = parts.join(' ').trim();\nconst PAGES = 3; // Serper: 1 credit per page (each page ~10 results)\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { q: query, page: pg };\n  if (gl) body.gl = gl;\n  out.push({ json: { q: query, page: pg, pages_total: PAGES, gl: gl || 'global', serper_body: body, jd_keywords: jdTerm || 'none', cv_intent: cvIntentTerm ? 'applied' : 'none', noise_filter: noiseTerm ? 'applied' : 'none', platforms_used: openWeb ? 'Open Web' : (sites.join(', ') || 'default'), excludes_used: excludeTerm || 'none' } });\n}\nreturn out;\n"
+    "jsCode": "\nconst CITY_ALIASES = [\n  ['bangalore','bengaluru','blr'], ['mumbai','bombay','navi mumbai','thane'], ['delhi','new delhi','ncr','delhi ncr'],\n  ['gurgaon','gurugram'], ['noida','greater noida'], ['chennai','madras'], ['kolkata','calcutta'],\n  ['hyderabad','secunderabad'], ['pune','pimpri'], ['kochi','cochin','ernakulam'], ['thiruvananthapuram','trivandrum'],\n  ['mysore','mysuru'], ['vizag','visakhapatnam'], ['ahmedabad','gandhinagar'], ['coimbatore'], ['jaipur'], ['chandigarh','mohali'],\n  ['san francisco','sf bay area','bay area','san jose','palo alto','mountain view','sunnyvale'], ['new york','nyc','brooklyn','manhattan'],\n  ['london'], ['singapore'], ['dubai'], ['abu dhabi'], ['berlin'], ['amsterdam'], ['toronto'], ['sydney'], ['melbourne']\n];\nconst COUNTRY_OF_CITY = {\n  bangalore:'india', mumbai:'india', delhi:'india', gurgaon:'india', noida:'india', chennai:'india', kolkata:'india',\n  hyderabad:'india', pune:'india', kochi:'india', thiruvananthapuram:'india', mysore:'india', vizag:'india',\n  ahmedabad:'india', coimbatore:'india', jaipur:'india', chandigarh:'india',\n  'san francisco':'united states', 'new york':'united states', london:'united kingdom', singapore:'singapore',\n  dubai:'united arab emirates', 'abu dhabi':'united arab emirates', berlin:'germany', amsterdam:'netherlands',\n  toronto:'canada', sydney:'australia', melbourne:'australia'\n};\nconst COUNTRY_WORDS = {\n  'india':['india','karnataka','maharashtra','tamil nadu','telangana','kerala','haryana','uttar pradesh','west bengal','gujarat','rajasthan','andhra pradesh','punjab'],\n  'united states':['united states','usa','u.s.','california','new york','texas','washington','massachusetts','illinois','florida'],\n  'united kingdom':['united kingdom',' uk ','england','scotland','wales'],\n  'singapore':['singapore'], 'united arab emirates':['united arab emirates','uae'], 'germany':['germany','deutschland'],\n  'netherlands':['netherlands','holland'], 'canada':['canada'], 'australia':['australia'], 'belgium':['belgium'],\n  'france':['france'], 'spain':['spain'], 'italy':['italy'], 'ireland':['ireland'], 'japan':['japan'], 'brazil':['brazil'],\n  'pakistan':['pakistan'], 'bangladesh':['bangladesh'], 'sri lanka':['sri lanka'], 'nepal':['nepal'], 'china':['china'],\n  'russia':['russia'], 'ukraine':['ukraine'], 'poland':['poland'], 'portugal':['portugal'], 'sweden':['sweden'],\n  'switzerland':['switzerland'], 'austria':['austria'], 'israel':['israel'], 'nigeria':['nigeria'], 'kenya':['kenya'],\n  'philippines':['philippines'], 'indonesia':['indonesia'], 'vietnam':['vietnam'], 'egypt':['egypt'], 'turkey':['turkey'],\n  'argentina':['argentina'], 'mexico':['mexico'], 'new zealand':['new zealand'], 'south africa':['south africa'],\n  'saudi arabia':['saudi arabia','ksa','riyadh','jeddah']\n};\nfunction aliasesFor(loc) {\n  const l = String(loc || '').toLowerCase().trim();\n  if (!l) return [];\n  for (const g of CITY_ALIASES) { if (g.some(function(a){ return l === a || l.indexOf(a) !== -1; })) return g; }\n  return [l];\n}\n function countryOf(text) {\n  if (/,\\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\\b/.test(String(text || ''))) return 'united states';\n  const t = ' ' + String(text || '').toLowerCase().replace(/[(),]/g, ' ') + ' ';\n  for (const g of CITY_ALIASES) {\n    if (g.some(function(a){ return t.indexOf(' ' + a + ' ') !== -1 || t.indexOf(' ' + a + ',') !== -1; })) { if (COUNTRY_OF_CITY[g[0]]) return COUNTRY_OF_CITY[g[0]]; }\n  }\n  for (const c of Object.keys(COUNTRY_WORDS)) {\n    if (COUNTRY_WORDS[c].some(function(w){ return t.indexOf(w.length <= 4 ? w : (' ' + w.trim())) !== -1; })) return c;\n  }\n  return '';\n}\n\nconst form = $('Search Criteria').first().json;\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = form['Key Skills & Criteria'] || '';\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst excludeRaw = form['Keywords to Exclude'] || '';\nconst employer = String(form['Current Employer'] || '').trim();\nconst education = String(form['Education'] || '').trim();\nconst expand = String(form['Expand Job Title Synonyms'] || '').toLowerCase();\n\nfunction q(s) { return /\\s/.test(s) ? '\"' + s + '\"' : s; }\nfunction looksBoolean(s) { s = String(s); return /\\s(OR|AND)\\s/i.test(s) || s.indexOf('\"') !== -1 || /(^|\\s)-\\w/.test(s); }\n\nconst synMap = {\n  'software engineer': ['software engineer','software developer','sde','backend engineer','full stack developer'],\n  'backend engineer': ['backend engineer','backend developer','back end developer','software engineer'],\n  'backend developer': ['backend developer','backend engineer','back end developer','software engineer'],\n  'frontend engineer': ['frontend engineer','frontend developer','ui engineer','react developer'],\n  'full stack developer': ['full stack developer','fullstack developer','full stack engineer','software engineer'],\n  'data scientist': ['data scientist','machine learning engineer','ml engineer','ai engineer'],\n  'data engineer': ['data engineer','big data engineer','etl developer','analytics engineer'],\n  'data analyst': ['data analyst','business analyst','bi analyst'],\n  'product manager': ['product manager','product owner','technical product manager'],\n  'devops engineer': ['devops engineer','site reliability engineer','sre','platform engineer'],\n  'qa engineer': ['qa engineer','sdet','test engineer','automation engineer'],\n  'designer': ['designer','ux designer','ui designer','product designer'],\n  'mobile developer': ['mobile developer','android developer','ios developer','react native developer'],\n  'recruiter': ['recruiter','talent acquisition','technical recruiter','sourcer'],\n  'hr': ['hr','human resources','talent acquisition','hrbp','people operations']\n};\n// Role: a long exact phrase (\"python backend developer\") almost never matches a\n// real headline. Use the core title (last two words) as the phrase and the\n// rest as separate required words, plus synonyms for the core title.\nlet roleTerm = '';\nif (role) {\n  if (looksBoolean(role)) {\n    roleTerm = '(' + role + ')';\n  } else {\n    const words = role.toLowerCase().split(/\\s+/).filter(Boolean);\n    const core = words.length > 2 ? words.slice(-2).join(' ') : words.join(' ');\n    const extra = words.length > 2 ? words.slice(0, -2) : [];\n    let variants = [core];\n    if (synMap[core] && expand !== 'no' && expand !== 'false') variants = synMap[core];\n    else if (synMap[role.toLowerCase()]) variants = synMap[role.toLowerCase()];\n    const v = variants.map(function(x){ return '\"' + x + '\"'; });\n    roleTerm = (v.length > 1 ? '(' + v.join(' OR ') + ')' : v[0]) + (extra.length ? ' ' + extra.join(' ') : '');\n  }\n}\n\n// Skills: must-have OR-group only (secondary skills are used for ranking, not search,\n// so they do not shrink the result set).\nfunction orGroup(raw){\n  if (!String(raw).trim()) return '';\n  if (looksBoolean(raw)) return '(' + String(raw).trim() + ')';\n  const arr = String(raw).split(',').map(function(s){return s.trim();}).filter(Boolean).slice(0, 5);\n  if (!arr.length) return '';\n  const quoted = arr.map(q);\n  return quoted.length > 1 ? '(' + quoted.join(' OR ') + ')' : quoted[0];\n}\nlet skillsTerm = orGroup(form['Primary Skills'] || '') || orGroup(skillsRaw);\n// don't repeat a skill that is already in the role words\nif (skillsTerm && role) {\n  const rl = role.toLowerCase();\n  const arr = String(form['Primary Skills'] || skillsRaw).split(',').map(function(s){return s.trim();}).filter(function(s){ return s && rl.indexOf(s.toLowerCase()) === -1; }).slice(0, 5);\n  skillsTerm = arr.length ? (arr.length > 1 ? '(' + arr.map(q).join(' OR ') + ')' : q(arr[0])) : '';\n}\n\nconst excludes = String(excludeRaw).split(',').map(function(s){return s.trim();}).filter(Boolean);\nconst excludeTerm = excludes.map(function(s){ return '-' + q(s); }).join(' ');\nconst employerTerm = employer ? q(employer) : '';\n\nconst eduMap = {\n  'bachelors / degree': ['bachelor','bachelors','\"b.e\"','\"b.tech\"','btech','bsc','degree'],\n  'masters': ['master','masters','\"m.tech\"','mtech','msc'],\n  'phd': ['phd','\"ph.d\"','doctorate'],\n  'mba': ['mba']\n};\nlet eduTerm = '';\nif (education && !/^any$/i.test(education)) {\n  const variants = eduMap[education.toLowerCase()];\n  eduTerm = variants ? '(' + variants.join(' OR ') + ')' : q(education);\n}\n\n// Location: city + its aliases (Bangalore OR Bengaluru)\nconst locAliases = aliasesFor(loc);\nconst locTerm = locAliases.length ? (locAliases.length > 1 ? '(' + locAliases.filter(function(a){ return a.length > 3; }).map(q).join(' OR ') + ')' : q(locAliases[0])) : '';\n\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst siteMap = {\n  'LinkedIn': ['site:linkedin.com/in'],\n  'X (Twitter)': ['site:x.com','site:twitter.com'],\n  'Dribbble': ['site:dribbble.com'],\n  'Behance': ['site:behance.net']\n};\nconst openWeb = platforms.some(function(pl){ return /google|open web/i.test(pl); });\nlet sites = [];\nfor (const pl of platforms) { if (siteMap[pl]) sites = sites.concat(siteMap[pl]); }\n\nconst regionMap = {\n  'india':'in','united states':'us','usa':'us','us':'us','united kingdom':'gb','uk':'gb','canada':'ca','australia':'au',\n  'germany':'de','france':'fr','netherlands':'nl','singapore':'sg','united arab emirates':'ae','uae':'ae','dubai':'ae',\n  'ireland':'ie','spain':'es','italy':'it','japan':'jp','brazil':'br','saudi arabia':'sa'\n};\nconst regionRaw = String(form['Search Region'] || '').trim();\nlet gl = '';\nif (regionRaw && !/^global|^all/i.test(regionRaw)) gl = regionMap[regionRaw.toLowerCase().replace(/\\s*\\(.*\\)\\s*/, '').trim()] || '';\nif (!gl) { const c = countryOf(loc); const byCountry = {'india':'in','united states':'us','united kingdom':'gb','singapore':'sg','united arab emirates':'ae','germany':'de','netherlands':'nl','canada':'ca','australia':'au'}; gl = byCountry[c] || ''; }\n\nconst queries = [];\n// 1) profile-site search (LinkedIn / X / Dribbble / Behance)\nif (sites.length) {\n  const parts = [sites.length > 1 ? '(' + sites.join(' OR ') + ')' : sites[0], roleTerm, skillsTerm, employerTerm, eduTerm, locTerm, excludeTerm, '-intitle:jobs -inurl:jobs'];\n  queries.push({ kind: 'profiles', q: parts.filter(Boolean).join(' ').trim(), pages: 3 });\n}\n// 2) open-web search (personal sites, portfolios, CV pages) - in ADDITION, never instead\nif (openWeb) {\n  const noise = ['intitle:jobs','inurl:jobs','inurl:careers','\"job description\"','\"apply now\"','\"we are hiring\"','site:linkedin.com/jobs','site:naukri.com','site:indeed.com','site:glassdoor.com','site:foundit.in','site:instahyre.com','site:cutshort.io','site:wellfound.com/jobs'];\n  const intent = '(\"resume\" OR \"curriculum vitae\" OR \"portfolio\" OR \"about me\" OR inurl:resume OR inurl:cv)';\n  const parts = [roleTerm, skillsTerm, intent, locTerm, excludeTerm, noise.map(function(t){ return '-' + t; }).join(' ')];\n  queries.push({ kind: 'open-web', q: parts.filter(Boolean).join(' ').trim(), pages: 2 });\n}\nconst out = [];\nfor (const qq of queries) {\n  for (let pg = 1; pg <= qq.pages; pg++) {\n    const body = { q: qq.q, page: pg, num: 10 };\n    if (gl) body.gl = gl;\n    out.push({ json: { q: qq.q, kind: qq.kind, page: pg, gl: gl || 'global', serper_body: body, platforms_used: qq.kind } });\n  }\n}\n// keep the pipeline flowing even when no web platform was ticked\nif (!out.length) return [];\nreturn out;\n"
    },
    "id": "b82dcab5-ef4f-449d-9282-213c15fce065",
    "name": "Build Search Query",
@@ -1531,12 +1535,21 @@
      },
      "conditions": [
       {
-       "id": "c1-0001",
+       "id": "fix-li",
        "leftValue": "={{ $json.profile_url }}",
-       "rightValue": "linkedin.com",
+       "rightValue": "linkedin\\.com|apollo\\.io/people/",
        "operator": {
         "type": "string",
-        "operation": "contains"
+        "operation": "regex"
+       }
+      },
+      {
+       "id": "fix-top",
+       "leftValue": "={{ $json.rank }}",
+       "rightValue": 25,
+       "operator": {
+        "type": "number",
+        "operation": "lte"
        }
       }
      ],
@@ -1556,7 +1569,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $json || {};\nconst url = cand.profile_url || '';\nconst isGH = /github\\.com\\/[A-Za-z0-9-]+/i.test(url) && !/github\\.com\\/orgs\\//i.test(url);\nconst isLI = /linkedin\\.com/i.test(url);\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: url,\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: '',\n  pdl_skills: '',\n  github_url: isGH ? url : '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  // LinkedIn column: only a real LinkedIn URL, or a non-GitHub fallback (e.g. Stack Overflow) so the URL is not lost\n  verified_linkedin: isLI ? url : '',\n  enrichment_status: 'skipped - no linkedin (apollo not used)'\n} };"
+    "jsCode": "const cand = $json || {};\nconst url = cand.profile_url || '';\nconst isGH = /github\\.com\\/[A-Za-z0-9-]+/i.test(url) && !/github\\.com\\/orgs\\//i.test(url);\nconst isLI = /linkedin\\.com/i.test(url);\nreturn { json: {\n  rank: cand.rank || '',\n  candidate_name: cand.candidate_name || '',\n  current_role: cand.current_role || '',\n  fit_score: cand.fit_score,\n  match_summary: cand.match_summary || '',\n  key_skills: Array.isArray(cand.key_skills) ? cand.key_skills.join(', ') : (cand.key_skills || ''),\n  profile_url: url,\n  candidate_location: cand.candidate_location || '',\n  experience_evidence: cand.experience_evidence || '',\n\n  verified_gender: '',\n  current_company: '',\n  verified_title: '',\n  location: cand.candidate_location || '',\n  pdl_skills: '',\n  github_url: isGH ? url : '',\n  email: '',\n  email_status: '',\n  phone: '',\n  work_history: '',\n  education: '',\n  // LinkedIn column: only a real LinkedIn URL, or a non-GitHub fallback (e.g. Stack Overflow) so the URL is not lost\n  verified_linkedin: isLI ? url : '',\n  enrichment_status: /linkedin\\.com|apollo\\.io/i.test(url) ? 'skipped - below top 25 (Apollo credits)' : 'skipped - not a LinkedIn/Apollo profile'\n} };"
    },
    "id": "6803e6bd-6eb1-4a0f-8bbc-896e4be47157",
    "name": "Combine No Apollo",
@@ -1568,11 +1581,13 @@
    ]
   },
   {
-   "parameters": {},
+   "parameters": {
+    "numberInputs": 2
+   },
    "id": "598b9edc-a233-4640-8d9f-0ce38241c9ad",
    "name": "Enriched Candidates",
-   "type": "n8n-nodes-base.noOp",
-   "typeVersion": 1,
+   "type": "n8n-nodes-base.merge",
+   "typeVersion": 3,
    "position": [
     2160,
     -48
@@ -1652,7 +1667,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  if (u.indexOf('kaggle.com') !== -1) return 'Kaggle';\n  if (u.indexOf('gitlab.com') !== -1) return 'GitLab';\n  if (u.indexOf('huggingface.co') !== -1) return 'Hugging Face';\n  if (u.indexOf('dev.to') !== -1) return 'Dev.to';\n  if (u.indexOf('reddit.com') !== -1) return 'Reddit';\n  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\n// Stable identity: prefer the profile URL (never changes across runs) so the\n// same person UPDATES their row even when Apollo later adds an email. Fall back\n// to email, then name+role+location.\nlet dkey;\nif (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else if (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('skipped') !== -1) reasons.push('not Apollo-verified (no LinkedIn)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
+    "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  if (u.indexOf('kaggle.com') !== -1) return 'Kaggle';\n  if (u.indexOf('gitlab.com') !== -1) return 'GitLab';\n  if (u.indexOf('huggingface.co') !== -1) return 'Hugging Face';\n  if (u.indexOf('dev.to') !== -1) return 'Dev.to';\n  if (u.indexOf('reddit.com') !== -1) return 'Reddit';\n  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n  try { return String(url).replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return 'Other'; }\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\n// Stable identity: prefer the profile URL (never changes across runs) so the\n// same person UPDATES their row even when Apollo later adds an email. Fall back\n// to email, then name+role+location.\nlet dkey;\nif (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else if (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('below top') !== -1) reasons.push('not Apollo-enriched (outside top 25)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n  if (merged.location_check === 'location unknown' || merged.location_check === 'location unclear') reasons.push('location not confirmed');\n  else if (merged.location_check === 'same country, different city') reasons.push('different city');\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
    },
    "id": "dbabb3dd-ea1a-4837-b877-406102b84a62",
    "name": "Parse Contact",
@@ -2027,7 +2042,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const rows = $input.all().map(function(i){ return i.json; });\nconst count = rows.length;\nlet nums = [];\nfor (const r of rows) { const n = Number(r.row_number || r.rowNumber); if (!isNaN(n) && n > 0) nums.push(n); }\nlet rangeText = '';\nif (nums.length) { nums.sort(function(a,b){return a-b;}); rangeText = 'rows ' + nums[0] + ' to ' + nums[nums.length-1]; }\nelse { rangeText = 'the latest ' + count + ' rows'; }\nlet role = '', loc = '';\ntry { const f = $('Search Criteria').first().json; role = f['Target Role'] || ''; loc = f['Location'] || ''; } catch(e) {}\n\nlet resumeSearches = 0;\ntry { resumeSearches = $('Resume Search').all().length; } catch(e) { resumeSearches = count; }\nlet mainPages = 1;\ntry { mainPages = $('Serper Search').all().length || 1; } catch(e) { mainPages = 1; }\nconst serperThisRun = mainPages + resumeSearches;\nlet apolloThisRun = 0;\ntry { apolloThisRun = $('Apollo Enrich').all().length; } catch(e) { apolloThisRun = 0; }\ntry { apolloThisRun += $('Apollo People Search').all().length; } catch(e) {}\n\nlet prevSerper = 0, prevApollo = 0, month = '', trackerRow = null;\ntry {\n  const g = $('Budget Gate').first().json;\n  prevSerper = Number(g.Serper_Used) || 0;\n  prevApollo = Number(g.PDL_Used) || 0;\n  month = g.Month || '';\n  trackerRow = g.tracker_row || null;\n} catch(e) {}\n\nconst serperTotal = prevSerper + serperThisRun;\nconst apolloTotal = prevApollo + apolloThisRun;\n\nconst SERPER_CAP = 1000, APOLLO_CAP = 100;\nlet warnParts = [];\nif (serperTotal >= SERPER_CAP * 0.8) warnParts.push('Serper at ' + serperTotal + '/' + SERPER_CAP);\nif (apolloTotal >= APOLLO_CAP * 0.8) warnParts.push('Apollo at ' + apolloTotal + '/' + APOLLO_CAP);\nconst nearCap = warnParts.length > 0;\n\nreturn [{ json: {\n  count: count,\n  range_text: rangeText,\n  search_role: role,\n  search_location: loc,\n  month: month,\n  tracker_row: trackerRow,\n  serper_used_run: serperThisRun,\n  apollo_used_run: apolloThisRun,\n  serper_used_total: serperTotal,\n  apollo_used_total: apolloTotal,\n  near_cap: nearCap,\n  warning_text: warnParts.join(' | ')\n} }];"
+    "jsCode": "const rows = $input.all().map(function(i){ return i.json; });\nlet count = rows.length;\ntry { count = $('Location Check & Rank').all().length; } catch (e) {}\nlet nums = [];\nfor (const r of rows) { const n = Number(r.row_number || r.rowNumber); if (!isNaN(n) && n > 0) nums.push(n); }\nlet rangeText = '';\nif (nums.length) { nums.sort(function(a,b){return a-b;}); rangeText = 'rows ' + nums[0] + ' to ' + nums[nums.length-1]; }\nelse { rangeText = count + ' candidates, ranked 1-' + count; }\nlet role = '', loc = '';\ntry { const f = $('Search Criteria').first().json; role = f['Target Role'] || ''; loc = f['Location'] || ''; } catch(e) {}\n\nlet resumeSearches = 0;\ntry { resumeSearches = $('Resume Search').all().length; } catch(e) { resumeSearches = count; }\nlet mainPages = 1;\ntry { mainPages = $('Serper Search').all().length || 1; } catch(e) { mainPages = 1; }\nconst serperThisRun = mainPages + resumeSearches;\nlet apolloThisRun = 0;\ntry { apolloThisRun = $('Apollo Enrich').all().length; } catch(e) { apolloThisRun = 0; }\ntry { apolloThisRun += $('Apollo People Search').all().length; } catch(e) {}\n\nlet prevSerper = 0, prevApollo = 0, month = '', trackerRow = null;\ntry {\n  const g = $('Budget Gate').first().json;\n  prevSerper = Number(g.Serper_Used) || 0;\n  prevApollo = Number(g.PDL_Used) || 0;\n  month = g.Month || '';\n  trackerRow = g.tracker_row || null;\n} catch(e) {}\n\nconst serperTotal = prevSerper + serperThisRun;\nconst apolloTotal = prevApollo + apolloThisRun;\n\nconst SERPER_CAP = 1000, APOLLO_CAP = 100;\nlet warnParts = [];\nif (serperTotal >= SERPER_CAP * 0.8) warnParts.push('Serper at ' + serperTotal + '/' + SERPER_CAP);\nif (apolloTotal >= APOLLO_CAP * 0.8) warnParts.push('Apollo at ' + apolloTotal + '/' + APOLLO_CAP);\nconst nearCap = warnParts.length > 0;\n\nreturn [{ json: {\n  count: count,\n  range_text: rangeText,\n  search_role: role,\n  search_location: loc,\n  month: month,\n  tracker_row: trackerRow,\n  serper_used_run: serperThisRun,\n  apollo_used_run: apolloThisRun,\n  serper_used_total: serperTotal,\n  apollo_used_total: apolloTotal,\n  near_cap: nearCap,\n  warning_text: warnParts.join(' | ')\n} }];"
    },
    "id": "220a7a8d-a262-4fbd-8429-58fa5eaa3c8d",
    "name": "Sourcing Summary",
@@ -2710,7 +2725,6 @@
       "Location": "={{ $json.search_location }}",
       "Candidates": "={{ $json.count }}",
       "Rows": "={{ $json.range_text }}",
-      "Started At": "",
       "Completed At": "={{ $now.toFormat('yyyy-LL-dd HH:mm:ss') }}"
      },
      "matchingColumns": [
@@ -2849,7 +2863,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $('Enriched Candidates').item.json || {};\nconst resp = $json || {};\nconst merged = Object.assign({}, cand);\nfunction s(v){ return (typeof v === 'string') ? v : ''; }\nconst isGithub = /github\\.com\\/[A-Za-z0-9-]+/i.test(cand.profile_url || '') && !/github\\.com\\/orgs\\//i.test(cand.profile_url || '');\n// A valid GitHub user response has a numeric id + login (rate_limit has neither)\nif (isGithub && resp && resp.login && resp.id) {\n  merged.github_url = s(resp.html_url) || merged.github_url || cand.profile_url || '';\n  // if the GitHub URL was sitting in the LinkedIn column, move it out (it now lives in the GitHub column)\n  if (merged.verified_linkedin && /github\\.com/i.test(merged.verified_linkedin)) merged.verified_linkedin = '';\n  const bio = s(resp.bio);\n  const ghCompany = s(resp.company);\n  const ghLoc = s(resp.location);\n  const blog = s(resp.blog);\n  const repos = (typeof resp.public_repos === 'number') ? resp.public_repos : '';\n  // enrich empty fields from GitHub (do not overwrite Apollo-verified data)\n  if (!merged.current_company && ghCompany) merged.current_company = ghCompany;\n  if (!merged.location && ghLoc) merged.location = ghLoc;\n  // a personal blog/portfolio doubles as a CV source if none found yet\n  if (blog && !merged.resume_link) { merged.github_blog = blog; }\n  const ghParts = [];\n  if (bio) ghParts.push('Bio: ' + bio);\n  if (repos !== '') ghParts.push(repos + ' public repos');\n  if (blog) ghParts.push('Site: ' + blog);\n  merged.github_summary = ghParts.join(' | ');\n  // capture the GitHub enrichment in the sheet: fold into Work History when it is otherwise empty\n  if (!merged.work_history && merged.github_summary) merged.work_history = merged.github_summary;\n  merged.github_status = 'enriched';\n} else {\n  merged.github_status = isGithub ? 'lookup failed' : 'n/a (not github)';\n  if (!merged.github_summary) merged.github_summary = '';\n}\nreturn { json: merged };"
+    "jsCode": "const cand = $('Enriched Candidates').item.json || {};\nconst resp = $json || {};\nconst merged = Object.assign({}, cand);\nfunction s(v){ return (typeof v === 'string') ? v : ''; }\nconst isGithub = /github\\.com\\/[A-Za-z0-9-]+/i.test(cand.profile_url || '') && !/github\\.com\\/orgs\\//i.test(cand.profile_url || '');\n// A valid GitHub user response has a numeric id + login (rate_limit has neither)\nif (isGithub && resp && resp.login && resp.id) {\n  merged.github_url = s(resp.html_url) || merged.github_url || cand.profile_url || '';\n  // if the GitHub URL was sitting in the LinkedIn column, move it out (it now lives in the GitHub column)\n  if (merged.verified_linkedin && /github\\.com/i.test(merged.verified_linkedin)) merged.verified_linkedin = '';\n  const bio = s(resp.bio);\n  const ghCompany = s(resp.company);\n  const ghLoc = s(resp.location);\n  const blog = s(resp.blog);\n  const repos = (typeof resp.public_repos === 'number') ? resp.public_repos : '';\n  // enrich empty fields from GitHub (do not overwrite Apollo-verified data)\n  if (!merged.current_company && ghCompany) merged.current_company = ghCompany;\n  if (!merged.location && ghLoc) merged.location = ghLoc;\n  // a personal blog/portfolio doubles as a CV source if none found yet\n  if (blog && !merged.resume_link) { merged.github_blog = blog; }\n  const ghParts = [];\n  if (bio) ghParts.push('Bio: ' + bio);\n  if (repos !== '') ghParts.push(repos + ' public repos');\n  if (blog) ghParts.push('Site: ' + blog);\n  merged.github_summary = ghParts.join(' | ');\n  // capture the GitHub enrichment in the sheet: fold into Work History when it is otherwise empty\n  if (!merged.work_history && merged.github_summary) merged.work_history = merged.github_summary;\n  const ghName = s(resp.name);\n  if (ghName && (!merged.candidate_name || String(merged.candidate_name).toLowerCase() === String(resp.login).toLowerCase())) merged.candidate_name = ghName;\n  if (!merged.current_role || /github (open-source )?(contributor|developer)/i.test(merged.current_role)) merged.current_role = bio ? bio.slice(0, 80) : (merged.current_role || 'Developer');\n  merged.github_status = 'enriched';\n} else {\n  merged.github_status = isGithub ? 'lookup failed' : 'n/a (not github)';\n  if (!merged.github_summary) merged.github_summary = '';\n}\nreturn { json: merged };"
    },
    "id": "merge-github-0001-4a00-9000-000000000032",
    "name": "Merge GitHub",
@@ -2905,7 +2919,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nconst ghSelected = platforms.some(function(p){ return /^git\\s*hub$/i.test(String(p).trim()); });\nif (!ghSelected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst langMap = { 'java':'java','python':'python','javascript':'javascript','typescript':'typescript','go':'go','golang':'go','rust':'rust','c++':'cpp','ruby':'ruby','php':'php','swift':'swift','kotlin':'kotlin','scala':'scala','c#':'csharp','react':'javascript','node':'javascript','nodejs':'javascript','.net':'csharp','dotnet':'csharp' };\nconst skills = skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean);\nlet lang = '';\nfor (const s of skills) { const k = s.toLowerCase(); if (langMap[k]) { lang = langMap[k]; break; } }\nconst kw = [];\nskills.slice(0,3).forEach(function(s){ kw.push(s); });\nif (!kw.length && role) kw.push(role);\nlet q = kw.join(' ');\nif (lang) q += ' language:' + lang;\nif (loc) q += ' location:' + loc;\nq = q.trim();\nif (!q) return [];\n// GitHub native user search (free, uses your GitHub credential -> 5000 req/hr)\nconst url = 'https://api.github.com/search/users?per_page=30&q=' + encodeURIComponent(q);\nreturn [{ json: { gh_query: q, gh_url: url } }];\n"
+    "jsCode": "\nconst CITY_ALIASES = [\n  ['bangalore','bengaluru','blr'], ['mumbai','bombay','navi mumbai','thane'], ['delhi','new delhi','ncr','delhi ncr'],\n  ['gurgaon','gurugram'], ['noida','greater noida'], ['chennai','madras'], ['kolkata','calcutta'],\n  ['hyderabad','secunderabad'], ['pune','pimpri'], ['kochi','cochin','ernakulam'], ['thiruvananthapuram','trivandrum'],\n  ['mysore','mysuru'], ['vizag','visakhapatnam'], ['ahmedabad','gandhinagar'], ['coimbatore'], ['jaipur'], ['chandigarh','mohali'],\n  ['san francisco','sf bay area','bay area','san jose','palo alto','mountain view','sunnyvale'], ['new york','nyc','brooklyn','manhattan'],\n  ['london'], ['singapore'], ['dubai'], ['abu dhabi'], ['berlin'], ['amsterdam'], ['toronto'], ['sydney'], ['melbourne']\n];\nconst COUNTRY_OF_CITY = {\n  bangalore:'india', mumbai:'india', delhi:'india', gurgaon:'india', noida:'india', chennai:'india', kolkata:'india',\n  hyderabad:'india', pune:'india', kochi:'india', thiruvananthapuram:'india', mysore:'india', vizag:'india',\n  ahmedabad:'india', coimbatore:'india', jaipur:'india', chandigarh:'india',\n  'san francisco':'united states', 'new york':'united states', london:'united kingdom', singapore:'singapore',\n  dubai:'united arab emirates', 'abu dhabi':'united arab emirates', berlin:'germany', amsterdam:'netherlands',\n  toronto:'canada', sydney:'australia', melbourne:'australia'\n};\nconst COUNTRY_WORDS = {\n  'india':['india','karnataka','maharashtra','tamil nadu','telangana','kerala','haryana','uttar pradesh','west bengal','gujarat','rajasthan','andhra pradesh','punjab'],\n  'united states':['united states','usa','u.s.','california','new york','texas','washington','massachusetts','illinois','florida'],\n  'united kingdom':['united kingdom',' uk ','england','scotland','wales'],\n  'singapore':['singapore'], 'united arab emirates':['united arab emirates','uae'], 'germany':['germany','deutschland'],\n  'netherlands':['netherlands','holland'], 'canada':['canada'], 'australia':['australia'], 'belgium':['belgium'],\n  'france':['france'], 'spain':['spain'], 'italy':['italy'], 'ireland':['ireland'], 'japan':['japan'], 'brazil':['brazil'],\n  'pakistan':['pakistan'], 'bangladesh':['bangladesh'], 'sri lanka':['sri lanka'], 'nepal':['nepal'], 'china':['china'],\n  'russia':['russia'], 'ukraine':['ukraine'], 'poland':['poland'], 'portugal':['portugal'], 'sweden':['sweden'],\n  'switzerland':['switzerland'], 'austria':['austria'], 'israel':['israel'], 'nigeria':['nigeria'], 'kenya':['kenya'],\n  'philippines':['philippines'], 'indonesia':['indonesia'], 'vietnam':['vietnam'], 'egypt':['egypt'], 'turkey':['turkey'],\n  'argentina':['argentina'], 'mexico':['mexico'], 'new zealand':['new zealand'], 'south africa':['south africa'],\n  'saudi arabia':['saudi arabia','ksa','riyadh','jeddah']\n};\nfunction aliasesFor(loc) {\n  const l = String(loc || '').toLowerCase().trim();\n  if (!l) return [];\n  for (const g of CITY_ALIASES) { if (g.some(function(a){ return l === a || l.indexOf(a) !== -1; })) return g; }\n  return [l];\n}\n function countryOf(text) {\n  if (/,\\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\\b/.test(String(text || ''))) return 'united states';\n  const t = ' ' + String(text || '').toLowerCase().replace(/[(),]/g, ' ') + ' ';\n  for (const g of CITY_ALIASES) {\n    if (g.some(function(a){ return t.indexOf(' ' + a + ' ') !== -1 || t.indexOf(' ' + a + ',') !== -1; })) { if (COUNTRY_OF_CITY[g[0]]) return COUNTRY_OF_CITY[g[0]]; }\n  }\n  for (const c of Object.keys(COUNTRY_WORDS)) {\n    if (COUNTRY_WORDS[c].some(function(w){ return t.indexOf(w.length <= 4 ? w : (' ' + w.trim())) !== -1; })) return c;\n  }\n  return '';\n}\n\nconst form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nif (!platforms.some(function(p){ return /^git\\s*hub$/i.test(String(p).trim()); })) return [];\nconst role = String(form['Target Role'] || '').toLowerCase();\nconst skills = String(form['Key Skills & Criteria'] || '').toLowerCase().split(',').map(function(s){return s.trim();}).filter(Boolean);\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst langMap = { 'java':'java','spring boot':'java','spring':'java','python':'python','django':'python','fastapi':'python','flask':'python','javascript':'javascript','react':'javascript','node.js':'javascript','node':'javascript','typescript':'typescript','go':'go','golang':'go','rust':'rust','c++':'cpp','ruby':'ruby','php':'php','swift':'swift','kotlin':'kotlin','scala':'scala','c#':'csharp','.net':'csharp' };\nlet lang = '';\nfor (const s of skills) { if (langMap[s]) { lang = langMap[s]; break; } }\nif (!lang) { for (const k of Object.keys(langMap)) { if ((' ' + role + ' ').indexOf(' ' + k + ' ') !== -1) { lang = langMap[k]; break; } } }\n// GitHub user search: free-text words match user NAMES, not skills, so use only\n// qualifiers. One query per location alias (Bangalore, Bengaluru).\nconst locs = aliasesFor(loc).filter(function(a){ return a.length > 3; });\nconst base = (lang ? 'language:' + lang + ' ' : '') + 'repos:>3';\nconst qs = locs.length ? locs.map(function(a){ return base + ' location:' + (/\\s/.test(a) ? '\"' + a + '\"' : a); }) : [base + ' followers:>20'];\nreturn qs.slice(0, 2).map(function(q){ return { json: { gh_query: q, gh_url: 'https://api.github.com/search/users?per_page=30&sort=followers&order=desc&q=' + encodeURIComponent(q) } }; });\n"
    },
    "id": "native-gh-000-4a00-9000-000000000051",
    "name": "Build GH Query",
@@ -2956,7 +2970,7 @@
   },
   {
    "parameters": {
-    "jsCode": "// Map GitHub user-search results into the shared organic shape. Search results\n// are sparse (login + url); the downstream 'GitHub Enrich' step later fetches\n// bio/company/repos for those that survive ranking.\nconst out = [];\nfor (const it of $input.all()) {\n  const items = (it.json && it.json.items) ? it.json.items : [];\n  for (const u of items) {\n    const login = String(u.login || '').trim();\n    if (!login) continue;\n    const link = String(u.html_url || ('https://github.com/' + login));\n    out.push({\n      title: login + ' (GitHub developer)',\n      snippet: 'GitHub developer profile (login: ' + login + ') matching the requested skills. Individual open-source contributor; enrich for bio, company and repositories.',\n      link: link\n    });\n  }\n}\nreturn [{ json: { organic: out, source: 'github', results_count: out.length } }];\n"
+    "jsCode": "\n// GitHub users WITH their real profile (name, bio, company, location, repos),\n// so the AI ranks on evidence instead of a bare username.\nconst splits = $('GH Split Users').all();\nconst out = [];\n$input.all().forEach(function(it, i) {\n  const p = it.json || {};\n  const login = String(p.login || (splits[i] && splits[i].json.login) || '').trim();\n  if (!login || !p.id) return;\n  const name = String(p.name || '').trim();\n  const bits = [];\n  if (p.bio) bits.push('Bio: ' + String(p.bio).replace(/\\s+/g, ' ').slice(0, 300));\n  if (p.company) bits.push('Company: ' + p.company);\n  if (p.location) bits.push('Location: ' + p.location);\n  if (typeof p.public_repos === 'number') bits.push(p.public_repos + ' public repos');\n  if (typeof p.followers === 'number') bits.push(p.followers + ' followers');\n  if (p.blog) bits.push('Site: ' + p.blog);\n  if (p.hireable) bits.push('open to hire');\n  out.push({ title: (name ? name + ' (@' + login + ')' : login) + ' - GitHub developer', snippet: bits.join(' | ') || 'GitHub developer', link: p.html_url || ('https://github.com/' + login) });\n});\nreturn [{ json: { organic: out, source: 'github', results_count: out.length } }];\n"
    },
    "id": "native-gh-000-4a00-9000-000000000053",
    "name": "GH To Organic",
@@ -3390,7 +3404,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n// Repo contributors are GitHub users -> only run when GitHub is a chosen platform.\nconst ghSelected = platforms.some(function(p){ return /^git\\s*hub$/i.test(String(p).trim()); });\nif (!ghSelected) return [];\nconst role = String(form['Target Role'] || '').toLowerCase();\nconst skills = String(form['Key Skills & Criteria'] || '').toLowerCase();\nconst blob = ' ' + role + ' ' + skills + ' ';\n// Curated flagship repos per tech domain. The recruiter NEVER types a repo name;\n// they pick a role/skills and we map that to the projects that matter.\nconst domains = [\n  { name: 'ml_llm', kw: ['machine learning','ml engineer','ml ','llm','nlp','deep learning','data scientist','ai engineer',' ai ','pytorch','tensorflow','transformers','generative','hugging face','langchain'],\n    repos: ['huggingface/transformers','EleutherAI/gpt-neox','pytorch/pytorch','vllm-project/vllm','langchain-ai/langchain'] },\n  { name: 'backend', kw: ['backend','back end','java','spring','django','fastapi','node','golang',' go ','microservice','api developer','server'],\n    repos: ['spring-projects/spring-boot','django/django','gin-gonic/gin','fastapi/fastapi','nestjs/nest'] },\n  { name: 'frontend', kw: ['frontend','front end','react','vue','angular','svelte','javascript','typescript','ui engineer','web developer'],\n    repos: ['facebook/react','vuejs/core','angular/angular','sveltejs/svelte'] },\n  { name: 'devops', kw: ['devops','sre','site reliability','platform engineer','infrastructure','kubernetes','terraform','docker','ansible','cloud engineer'],\n    repos: ['kubernetes/kubernetes','hashicorp/terraform','prometheus/prometheus','ansible/ansible'] },\n  { name: 'data_eng', kw: ['data engineer','data engineering','spark','airflow','etl','kafka','dbt','big data','analytics engineer'],\n    repos: ['apache/spark','apache/airflow','dbt-labs/dbt-core','apache/kafka'] },\n  { name: 'mobile', kw: ['mobile','android','ios','flutter','react native','kotlin','swift'],\n    repos: ['flutter/flutter','facebook/react-native','square/retrofit'] }\n];\nlet picked = null;\nfor (const dm of domains) { if (dm.kw.some(function(k){ return blob.indexOf(k) !== -1; })) { picked = dm; break; } }\nif (!picked) return []; // non-tech / unrecognised domain -> skip gracefully (no repos)\nconst repos = picked.repos.slice(0, 3); // cap to 3 repos/run to control API calls\nreturn repos.map(function(r){ return { json: { repo: r, domain: picked.name, repo_url: 'https://api.github.com/repos/' + r + '/contributors?per_page=10' } }; });\n"
+    "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n// Repo contributors are GitHub users -> only run when GitHub is a chosen platform.\n\n// Flagship-repo contributors are global maintainers: they ignore location, so\n// skip this source whenever the recruiter asked for a location.\nconst formLoc = String($('Search Criteria').first().json['Location'] || '').trim();\nif (formLoc) return [];\nconst ghSelected = platforms.some(function(p){ return /^git\\s*hub$/i.test(String(p).trim()); });\nif (!ghSelected) return [];\nconst role = String(form['Target Role'] || '').toLowerCase();\nconst skills = String(form['Key Skills & Criteria'] || '').toLowerCase();\nconst blob = ' ' + role + ' ' + skills + ' ';\n// Curated flagship repos per tech domain. The recruiter NEVER types a repo name;\n// they pick a role/skills and we map that to the projects that matter.\nconst domains = [\n  { name: 'ml_llm', kw: ['machine learning','ml engineer','ml ','llm','nlp','deep learning','data scientist','ai engineer',' ai ','pytorch','tensorflow','transformers','generative','hugging face','langchain'],\n    repos: ['huggingface/transformers','EleutherAI/gpt-neox','pytorch/pytorch','vllm-project/vllm','langchain-ai/langchain'] },\n  { name: 'backend_python', kw: ['python','django','fastapi','flask'], repos: ['django/django','fastapi/fastapi','pallets/flask'] },\n  { name: 'backend_java', kw: ['java','spring','kotlin'], repos: ['spring-projects/spring-boot','spring-projects/spring-framework'] },\n  { name: 'backend_go', kw: ['golang',' go '], repos: ['gin-gonic/gin','golang/go'] },\n  { name: 'backend_node', kw: ['node','nestjs','express'], repos: ['nestjs/nest','expressjs/express'] },\n  { name: 'backend', kw: ['backend','back end','microservice','api developer','server'],\n    repos: ['django/django','spring-projects/spring-boot','fastapi/fastapi'] },\n  { name: 'frontend', kw: ['frontend','front end','react','vue','angular','svelte','javascript','typescript','ui engineer','web developer'],\n    repos: ['facebook/react','vuejs/core','angular/angular','sveltejs/svelte'] },\n  { name: 'devops', kw: ['devops','sre','site reliability','platform engineer','infrastructure','kubernetes','terraform','docker','ansible','cloud engineer'],\n    repos: ['kubernetes/kubernetes','hashicorp/terraform','prometheus/prometheus','ansible/ansible'] },\n  { name: 'data_eng', kw: ['data engineer','data engineering','spark','airflow','etl','kafka','dbt','big data','analytics engineer'],\n    repos: ['apache/spark','apache/airflow','dbt-labs/dbt-core','apache/kafka'] },\n  { name: 'mobile', kw: ['mobile','android','ios','flutter','react native','kotlin','swift'],\n    repos: ['flutter/flutter','facebook/react-native','square/retrofit'] }\n];\n// pick the domain with the MOST keyword hits (a 'python backend' search must not land on ML repos)\nlet picked = null, best = 0;\nfor (const dm of domains) { const hits = dm.kw.filter(function(k){ return blob.indexOf(k) !== -1; }).length; if (hits > best) { best = hits; picked = dm; } }\nif (!picked) return []; // non-tech / unrecognised domain -> skip gracefully (no repos)\nconst repos = picked.repos.slice(0, 3); // cap to 3 repos/run to control API calls\nreturn repos.map(function(r){ return { json: { repo: r, domain: picked.name, repo_url: 'https://api.github.com/repos/' + r + '/contributors?per_page=10' } }; });\n"
    },
    "id": "repo-contrib-000-4a00-9000-000000000131",
    "name": "Build Repo Query",
@@ -3451,6 +3465,129 @@
     752,
     -1424
    ]
+  },
+  {
+   "parameters": {
+    "numberInputs": 11
+   },
+   "id": "fix-wait-for-all-sources",
+   "name": "Wait For All Sources",
+   "type": "n8n-nodes-base.merge",
+   "typeVersion": 3,
+   "position": [
+    -220,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "\nconst CITY_ALIASES = [\n  ['bangalore','bengaluru','blr'], ['mumbai','bombay','navi mumbai','thane'], ['delhi','new delhi','ncr','delhi ncr'],\n  ['gurgaon','gurugram'], ['noida','greater noida'], ['chennai','madras'], ['kolkata','calcutta'],\n  ['hyderabad','secunderabad'], ['pune','pimpri'], ['kochi','cochin','ernakulam'], ['thiruvananthapuram','trivandrum'],\n  ['mysore','mysuru'], ['vizag','visakhapatnam'], ['ahmedabad','gandhinagar'], ['coimbatore'], ['jaipur'], ['chandigarh','mohali'],\n  ['san francisco','sf bay area','bay area','san jose','palo alto','mountain view','sunnyvale'], ['new york','nyc','brooklyn','manhattan'],\n  ['london'], ['singapore'], ['dubai'], ['abu dhabi'], ['berlin'], ['amsterdam'], ['toronto'], ['sydney'], ['melbourne']\n];\nconst COUNTRY_OF_CITY = {\n  bangalore:'india', mumbai:'india', delhi:'india', gurgaon:'india', noida:'india', chennai:'india', kolkata:'india',\n  hyderabad:'india', pune:'india', kochi:'india', thiruvananthapuram:'india', mysore:'india', vizag:'india',\n  ahmedabad:'india', coimbatore:'india', jaipur:'india', chandigarh:'india',\n  'san francisco':'united states', 'new york':'united states', london:'united kingdom', singapore:'singapore',\n  dubai:'united arab emirates', 'abu dhabi':'united arab emirates', berlin:'germany', amsterdam:'netherlands',\n  toronto:'canada', sydney:'australia', melbourne:'australia'\n};\nconst COUNTRY_WORDS = {\n  'india':['india','karnataka','maharashtra','tamil nadu','telangana','kerala','haryana','uttar pradesh','west bengal','gujarat','rajasthan','andhra pradesh','punjab'],\n  'united states':['united states','usa','u.s.','california','new york','texas','washington','massachusetts','illinois','florida'],\n  'united kingdom':['united kingdom',' uk ','england','scotland','wales'],\n  'singapore':['singapore'], 'united arab emirates':['united arab emirates','uae'], 'germany':['germany','deutschland'],\n  'netherlands':['netherlands','holland'], 'canada':['canada'], 'australia':['australia'], 'belgium':['belgium'],\n  'france':['france'], 'spain':['spain'], 'italy':['italy'], 'ireland':['ireland'], 'japan':['japan'], 'brazil':['brazil'],\n  'pakistan':['pakistan'], 'bangladesh':['bangladesh'], 'sri lanka':['sri lanka'], 'nepal':['nepal'], 'china':['china'],\n  'russia':['russia'], 'ukraine':['ukraine'], 'poland':['poland'], 'portugal':['portugal'], 'sweden':['sweden'],\n  'switzerland':['switzerland'], 'austria':['austria'], 'israel':['israel'], 'nigeria':['nigeria'], 'kenya':['kenya'],\n  'philippines':['philippines'], 'indonesia':['indonesia'], 'vietnam':['vietnam'], 'egypt':['egypt'], 'turkey':['turkey'],\n  'argentina':['argentina'], 'mexico':['mexico'], 'new zealand':['new zealand'], 'south africa':['south africa'],\n  'saudi arabia':['saudi arabia','ksa','riyadh','jeddah']\n};\nfunction aliasesFor(loc) {\n  const l = String(loc || '').toLowerCase().trim();\n  if (!l) return [];\n  for (const g of CITY_ALIASES) { if (g.some(function(a){ return l === a || l.indexOf(a) !== -1; })) return g; }\n  return [l];\n}\n function countryOf(text) {\n  if (/,\\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\\b/.test(String(text || ''))) return 'united states';\n  const t = ' ' + String(text || '').toLowerCase().replace(/[(),]/g, ' ') + ' ';\n  for (const g of CITY_ALIASES) {\n    if (g.some(function(a){ return t.indexOf(' ' + a + ' ') !== -1 || t.indexOf(' ' + a + ',') !== -1; })) { if (COUNTRY_OF_CITY[g[0]]) return COUNTRY_OF_CITY[g[0]]; }\n  }\n  for (const c of Object.keys(COUNTRY_WORDS)) {\n    if (COUNTRY_WORDS[c].some(function(w){ return t.indexOf(w.length <= 4 ? w : (' ' + w.trim())) !== -1; })) return c;\n  }\n  return '';\n}\n\n// Final step before the sheet: decide where each person is, drop people clearly\n// in another country, and set the final rank across ALL sources.\nconst form = $('Search Criteria').first().json;\nconst wanted = String(form['Location'] || '').split('-')[0].trim();\nconst wantAliases = aliasesFor(wanted);\nconst wantCountry = countryOf(wanted) || countryOf(form['Search Region'] || '');\nconst kept = [];\nlet dropped = 0;\n$input.all().forEach(function(it, idx) {\n  const c = Object.assign({}, it.json);\n  const locText = [c.location, c.candidate_location].filter(Boolean).join(' | ');\n  if (!c.location && c.candidate_location) c.location = c.candidate_location;\n  let tier = 1, label = 'location unknown';\n  if (!wanted) { tier = 0; label = ''; }\n  else if (locText) {\n    const lt = ' ' + locText.toLowerCase() + ' ';\n    const inCity = wantAliases.some(function(a){ return lt.indexOf(a) !== -1; });\n    const country = countryOf(locText);\n    if (inCity) { tier = 0; label = 'in ' + wanted; }\n    else if (wantCountry && country && country !== wantCountry) { tier = 9; label = 'outside ' + wantCountry; }\n    else if (wantCountry && country === wantCountry) { tier = 2; label = 'same country, different city'; }\n    else { tier = 1; label = 'location unclear'; }\n  }\n  if (tier === 9) { dropped++; return; }\n  c.location_tier = tier;\n  c.location_check = label;\n  kept.push({ json: c, pairedItem: { item: idx } });\n});\nkept.sort(function(a, b) {\n  if (a.json.location_tier !== b.json.location_tier) return a.json.location_tier - b.json.location_tier;\n  return (Number(b.json.fit_score) || 0) - (Number(a.json.fit_score) || 0);\n});\nkept.forEach(function(k, i) { k.json.rank = i + 1; k.json.location_dropped_total = dropped; });\nreturn kept;\n"
+   },
+   "id": "fix-location-check-&-rank",
+   "name": "Location Check & Rank",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1784,
+    152
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     },
+     "conditions": [
+      {
+       "id": "fix-resume-top",
+       "leftValue": "={{ $json.rank }}",
+       "rightValue": 20,
+       "operator": {
+        "type": "number",
+        "operation": "lte"
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "fix-resume-lookup?",
+   "name": "Resume Lookup?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    2004,
+    152
+   ]
+  },
+  {
+   "parameters": {
+    "numberInputs": 2
+   },
+   "id": "fix-rejoin-candidates",
+   "name": "Rejoin Candidates",
+   "type": "n8n-nodes-base.merge",
+   "typeVersion": 3,
+   "position": [
+    2384,
+    152
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "\nconst seen = {};\nconst out = [];\nfor (const it of $input.all()) {\n  for (const u of ((it.json && it.json.items) || [])) {\n    const login = String(u.login || '').trim();\n    if (!login || seen[login] || u.type === 'Organization') continue;\n    seen[login] = true;\n    out.push({ json: { login: login } });\n    if (out.length >= 40) break;\n  }\n}\nreturn out;\n"
+   },
+   "id": "fix-gh-split-users",
+   "name": "GH Split Users",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    -328
+   ]
+  },
+  {
+   "parameters": {
+    "url": "=https://api.github.com/users/{{ $json.login }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "githubApi",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Accept",
+       "value": "application/vnd.github+json"
+      },
+      {
+       "name": "User-Agent",
+       "value": "talentrubric-sourcing"
+      }
+     ]
+    },
+    "options": {
+     "timeout": 15000
+    }
+   },
+   "id": "fix-gh-user-details",
+   "name": "GH User Details",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    864,
+    -328
+   ],
+   "credentials": {
+    "githubApi": {
+     "id": "__CRED_GITHUB__",
+     "name": "Sourcing · GitHub"
+    }
+   },
+   "onError": "continueRegularOutput"
   }
  ],
  "connections": {
@@ -3529,7 +3666,7 @@
    "main": [
     [
      {
-      "node": "Attach Resume",
+      "node": "Rejoin Candidates",
       "type": "main",
       "index": 0
      }
@@ -3596,7 +3733,7 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
       "index": 0
      }
@@ -3649,7 +3786,7 @@
      {
       "node": "Enriched Candidates",
       "type": "main",
-      "index": 0
+      "index": 1
      }
     ]
    ]
@@ -4076,7 +4213,7 @@
    "main": [
     [
      {
-      "node": "Resume Search",
+      "node": "Location Check & Rank",
       "type": "main",
       "index": 0
      }
@@ -4109,9 +4246,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 1
      }
     ]
    ]
@@ -4131,7 +4268,7 @@
    "main": [
     [
      {
-      "node": "GH To Organic",
+      "node": "GH Split Users",
       "type": "main",
       "index": 0
      }
@@ -4142,9 +4279,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 2
      }
     ]
    ]
@@ -4197,9 +4334,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 3
      }
     ]
    ]
@@ -4230,9 +4367,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 4
      }
     ]
    ]
@@ -4263,9 +4400,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 5
      }
     ]
    ]
@@ -4296,9 +4433,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 6
      }
     ]
    ]
@@ -4329,9 +4466,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 7
      }
     ]
    ]
@@ -4362,9 +4499,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 8
      }
     ]
    ]
@@ -4395,9 +4532,9 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Wait For All Sources",
       "type": "main",
-      "index": 0
+      "index": 9
      }
     ]
    ]
@@ -4428,7 +4565,80 @@
    "main": [
     [
      {
+      "node": "Wait For All Sources",
+      "type": "main",
+      "index": 10
+     }
+    ]
+   ]
+  },
+  "Wait For All Sources": {
+   "main": [
+    [
+     {
       "node": "Merge Pages",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Location Check & Rank": {
+   "main": [
+    [
+     {
+      "node": "Resume Lookup?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Resume Lookup?": {
+   "main": [
+    [
+     {
+      "node": "Resume Search",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Rejoin Candidates",
+      "type": "main",
+      "index": 1
+     }
+    ]
+   ]
+  },
+  "Rejoin Candidates": {
+   "main": [
+    [
+     {
+      "node": "Attach Resume",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "GH Split Users": {
+   "main": [
+    [
+     {
+      "node": "GH User Details",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "GH User Details": {
+   "main": [
+    [
+     {
+      "node": "GH To Organic",
       "type": "main",
       "index": 0
      }
