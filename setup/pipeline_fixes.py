@@ -925,3 +925,16 @@ def apply_round7(nodes, conns):
                   "credentials": json.loads(json.dumps(ap["credentials"]))})
     conns["Append row in sheet"]["main"][0].append({"node": "Tick Boxes", "type": "main", "index": 0})
     return nodes, conns
+
+
+def apply_round8(nodes, conns):
+    """UAT: Apollo rows ranked below 25 were first-name-only. Apollo-sourced
+    people (exact match by Apollo id) are always enriched; LinkedIn-sourced
+    lookups stay limited to the top 25 to protect Apollo credits."""
+    N = {n["name"]: n for n in nodes}
+    hl = N["Has LinkedIn"]["parameters"]["conditions"]
+    hl["conditions"] = [{"id": "fix-enrich", "leftValue":
+        "={{ /apollo\\.io\\/people\\//i.test($json.profile_url || '') || (/linkedin\\.com/i.test($json.profile_url || '') && Number($json.rank) <= %d) }}" % APOLLO_ENRICH_TOP,
+        "rightValue": True, "operator": {"type": "boolean", "operation": "true", "singleValue": True}}]
+    hl["combinator"] = "and"
+    return nodes, conns

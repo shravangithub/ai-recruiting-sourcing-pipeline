@@ -1535,21 +1535,13 @@
      },
      "conditions": [
       {
-       "id": "fix-li",
-       "leftValue": "={{ $json.profile_url }}",
-       "rightValue": "linkedin\\.com|apollo\\.io/people/",
+       "id": "fix-enrich",
+       "leftValue": "={{ /apollo\\.io\\/people\\//i.test($json.profile_url || '') || (/linkedin\\.com/i.test($json.profile_url || '') && Number($json.rank) <= 25) }}",
+       "rightValue": true,
        "operator": {
-        "type": "string",
-        "operation": "regex"
-       }
-      },
-      {
-       "id": "fix-top",
-       "leftValue": "={{ $json.rank }}",
-       "rightValue": 25,
-       "operator": {
-        "type": "number",
-        "operation": "lte"
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
        }
       }
      ],

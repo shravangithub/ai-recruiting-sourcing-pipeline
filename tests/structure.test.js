@@ -108,3 +108,14 @@ test('UAT: new rows get a "Send Email?" checkbox after every search (rule only, 
 test('UAT: setup checkbox rule is open-ended too', () => {
   assert.ok(!/endRowIndex: 5000/.test(handler));
 });
+
+test('UAT: every Apollo-sourced row is enriched (first-name-only rows are useless); LinkedIn rows only in the top 25', () => {
+  const c = NODES['Has LinkedIn'].parameters.conditions.conditions;
+  const expr = c.map((x) => x.leftValue).join(' ');
+  const evalRow = (row) => Function('$json', 'return ' + expr.replace(/^=\{\{|\}\}$/g, ''))(row);
+  assert.equal(c.length, 1);
+  assert.equal(evalRow({ profile_url: 'https://www.apollo.io/people/abc', rank: 40 }), true);
+  assert.equal(evalRow({ profile_url: 'https://in.linkedin.com/in/x', rank: 10 }), true);
+  assert.equal(evalRow({ profile_url: 'https://in.linkedin.com/in/x', rank: 40 }), false);
+  assert.equal(evalRow({ profile_url: 'https://github.com/x', rank: 1 }), false);
+});
