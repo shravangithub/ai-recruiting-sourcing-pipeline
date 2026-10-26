@@ -71,6 +71,7 @@ def main():
     sys.path.insert(0, str(ROOT / "setup"))
     import pipeline_fixes
     src_nodes, src_conns = pipeline_fixes.apply(src["nodes"], src["connections"])
+    src_nodes, src_conns = pipeline_fixes.apply_round2(src_nodes, src_conns)
     nodes = []
     for n in src_nodes:
         n = swap(n)
@@ -112,7 +113,9 @@ def main():
                    "candidate_location: cand.candidate_location", "location: cand.candidate_location || ''",
                    "merged.candidate_name = ghName", "backend_python", "const cand = $('Location Check & Rank').item.json",
                    "Profile URL", "count = $('Location Check & Rank').all().length", "outside top", "location not confirmed",
-                   "skipped - below top", "STRICT HONESTY"):
+                   "skipped - below top", "STRICT HONESTY",
+                   "restored_total", "public on GitHub profile", "personal website (from GitHub)", "always include them",
+                   "10. line (number", "Writes ' + lang"):
         assert marker in text, f"fix not applied: {marker}"
     assert "$('Merge GitHub').item" not in text and "PDL Skills" not in text
     OUT.write_text(text + "\n")

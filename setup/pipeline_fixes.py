@@ -589,3 +589,190 @@ def apply(nodes, conns):
         "  if (merged.location_check === 'location unknown' || merged.location_check === 'location unclear') reasons.push('location not confirmed');\n"
         "  else if (merged.location_check === 'same country, different city') reasons.push('different city');")
     return nodes, conns
+
+
+# ======================================================================
+# Round 2 (after the second live run): no silent drops, use every free
+# GitHub field, working resume search, LinkedIn always on.
+# ======================================================================
+BATCH2 = 12
+
+FORMAT_BATCHES_V2 = r"""
+// Number every line and remember which lines are always real people, so the
+// next step can put back anyone the AI skipped.
+const all = ($input.first().json.organic || []);
+const BATCH = %d;
+const PERSON_SRC = /(github\.com\/[^\/]+\/?$|gitlab\.com\/[^\/]+\/?$|kaggle\.com\/[^\/]+\/?$|huggingface\.co\/[^\/]+\/?$|stackoverflow\.com\/users\/|apollo\.io\/people\/|linkedin\.com\/in\/)/i;
+const out = [];
+for (let i = 0; i < all.length; i += BATCH) {
+  const chunk = all.slice(i, i + BATCH);
+  const lines = chunk.map(function(o, j){ return { n: j + 1, title: String(o.title || ''), link: String(o.link || ''), person: PERSON_SRC.test(String(o.link || '')) }; });
+  const text = chunk.map(function(o, j){ return '[' + (j + 1) + '] ' + (o.title || '') + ' | ' + String(o.snippet || '').replace(/\s+/g, ' ').slice(0, 700) + ' | ' + (o.link || ''); }).join('\n');
+  out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length } });
+}
+if (!out.length) out.push({ json: { page_text: '', lines: [], batch: 1, pool_size: 0 } });
+return out;
+""" % BATCH2
+
+SPLIT_V2 = r"""
+// Parse the AI output per batch. Anyone from a people-only source (GitHub,
+// GitLab, LinkedIn, Apollo, Stack Overflow, Kaggle, Hugging Face) that the AI
+// skipped is put back with a neutral score, so no real profile is lost.
+let batches = [];
+try { batches = $('Format Search Results').all().map(function(i){ return i.json.lines || []; }); } catch (e) { batches = []; }
+function nameFromTitle(t) {
+  t = String(t || '');
+  const m = t.match(/^(.+?) \(@[^)]+\)/); if (m) return m[1].trim();
+  return t.replace(/\s*[-(].*$/, '').trim();
+}
+const out = [];
+const seen = {};
+let restored = 0;
+$input.all().forEach(function(item, b) {
+  let raw;
+  if (item.json.output && item.json.output[0] && item.json.output[0].content && item.json.output[0].content[0]) raw = item.json.output[0].content[0].text;
+  else if (typeof item.json.text === 'string') raw = item.json.text;
+  else raw = '[]';
+  raw = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }
+  if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.candidates)) parsed = parsed.candidates;
+  if (!Array.isArray(parsed)) parsed = [parsed];
+  const lines = batches[b] || [];
+  const gotLine = {}, gotUrl = {};
+  for (const c of parsed) {
+    if (!c) continue;
+    let url = String(c.profile_url || '').trim();
+    const ln = Number(c.line);
+    if (ln && lines[ln - 1]) { gotLine[ln] = 1; if (!url) url = lines[ln - 1].link; }
+    if (url) gotUrl[url.toLowerCase().replace(/\/+$/, '')] = 1;
+    const key = url.toLowerCase().replace(/\/+$/, '') || String(c.candidate_name || '').toLowerCase();
+    if (!key || seen[key]) continue;
+    seen[key] = true;
+    out.push({ json: {
+      candidate_name: c.candidate_name || '',
+      is_person: c.is_person !== false && !!c.candidate_name,
+      current_role: c.current_role || '',
+      fit_score: typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0,
+      match_summary: c.match_summary || '',
+      key_skills: Array.isArray(c.key_skills) ? c.key_skills : [],
+      candidate_location: String(c.candidate_location || '').trim(),
+      experience_evidence: String(c.experience_evidence || '').trim(),
+      profile_url: url
+    } });
+  }
+  for (const l of lines) {
+    const key = l.link.toLowerCase().replace(/\/+$/, '');
+    if (!l.person || gotLine[l.n] || gotUrl[key] || seen[key]) continue;
+    seen[key] = true; restored++;
+    out.push({ json: { candidate_name: nameFromTitle(l.title), is_person: true, current_role: '', fit_score: 3,
+      match_summary: 'Not scored by the AI (it skipped this profile) - please review manually.', key_skills: [],
+      candidate_location: '', experience_evidence: 'not stated', profile_url: l.link, restored: true } });
+  }
+});
+if (out.length) out[0].json.restored_total = restored;
+return out;
+"""
+
+GH_TO_ORGANIC_V2 = r"""
+// GitHub users WITH their real profile, plus the language they were found by.
+const splits = $('GH Split Users').all();
+let lang = '';
+try { const m = String($('Build GH Query').first().json.gh_query || '').match(/language:(\S+)/); lang = m ? m[1] : ''; } catch (e) {}
+const out = [];
+$input.all().forEach(function(it, i) {
+  const p = it.json || {};
+  const login = String(p.login || (splits[i] && splits[i].json.login) || '').trim();
+  if (!login || !p.id) return;
+  const name = String(p.name || '').trim();
+  const bits = [];
+  if (lang) bits.push('Writes ' + lang + ' (matched by GitHub language search)');
+  if (p.bio) bits.push('Bio: ' + String(p.bio).replace(/\s+/g, ' ').slice(0, 300));
+  if (p.company) bits.push('Company: ' + p.company);
+  if (p.location) bits.push('Location: ' + p.location);
+  if (typeof p.public_repos === 'number') bits.push(p.public_repos + ' public repos');
+  if (typeof p.followers === 'number') bits.push(p.followers + ' followers');
+  if (p.created_at) bits.push('on GitHub since ' + String(p.created_at).slice(0, 4));
+  if (p.blog) bits.push('Site: ' + p.blog);
+  if (p.hireable) bits.push('open to hire');
+  out.push({ title: (name ? name + ' (@' + login + ')' : login) + ' - GitHub developer', snippet: bits.join(' | ') || 'GitHub developer', link: p.html_url || ('https://github.com/' + login) });
+});
+return [{ json: { organic: out, source: 'github', results_count: out.length } }];
+"""
+
+
+def apply_round2(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def code(name):
+        return N[name]["parameters"]
+
+    def R(text, old, new):
+        assert old in text, "round2: anchor not found: " + old[:80]
+        return text.replace(old, new)
+
+    # LinkedIn + GitHub are always searched (they carry titles, emails, real names)
+    sc = code("Search Criteria")
+    sc["jsCode"] = R(sc["jsCode"], "if (!platforms.length) platforms = ['LinkedIn', 'Github'];",
+        "if (!platforms.length) platforms = ['LinkedIn', 'Github'];\n"
+        "// LinkedIn and GitHub are the core people sources: always include them\n"
+        "['LinkedIn', 'Github'].forEach(function(must){ if (!platforms.some(function(p){ return String(p).toLowerCase() === must.toLowerCase(); })) platforms.push(must); });")
+    # no skills typed? take the tech words from the role ("java backend developer" -> Java)
+    sc["jsCode"] = R(sc["jsCode"], "if (!primary.length && !secondary.length) { primary = toArr(p.key_skills); }",
+        "if (!primary.length && !secondary.length) { primary = toArr(p.key_skills); }\n"
+        "if (!primary.length) {\n"
+        "  const roleWords = ' ' + String(pick(form['1) Target Role'], p.target_role, '')).toLowerCase() + ' ';\n"
+        "  const TECH = ['java','python','javascript','typescript','golang','go','rust','c++','c#','.net','ruby','php','kotlin','swift','scala','react','angular','vue','node.js','node','spring boot','spring','django','fastapi','flask','kafka','aws','azure','gcp','kubernetes','docker','sql','salesforce','sap','android','ios','flutter','data','ml','ai'];\n"
+        "  primary = TECH.filter(function(t){ return roleWords.indexOf(' ' + t + ' ') !== -1; }).map(function(t){ return t === 'go' ? 'Go' : t.replace(/^./, function(c){ return c.toUpperCase(); }); });\n"
+        "}")
+
+    # smaller numbered batches + put back skipped people
+    code("Format Search Results")["jsCode"] = FORMAT_BATCHES_V2
+    msg = N["Message a model"]["parameters"]["responses"]["values"][0]
+    msg["content"] = R(msg["content"], "9. profile_url (string - the URL at the end of their line, copied exactly)",
+        "9. profile_url (string - the URL at the end of their line, copied exactly)\n"
+        "10. line (number - the [n] at the start of that line)\n"
+        "Each line starts with [n]. You MUST return exactly one object per line, for every line, including weak matches.")
+    code("Split Candidates")["jsCode"] = SPLIT_V2
+
+    # GitHub: language evidence, public email, personal site
+    code("GH To Organic")["jsCode"] = GH_TO_ORGANIC_V2
+    mg = code("Merge GitHub")
+    mg["jsCode"] = R(mg["jsCode"], "  merged.github_status = 'enriched';",
+        "  const ghEmail = s(resp.email);\n"
+        "  if (ghEmail && !merged.email) { merged.email = ghEmail; merged.email_status = 'public on GitHub profile'; }\n"
+        "  if (s(resp.twitter_username)) merged.twitter = 'https://x.com/' + s(resp.twitter_username);\n"
+        "  merged.github_status = 'enriched';")
+    pc = code("Parse Contact")
+    pc["jsCode"] = R(pc["jsCode"], "merged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.enrichment_status === 'enriched' ? 'apollo' : ''))\n  : '';",
+        "merged.contact_source = merged.email\n"
+        "  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.email_status.indexOf('GitHub') !== -1 ? 'GitHub profile' : (merged.enrichment_status === 'enriched' ? 'apollo' : '')))\n"
+        "  : '';")
+    pc["jsCode"] = R(pc["jsCode"], "// --- data confidence flag (helps recruiters trust each row) ---",
+        "// --- no CV file found: fall back to the person's own website / portfolio ---\n"
+        "if (!merged.resume_link && !merged.drive_cv_link && merged.github_blog) {\n"
+        "  let site = String(merged.github_blog).trim();\n"
+        "  if (site && !/^https?:\\/\\//i.test(site)) site = 'https://' + site;\n"
+        "  merged.resume_link = site;\n"
+        "  merged.resume_source = 'personal website (from GitHub)';\n"
+        "  merged.resume_status = 'portfolio / personal site';\n"
+        "}\n"
+        "if (merged.twitter && !/x\\.com|twitter/i.test(merged.work_history || '')) merged.work_history = (merged.work_history ? merged.work_history + ' | ' : '') + 'X: ' + merged.twitter;\n"
+        "// --- data confidence flag (helps recruiters trust each row) ---")
+    # a "GitHub profile" email is real but unverified: stay Medium, never Low
+    pc["jsCode"] = R(pc["jsCode"], "  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');",
+        "  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n"
+        "  else if (es.indexOf('GitHub') !== -1) { score += 1; reasons.push('email public on GitHub'); }")
+
+    # resume search: name + CV words + city; the scorer still verifies the hit
+    rs = N["Resume Search"]["parameters"]
+    rs["jsonBody"] = ("={{ JSON.stringify({ q: '\"' + String($json.candidate_name || '').replace(/\"/g, '') + '\" (resume OR cv OR \"curriculum vitae\" OR portfolio) ' + "
+                      "String($('Search Criteria').first().json['Location'] || '').split('-')[0].trim(), num: 10 }) }}")
+    ar = code("Attach Resume")
+    ar["jsCode"] = R(ar["jsCode"], "  if (link.indexOf('read.cv') !== -1 ||",
+        "  // the candidate's own site (from GitHub) or a github.io page is a real portfolio/CV source\n"
+        "  const ownSite = String(cand.github_blog || '').toLowerCase().replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '');\n"
+        "  if (ownSite && link.indexOf(ownSite) !== -1) score += 45;\n"
+        "  if (/\\.github\\.io/.test(link)) score += 35;\n"
+        "  if (link.indexOf('read.cv') !== -1 ||")
+    return nodes, conns

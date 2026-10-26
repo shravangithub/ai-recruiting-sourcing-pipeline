@@ -96,7 +96,9 @@ async function testService(service, v) {
       break;
     case 'kaggle':
       if (!need(v.user) || !need(v.key)) return 'Enter your Kaggle username and key.';
-      r = await http({ method: 'GET', url: 'https://www.kaggle.com/api/v1/datasets/list?page=1', auth: { username: need(v.user), password: need(v.key) } });
+      // kernels/list needs a valid login (datasets/list answers even without one)
+      r = await http({ method: 'GET', url: 'https://www.kaggle.com/api/v1/kernels/list?pageSize=1&search=python', auth: { username: need(v.user), password: need(v.key) } });
+      if (r.status === 401 && /^KGAT_/i.test(need(v.key))) return 'This looks like a new-style Kaggle API token. Create a legacy API key instead (Kaggle > Settings > API > Create Legacy API Key) and paste that.';
       break;
     default:
       return 'Unknown service.';
