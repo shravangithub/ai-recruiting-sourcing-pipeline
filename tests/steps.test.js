@@ -233,3 +233,14 @@ test('UAT: when candidates were written, the zero-result notice stays silent', a
   const out = await runNode('Results Gate', [aiOutput([])], { 'Search Criteria': [criteria()], 'Build Search Query': [{ q: 'x' }], 'Location Check & Rank': [{ candidate_name: 'a' }] });
   assert.equal(out.length, 0);
 });
+
+test('UAT: re-running a search keeps the recruiter\'s ticks and statuses', async () => {
+  const sheetRow = { 'Dedupe Key': 'url:https://github.com/ravik', 'Send Email?': true, 'Pipeline Status': 'Shortlisted', 'Outreach Status': 'Contacted', 'Date Added': '2026-10-20 09:00' };
+  const [m] = await runNode('Merge CRM State', [{ dedupe_key: 'url:https://github.com/ravik', profile_url: 'https://github.com/ravik' }], { 'Load CRM Rows': [sheetRow] });
+  assert.equal(m.pipeline_status, 'Shortlisted');
+  assert.equal(m.outreach_status, 'Contacted');
+  assert.equal(m.date_added, '2026-10-20 09:00');
+  assert.equal(String(m.send_email).toUpperCase(), 'TRUE');
+  const [n] = await runNode('Merge CRM State', [{ dedupe_key: 'url:https://github.com/new', profile_url: 'https://github.com/new' }], { 'Load CRM Rows': [sheetRow] });
+  assert.equal(String(n.send_email).toUpperCase(), 'FALSE');
+});

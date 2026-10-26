@@ -865,3 +865,20 @@ def apply_round4(nodes, conns):
     oe["subject"] = "={{ $json['Search Role'] }} role{{ $json['Search Location'] ? ' in ' + $json['Search Location'] : '' }} - quick chat?"
     N["Outreach Schedule"]["parameters"]["rule"] = {"interval": [{"field": "minutes", "minutesInterval": 15}]}
     return nodes, conns
+
+
+def apply_round5(nodes, conns):
+    """Re-running a search must not un-tick "Send Email?" on existing rows."""
+    N = {n["name"]: n for n in nodes}
+    mc = N["Merge CRM State"]["parameters"]
+    old = "  merged.is_new = false;"
+    assert old in mc["jsCode"]
+    mc["jsCode"] = mc["jsCode"].replace(old,
+        "  const tick = existing['Send Email?'];\n"
+        "  merged.send_email = (tick === true || /^(true|yes|1)$/i.test(String(tick || '').trim())) ? 'TRUE' : 'FALSE';\n"
+        "  merged.is_new = false;")
+    old2 = "  merged.is_new = true;"
+    assert old2 in mc["jsCode"]
+    mc["jsCode"] = mc["jsCode"].replace(old2, "  merged.send_email = 'FALSE';\n  merged.is_new = true;")
+    N["Append row in sheet"]["parameters"]["columns"]["value"]["Send Email?"] = "={{ $json.send_email || 'FALSE' }}"
+    return nodes, conns

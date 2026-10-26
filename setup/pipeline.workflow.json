@@ -266,7 +266,7 @@
       "Pipeline Status": "={{ $json.pipeline_status }}",
       "Outreach Status": "={{ $json.outreach_status }}",
       "Dedupe Key": "={{ $json.dedupe_key }}",
-      "Send Email?": "FALSE",
+      "Send Email?": "={{ $json.send_email || 'FALSE' }}",
       "Confidence": "={{ $json.confidence }}",
       "Profile URL": "={{ $json.profile_url }}"
      },
@@ -1717,7 +1717,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $json;\nconst key = String(cand.dedupe_key || '').toLowerCase().trim();\nconst liKey = String(cand.verified_linkedin || cand.profile_url || '').toLowerCase().trim();\nlet rows = [];\ntry { rows = $('Load CRM Rows').all().map(function(i){ return i.json; }); } catch (e) { rows = []; }\nlet existing = null;\nfor (const r of rows) {\n  const rk = String(r['Dedupe Key'] || '').toLowerCase().trim();\n  if (key && rk && rk === key) { existing = r; break; }\n}\nif (!existing && liKey) {\n  for (const r of rows) {\n    const rli = String(r['LinkedIn'] || '').toLowerCase().trim();\n    if (rli && rli === liKey) { existing = r; break; }\n  }\n}\nconst merged = Object.assign({}, cand);\nif (existing) {\n  if (existing['Date Added']) merged.date_added = existing['Date Added'];\n  if (existing['Pipeline Status']) merged.pipeline_status = existing['Pipeline Status'];\n  if (existing['Outreach Status']) merged.outreach_status = existing['Outreach Status'];\n  merged.is_new = false;\n} else {\n  merged.is_new = true;\n}\nreturn { json: merged };"
+    "jsCode": "const cand = $json;\nconst key = String(cand.dedupe_key || '').toLowerCase().trim();\nconst liKey = String(cand.verified_linkedin || cand.profile_url || '').toLowerCase().trim();\nlet rows = [];\ntry { rows = $('Load CRM Rows').all().map(function(i){ return i.json; }); } catch (e) { rows = []; }\nlet existing = null;\nfor (const r of rows) {\n  const rk = String(r['Dedupe Key'] || '').toLowerCase().trim();\n  if (key && rk && rk === key) { existing = r; break; }\n}\nif (!existing && liKey) {\n  for (const r of rows) {\n    const rli = String(r['LinkedIn'] || '').toLowerCase().trim();\n    if (rli && rli === liKey) { existing = r; break; }\n  }\n}\nconst merged = Object.assign({}, cand);\nif (existing) {\n  if (existing['Date Added']) merged.date_added = existing['Date Added'];\n  if (existing['Pipeline Status']) merged.pipeline_status = existing['Pipeline Status'];\n  if (existing['Outreach Status']) merged.outreach_status = existing['Outreach Status'];\n  const tick = existing['Send Email?'];\n  merged.send_email = (tick === true || /^(true|yes|1)$/i.test(String(tick || '').trim())) ? 'TRUE' : 'FALSE';\n  merged.is_new = false;\n} else {\n  merged.send_email = 'FALSE';\n  merged.is_new = true;\n}\nreturn { json: merged };"
    },
    "id": "3e989c09-1b7a-4a1c-b751-7a9671c294c5",
    "name": "Merge CRM State",
