@@ -250,3 +250,42 @@ test('UAT: Apollo people search is not over-narrowed by skill keywords when a ti
   assert.equal(a.apollo_body.q_keywords, undefined);
   assert.deepEqual(a.apollo_body.person_titles, ['HR Business Partner']);
 });
+
+// ------------------------------------------------------------ Round 9: recruiter UAT (Senior ML Engineer, Bangalore)
+test('UAT: Kaggle / Stack Overflow / Hugging Face are searched by city through Google', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior Machine Learning Engineer', 'Primary Skills': 'Python, PyTorch',
+    'Target Platforms': ['LinkedIn', 'Kaggle', 'Stack Overflow', 'Hugging Face'] })] });
+  const city = q.filter((x) => x.kind === 'city-profiles');
+  assert.equal(city.length, 2, 'two pages');
+  assert.match(city[0].q, /site:kaggle\.com/);
+  assert.match(city[0].q, /site:stackoverflow\.com\/users/);
+  assert.match(city[0].q, /bengaluru/i);
+  assert.match(city[0].q, /-inurl:datasets/);
+  assert.ok(q.some((x) => x.kind === 'profiles'), 'LinkedIn query still there');
+});
+
+test('UAT: no city-profile query without a city, or when those sources are not ticked', async () => {
+  const noCity = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ Location: '', 'Target Platforms': ['Kaggle'] })] });
+  assert.ok(!noCity.some((x) => x.kind === 'city-profiles'));
+  const notTicked = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
+  assert.ok(!notTicked.some((x) => x.kind === 'city-profiles'));
+});
+
+test('UAT: a Kaggle / Stack Overflow person whose profile shows the city is kept; unknown location still dropped', async () => {
+  const rows = [['Kaggle BLR', 8, 'Bengaluru, Karnataka, India', 'https://www.kaggle.com/someone'],
+    ['SO BLR', 7, 'Bangalore', 'https://stackoverflow.com/users/42/x'], ['Kaggle unknown', 9, '', 'https://www.kaggle.com/other']]
+    .map(([n, f, l, u]) => ({ candidate_name: n, fit_score: f, location: l, profile_url: u }));
+  const out = await runNode('Location Check & Rank', rows, { 'Search Criteria': [criteria()] });
+  assert.deepEqual(out.map((x) => x.candidate_name), ['Kaggle BLR', 'SO BLR']);
+});
+
+test('UAT: a long PDF that only mentions the name in its text is not their resume', async () => {
+  const cand = Object.assign({}, baseCand);
+  const [r1] = await runNode('Attach Resume', [{ organic: [{ link: 'https://www.college.edu/Documents/SSR2024/Criteria5/DVV-5_1_2_1.pdf', title: 'Criteria 5 student support', snippet: 'Ravi Kumar placed, resume workshop 2023' }] }], { 'Location Check & Rank': [cand] });
+  assert.equal(r1.resume_link, '');
+  const [r2] = await runNode('Attach Resume', [{ organic: [{ link: 'https://bank.example.in/assets/Z-E1_DEAF_Jan.pdf', title: 'Unclaimed deposits', snippet: 'Ravi Kumar curriculum vitae' }] }], { 'Location Check & Rank': [cand] });
+  assert.equal(r2.resume_link, '');
+  const own = Object.assign({}, baseCand, { github_blog: 'https://rk-dev.github.io' });
+  const [r3] = await runNode('Attach Resume', [{ organic: [{ link: 'https://rk-dev.github.io/curriculum/', title: 'Curriculum', snippet: 'Ravi Kumar resume' }] }], { 'Location Check & Rank': [own] });
+  assert.equal(r3.resume_link, 'https://rk-dev.github.io/curriculum/', 'their own site from GitHub is still accepted');
+});

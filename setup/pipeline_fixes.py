@@ -938,3 +938,57 @@ def apply_round8(nodes, conns):
         "rightValue": True, "operator": {"type": "boolean", "operation": "true", "singleValue": True}}]
     hl["combinator"] = "and"
     return nodes, conns
+
+
+# ======================================================================
+# Round 9 (recruiter UAT: Senior ML Engineer, Bangalore, all sources)
+# ======================================================================
+CITY_PROFILES_QUERY = r"""
+// 3) Kaggle / Stack Overflow / Hugging Face cannot be searched by city through their
+// own APIs, so their people were always dropped for a city search. Google shows the
+// city on their profile pages ("Bengaluru, Karnataka, India"), so search them there.
+const cityPlatforms = { 'Kaggle': 'site:kaggle.com', 'Stack Overflow': 'site:stackoverflow.com/users', 'Hugging Face': 'site:huggingface.co' };
+const citySites = platforms.filter(function(pl){ return cityPlatforms[pl]; }).map(function(pl){ return cityPlatforms[pl]; });
+if (citySites.length && locTerm) {
+  const topic = skillsTerm || roleTerm;
+  const notProfiles = '-inurl:code -inurl:datasets -inurl:discussion -inurl:competitions -inurl:models -inurl:spaces -inurl:questions';
+  const parts = [citySites.length > 1 ? '(' + citySites.join(' OR ') + ')' : citySites[0], locTerm, topic, excludeTerm, notProfiles];
+  queries.push({ kind: 'city-profiles', q: parts.filter(Boolean).join(' ').trim(), pages: 2 });
+}
+const out = [];"""
+
+RESUME_FILE_URL = ("={{ /\\.(pdf|docx?)(\\?|#|$)|drive\\.google\\.com|docs\\.google\\.com|dropbox\\.com|1drv\\.ms|onedrive/i"
+                   ".test($json.resume_link || '') ? $json.resume_link : '' }}")
+
+
+def apply_round9(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(text, old, new):
+        assert old in text, "round9: anchor not found: " + old[:80]
+        return text.replace(old, new, 1)
+
+    # 1. city-aware search for Kaggle / Stack Overflow / Hugging Face profiles
+    bq = N["Build Search Query"]["parameters"]
+    bq["jsCode"] = R(bq["jsCode"], "\nconst out = [];", CITY_PROFILES_QUERY)
+
+    # 2. a resume hit must carry the person's name in its address or title, not just
+    #    somewhere in a long PDF (college reports and bank lists were attached as CVs)
+    ar = N["Attach Resume"]["parameters"]
+    ar["jsCode"] = R(ar["jsCode"],
+        "  // --- hard blocks: registry/court/news/job-board hosts, or directory-style pages ---",
+        "  // the name must be in the link or the title (their own site from GitHub is exempt):\n"
+        "  // a name that only appears inside a long document's text is a list, not their CV\n"
+        "  const ownHost = String(cand.github_blog || '').toLowerCase().replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '');\n"
+        "  const head = (link + ' ' + String(o.title || '')).toLowerCase();\n"
+        "  if (!(ownHost && link.indexOf(ownHost) !== -1) && !tokens.some(function(t){ return head.indexOf(t) !== -1; }))\n"
+        "    return { link: o.link || '', score: -999, nameHit: true };\n\n"
+        "  // --- hard blocks: registry/court/news/job-board hosts, or directory-style pages ---")
+    ar["jsCode"] = R(ar["jsCode"], "|yumpu\\.com)/i;", "|yumpu\\.com|naac|annual[-_ ]?report)/i;")
+
+    # 3. only download real files (PDF / Word / Drive / Dropbox); a web page link stays a
+    #    link in the sheet. Shorter timeout so one slow server can't stall the run.
+    dl = N["Download Resume"]["parameters"]
+    dl["url"] = RESUME_FILE_URL
+    dl["options"]["timeout"] = 10000
+    return nodes, conns

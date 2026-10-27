@@ -119,3 +119,15 @@ test('UAT: every Apollo-sourced row is enriched (first-name-only rows are useles
   assert.equal(evalRow({ profile_url: 'https://in.linkedin.com/in/x', rank: 40 }), false);
   assert.equal(evalRow({ profile_url: 'https://github.com/x', rank: 1 }), false);
 });
+
+test('UAT: only real files (PDF / Word / Drive / Dropbox) are downloaded; web pages stay links', () => {
+  const p = NODES['Download Resume'].parameters;
+  assert.ok(p.options.timeout <= 10000);
+  const expr = p.url.replace(/^=\{\{|\}\}$/g, '');
+  const urlFor = (link) => Function('$json', 'return ' + expr)({ resume_link: link });
+  assert.equal(urlFor('https://x.org/ravi-cv.pdf'), 'https://x.org/ravi-cv.pdf');
+  assert.equal(urlFor('https://drive.google.com/file/d/abc/view'), 'https://drive.google.com/file/d/abc/view');
+  assert.equal(urlFor('https://x.org/Ravi_Resume.DOCX'), 'https://x.org/Ravi_Resume.DOCX');
+  assert.equal(urlFor('https://rk-dev.github.io/'), '');
+  assert.equal(urlFor(''), '');
+});
