@@ -246,9 +246,14 @@ your n8n, switch it on and open its setup page. Paste your keys, sign in to Goog
 **Manual setup** (if you'd rather wire it yourself):
 
 1. Install n8n: https://docs.n8n.io/getting-started/installation/
-2. Start n8n and import the workflow from `ai-recruiting-pipeline.template.json` (n8n → **Import from File**).
-3. Configure credentials (Google/Bing, LLM API key, enrichment API keys) in n8n credentials.
-4. Run the pipeline and review ranked candidates in the final approval node.
+2. Import [`setup/pipeline.workflow.json`](setup/pipeline.workflow.json) (n8n → **Import from File**).
+   It is the ready pipeline with placeholders: create the credentials named `Sourcing · OpenAI`,
+   `Sourcing · Serper`, `Sourcing · GitHub`, `Sourcing · Google Sheets`, `Sourcing · Google Drive`,
+   `Sourcing · Gmail` (others optional), then replace `__SHEET_ID__`, `__DRIVE_FOLDER_ID__`, `__COMPANY__`,
+   `__SIGNATURE__` and the `__CRED_…__` ids. The one-click setup does all of this for you.
+3. Publish the workflow and open its form.
+
+(`ai-recruiting-pipeline.template.json` is the original build source, kept for history – don't import it.)
 
 ## 💬 Live Demo (optional)
 

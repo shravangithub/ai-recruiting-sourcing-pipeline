@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AI Recruiting Sourcing Pipeline — Talent Rubric</title>
-<meta name="description" content="Talent Rubric's AI pipeline turns a plain-English hiring brief into a ranked, verified, confidence-scored shortlist — sourced across LinkedIn, GitHub, Stack Overflow, X, Reddit and the open web. Built on n8n."/>
+<meta name="description" content="Talent Rubric's AI pipeline turns a plain-English hiring brief into a ranked, verified, confidence-scored shortlist — sourced across LinkedIn, GitHub, Stack Overflow, Kaggle, Hugging Face, GitLab, Hacker News, Dribbble, Behance and the open web — in about a minute. Built on n8n."/>
 <meta name="color-scheme" content="dark"/>
 <meta property="og:title" content="AI Recruiting Sourcing Pipeline — Talent Rubric"/>
 <meta property="og:description" content="From a hiring brief to a ranked, verified shortlist. Source from proof, not résumés."/>
@@ -113,17 +113,17 @@ footer a{color:var(--muted)}footer a:hover{color:var(--ink)}
     <a class="lk" href="#why">Why it's different</a>
     <a class="lk" href="#how">How it works</a>
     <a class="lk" href="#responsible">Responsible use</a>
-    <a class="navcta" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">Get the template →</a>
+    <a class="navcta" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/SETUP.md" target="_blank" rel="noopener">Set it up free →</a>
   </div>
 </nav>
 
 <header class="hero">
   <span class="pill"><span class="d"></span>Built on n8n · Evidence-based sourcing</span>
   <h1>Hire on <span class="g">evidence,</span><br>not guesswork.</h1>
-  <p class="lead">An AI pipeline that turns a plain-English hiring brief into a <b>ranked, verified, confidence-scored shortlist</b> — sourced across LinkedIn, GitHub, Stack Overflow, X, Reddit and the open web.</p>
+  <p class="lead">An AI pipeline that turns a plain-English hiring brief into a <b>ranked, verified, confidence-scored shortlist</b> — sourced across LinkedIn, GitHub, Stack Overflow, Kaggle, Hugging Face, GitLab, Hacker News, Dribbble, Behance and the open web — in about a minute.</p>
   <div class="cta">
     <a class="btn primary" href="#demo">▶ Watch the demo</a>
-    <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">⬇ Get the n8n template</a>
+    <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/SETUP.md" target="_blank" rel="noopener">⬇ One-click setup (free)</a>
     <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">★ View on GitHub</a>
   </div>
   <div class="byline">Designed, debugged &amp; hardened by <b>Shravan Kumar Shesham</b> · Talent Rubric · MIT Licensed</div>
@@ -136,8 +136,8 @@ footer a{color:var(--muted)}footer a:hover{color:var(--ink)}
 </header>
 
 <div class="stats">
-  <div class="stat"><b>11</b><span>automated stages</span></div>
-  <div class="stat"><b>6+</b><span>sources searched</span></div>
+  <div class="stat"><b>~1 min</b><span>per search</span></div>
+  <div class="stat"><b>12</b><span>sources searched</span></div>
   <div class="stat"><b>0–10</b><span>AI relevance score</span></div>
   <div class="stat"><b>High/Med/Low</b><span>confidence tiers</span></div>
 </div>
@@ -148,7 +148,7 @@ footer a{color:var(--muted)}footer a:hover{color:var(--ink)}
   <p class="h2sub">Most tools match strings. This one sources from real, public work and hands you a shortlist you can defend.</p>
   <div class="cards">
     <div class="card"><div class="ic">🔎</div><h3>Source from proof</h3><p>Sources and enriches from public signals — profiles, GitHub activity, verified titles — so every candidate is backed by evidence, not just a résumé claim.</p></div>
-    <div class="card"><div class="ic">🌐</div><h3>Every channel, one pass</h3><p>LinkedIn, GitHub, Stack Overflow, X, Reddit and the open web — searched, merged and de-duplicated into one ranked list of real people.</p></div>
+    <div class="card"><div class="ic">🌐</div><h3>Every channel, one pass</h3><p>LinkedIn, GitHub, Stack Overflow, Kaggle, Hugging Face, GitLab, Dribbble, Behance and more — searched together, with the same person merged into one row and job ads dropped.</p></div>
     <div class="card"><div class="ic">✅</div><h3>Recruiter-in-the-loop</h3><p>AI ranks, scores and labels confidence. You review every row and approve every outreach. Scores are decision support, never decisions.</p></div>
   </div>
 </section>
@@ -158,10 +158,10 @@ footer a{color:var(--muted)}footer a:hover{color:var(--ink)}
   <div class="h2">Brief in, shortlist out — one pass</div>
   <p class="h2sub">Eleven automated stages, from a plain-English brief to recruiter-approved outreach.</p>
   <div class="steps">
-    <div class="step"><div class="n">1</div><div><h4>Understand the brief</h4><p>An LLM parses your plain-English brief into structured criteria — explicit fields always override the model.</p></div></div>
-    <div class="step"><div class="n">2</div><div><h4>Search every channel</h4><p>Boolean X-ray queries per platform return people, not job ads — across six sources plus the open web.</p></div></div>
+    <div class="step"><div class="n">1</div><div><h4>Understand the brief</h4><p>An LLM reads your plain-English brief (and JD). You see exactly what it understood on the next page, change anything, and pick the sources.</p></div></div>
+    <div class="step"><div class="n">2</div><div><h4>Search every channel</h4><p>Boolean X-ray queries per platform return people, not job ads — across 12 sources plus the open web, each query trimmed to fit Google's 32-word limit.</p></div></div>
     <div class="step"><div class="n">3</div><div><h4>De-dupe &amp; rank</h4><p>Entity resolution merges duplicates; an LLM scores each candidate 0–10 against the brief with a hard experience floor.</p></div></div>
-    <div class="step"><div class="n">4</div><div><h4>Enrich &amp; verify</h4><p>Verified email, title and company where available; a discovered CV is checked against the candidate's name before it's trusted.</p></div></div>
+    <div class="step"><div class="n">4</div><div><h4>Enrich &amp; verify</h4><p>Verified email, title and company where available (including public GitHub commit emails), an Experience Check against the years you asked for; a discovered CV is checked against the candidate's name before it's trusted.</p></div></div>
     <div class="step"><div class="n">5</div><div><h4>Confidence-tier</h4><p>Every candidate gets a High / Medium / Low label with reasons, so you know exactly which rows to trust.</p></div></div>
     <div class="step"><div class="n">6</div><div><h4>Approve &amp; reach out</h4><p>You tick "Send Email?" on chosen rows; personalized outreach sends and replies auto-flag. Nothing goes out without you.</p></div></div>
   </div>
@@ -184,7 +184,7 @@ footer a{color:var(--muted)}footer a:hover{color:var(--ink)}
     <h2>Ready to hire from proof?</h2>
     <p>Import the pipeline into your own n8n instance, or explore the code and demo. Built to be forked, hardened and made your own.</p>
     <div class="cta" style="margin-bottom:0">
-      <a class="btn primary" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/ai-recruiting-pipeline.template.json" target="_blank" rel="noopener">⬇ Get the n8n template</a>
+      <a class="btn primary" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline/blob/main/SETUP.md" target="_blank" rel="noopener">⬇ One-click setup (free)</a>
       <a class="btn ghost" href="https://github.com/shravangithub/ai-recruiting-sourcing-pipeline" target="_blank" rel="noopener">★ View on GitHub</a>
       <a class="btn ghost" href="https://www.linkedin.com/in/shravanskumar/" target="_blank" rel="noopener">in Connect on LinkedIn</a>
     </div>

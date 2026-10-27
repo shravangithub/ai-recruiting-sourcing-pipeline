@@ -1898,12 +1898,12 @@ def apply_round19(nodes, conns):
         "options": {"formTitle": "Here's what we'll search for",
                     "formDescription": "Read from your brief and JD. Change anything, then search.",
                     "buttonLabel": "Search candidates", "customCss": FORM_CSS}})
-    page2["webhookId"] = "fix-check-search-page"
+    page2["webhookId"] = "6f1d2c3b-7a4e-4b5f-9c8d-0e1f2a3b4c51"  # fixed so re-running setup keeps the page
     done = _node("Search Started", "n8n-nodes-base.form", 2.5, [x + 400, y - 200], {
         "operation": "completion", "respondWith": "text", "completionTitle": "Search started",
         "completionMessage": "Results appear in your Google Sheet in about a minute or two. The Search Log tab shows Processing, then Complete with the candidate count. You can close this page.",
         "options": {"customCss": FORM_CSS}})
-    done["webhookId"] = "fix-search-started-page"
+    done["webhookId"] = "6f1d2c3b-7a4e-4b5f-9c8d-0e1f2a3b4c52"
     final = _node("Search Criteria", "n8n-nodes-base.code", 2, [x + 400, y], {"jsCode": FINAL_CRITERIA})
     nodes.extend([page2, done, final])
     conns["Draft Criteria"] = conns.pop("Search Criteria")
