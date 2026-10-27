@@ -546,3 +546,40 @@ test('R19: with no sources in the brief, page 2 suggests sources that fit the ro
   assert.deepEqual(await run('Backend Engineer'), ['LinkedIn', 'Github', 'Stack Overflow']);
   assert.deepEqual(await run('HR Business Partner'), ['LinkedIn', 'Google / Open Web']);
 });
+
+// ------------------------------------------------------------ Round 20: one row per person, no social resumes, results email
+test('R20: the same person on LinkedIn and GitHub becomes one row; common names elsewhere stay apart', async () => {
+  const people = [
+    { candidate_name: 'Asha Nair', profile_url: 'https://in.linkedin.com/in/asha-nair', fit_score: 7, location: 'Bengaluru, Karnataka', key_skills: 'Java, Kafka' },
+    { candidate_name: 'Asha Nair', profile_url: 'https://github.com/ashanair', github_url: 'https://github.com/ashanair', fit_score: 9, location: 'Bangalore', email: 'asha@example-mail.in', key_skills: 'Go' },
+    { candidate_name: 'Rahul Sharma', profile_url: 'https://in.linkedin.com/in/rahul-s', fit_score: 8, location: 'Bengaluru' },
+    { candidate_name: 'Rahul Sharma', profile_url: 'https://github.com/rahuls', fit_score: 6, location: 'Pune, India' },
+  ];
+  const out = await runNode('Location Check & Rank', people, { 'Search Criteria': [criteria()] });
+  assert.equal(out.length, 3);
+  const asha = out.find((p) => p.candidate_name === 'Asha Nair');
+  assert.equal(asha.fit_score, 9);
+  assert.equal(asha.email, 'asha@example-mail.in');
+  assert.equal(asha.github_url, 'https://github.com/ashanair');
+  assert.match(asha.match_summary, /Also on GitHub: https:\/\/github\.com\/ashanair/);
+  assert.deepEqual(asha.also_on, ['GitHub']);
+  assert.equal(out.filter((p) => p.candidate_name === 'Rahul Sharma').length, 2, 'different cities: not merged');
+});
+
+test('R20: results email names the role, the count and the per-source split', async () => {
+  const [n] = await runNode('Results Note', [{}], { 'Sourcing Summary': [{ count: 42, search_role: 'Backend Engineer', search_location: 'Pune', range_text: 'rows 10 to 52' }],
+    'Add Req Header': [{ match_summary: 'Must-have: Java  |  42 candidates; by source: LinkedIn 20 · GitHub 22  |  Searched' }], 'Search Criteria': [{ 'Notify Email': '' }] });
+  assert.equal(n.count, 42);
+  assert.equal(n.by_source, 'LinkedIn 20 · GitHub 22');
+  const [z] = await runNode('Results Note', [{}], { 'Results Gate': [{ count: 0, search_role: 'QA', range_text: 'no matching profiles found' }], 'Search Criteria': [{ 'Notify Email': 'lead@acme-hiring.in' }] });
+  assert.equal(z.count, 0);
+  assert.equal(z.notify, 'lead@acme-hiring.in');
+});
+
+test('R20: social pages never become the Resume Link', () => {
+  const code = require('./harness').NODES['Parse Contact'].parameters.jsCode;
+  const m = code.match(/const SOCIAL = (\/.*\/i);/);
+  const re = eval(m[1]);
+  for (const u of ['https://www.youtube.com/@asha', 'https://medium.com/@asha', 'https://linktr.ee/asha', 'https://x.com/asha']) assert.ok(re.test(u), u);
+  for (const u of ['https://asha.dev/cv.pdf', 'https://ashanair.github.io/resume']) assert.ok(!re.test(u), u);
+});

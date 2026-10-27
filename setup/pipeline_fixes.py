@@ -1968,3 +1968,128 @@ def apply_round19(nodes, conns):
       "const merged = Object.assign({}, cand);\n"
       "try { const ce = $('Attach Commit Email').item.json.commit_email; if (ce && !merged.email) { merged.email = ce; merged.email_status = 'public in GitHub commits'; } } catch (e) {}")
     return nodes, conns
+
+
+# ======================================================================
+# Round 20:
+# 1. The same person found on two sources becomes ONE row. Merged only when
+#    the full name matches AND their city or company agrees (common names
+#    stay separate); the row keeps both links and says "Also on ...".
+# 2. Resume Link never holds a social page (YouTube, Medium, Linktree, ...).
+# 3. A "results ready" email goes to the recruiter when a search finishes
+#    (page 2 address, or the connected Gmail account by default).
+# ======================================================================
+MERGE_PEOPLE = r"""
+// ---- The same person found on several sources becomes one row. ----
+// Only when the FULL name matches and nothing disagrees: both in the searched
+// city, or the same current company. Common names elsewhere stay separate.
+const srcOf = function(u){ u = String(u || '').toLowerCase();
+  const m = [['linkedin.com','LinkedIn'],['github.com','GitHub'],['stackoverflow.com','Stack Overflow'],['gitlab.com','GitLab'],['kaggle.com','Kaggle'],
+    ['huggingface.co','Hugging Face'],['ycombinator.com','Hacker News'],['dev.to','Dev.to'],['reddit.com','Reddit'],['x.com','X (Twitter)'],['twitter.com','X (Twitter)'],
+    ['dribbble.com','Dribbble'],['behance.net','Behance']].find(function(p){ return u.indexOf(p[0]) !== -1; });
+  return m ? m[1] : 'Web'; };
+const fullName = function(n){ const t = String(n || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(function(w){ return w.length > 1; }); return t.length >= 2 ? t.join(' ') : ''; };
+const co = function(c){ return String(c.current_company || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+const asList = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };
+const firstOf = {};
+const merged = [];
+let mergedCount = 0;
+kept.forEach(function(k) {
+  const key = fullName(k.json.candidate_name);
+  const prev = key ? firstOf[key] : null;
+  if (prev) {
+    const a = prev.json, b = k.json;
+    const sameSrc = srcOf(a.profile_url) === srcOf(b.profile_url);
+    const bothInCity = a.location_tier === 0 && b.location_tier === 0;
+    const sameCo = co(a) && co(a) === co(b);
+    if (!sameSrc && (bothInCity || sameCo)) {
+      a.fit_score = Math.max(Number(a.fit_score) || 0, Number(b.fit_score) || 0);
+      ['email','email_status','current_company','location','resume_link','github_blog','experience_evidence','phone','work_history','twitter'].forEach(function(f){ if (!a[f] && b[f]) a[f] = b[f]; });
+      if (!a.github_url && /github\.com/i.test(b.github_url || b.profile_url)) a.github_url = b.github_url || b.profile_url;
+      if (!a.verified_linkedin && /linkedin\.com\/in\//i.test(b.profile_url)) a.verified_linkedin = b.profile_url;
+      const skills = asList(a.key_skills); asList(b.key_skills).forEach(function(s){ if (skills.map(function(x){ return x.toLowerCase(); }).indexOf(s.toLowerCase()) === -1) skills.push(s); });
+      a.key_skills = Array.isArray(a.key_skills) ? skills : skills.join(', ');
+      a.also_on = (a.also_on || []).concat([srcOf(b.profile_url)]);
+      a.match_summary = String(a.match_summary || '').trim() + ' Also on ' + srcOf(b.profile_url) + ': ' + b.profile_url + '.';
+      if (b.location_tier < a.location_tier) { a.location_tier = b.location_tier; a.location_check = b.location_check; a.location_review = b.location_review; }
+      mergedCount++;
+      return;
+    }
+  }
+  if (key && !prev) firstOf[key] = k;
+  merged.push(k);
+});
+kept.splice(0, kept.length);
+merged.forEach(function(k){ k.json.merged_people_total = mergedCount; kept.push(k); });
+"""
+
+SOCIAL_FILTER = r"""
+// A social page is not a resume: YouTube, Medium, Linktree and the like.
+const SOCIAL = /(youtube\.com|youtu\.be|medium\.com|linktr\.ee|linktree|beacons\.ai|bio\.link|instagram\.com|facebook\.com|twitter\.com|\/\/x\.com|\/\/t\.me|tiktok\.com|bit\.ly|lnk\.bio|carrd\.co)/i;
+if (merged.resume_link && SOCIAL.test(merged.resume_link) && !merged.drive_cv_link) { merged.resume_link = ''; merged.resume_source = ''; merged.resume_status = ''; }
+if (merged.github_blog && SOCIAL.test(merged.github_blog)) merged.github_blog = '';
+"""
+
+RESULTS_NOTE = r"""
+// What the "results ready" email says. Runs once per search: after the
+// sheet write, or from the zero-result path.
+let s = {};
+try { s = $('Sourcing Summary').first().json; } catch (e) {}
+if (!s || s.count === undefined) { try { s = $('Results Gate').first().json; } catch (e) { s = {}; } }
+let req = '';
+try { req = String($('Add Req Header').first().json.match_summary || ''); } catch (e) {}
+let notify = '';
+try { notify = String($('Search Criteria').first().json['Notify Email'] || '').trim(); } catch (e) {}
+const count = Number(s.count) || 0;
+const bySource = (req.match(/by source: ([^|]+)/) || [])[1] || '';
+return [{ json: { count: count, role: s.search_role || '', location: s.search_location || '', range_text: s.range_text || '',
+  by_source: bySource.trim(), notify: notify } }];
+"""
+
+
+def apply_round20(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round20 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    # 1. one row per person
+    R("Location Check & Rank", "kept.sort(function(a, b) {", MERGE_PEOPLE.lstrip() + "kept.sort(function(a, b) {")
+    R("Parse Contact", "merged.source_platform = platformOf(merged.profile_url);",
+      "merged.source_platform = platformOf(merged.profile_url) + ((merged.also_on || []).length ? ' + ' + merged.also_on.join(' + ') : '');")
+
+    # 2. no social pages as resumes
+    R("Parse Contact", "if (!merged.resume_link && !merged.drive_cv_link && merged.github_blog) {",
+      SOCIAL_FILTER.lstrip() + "if (!merged.resume_link && !merged.drive_cv_link && merged.github_blog) {")
+
+    # 3. results-ready email
+    page2 = N["Check Search"]["parameters"]["formFields"]["values"]
+    page2.append({"fieldType": "html", "elementName": "s_notify", "html": "<div class=\"tr-sec\">When it's ready</div>"})
+    page2.append({"fieldName": "notify", "fieldLabel": "Email me the results at (optional – blank uses your connected Gmail)",
+                  "fieldType": "email", "placeholder": "you@company.com"})
+    R("Search Criteria", "  'nl_used': !!d.nl_used", "  'Notify Email': String(val('notify', 'Email me the results at (optional – blank uses your connected Gmail)') || '').trim(),\n  'nl_used': !!d.nl_used")
+    ss = N["Sourcing Summary"]
+    x, y = ss["position"]
+    note = _node("Results Note", "n8n-nodes-base.code", 2, [x + 200, y + 360], {"jsCode": RESULTS_NOTE})
+    note["executeOnce"] = True
+    gm = N["Send Outreach Email"]
+    addr = _node("Recruiter Address", "n8n-nodes-base.httpRequest", 4.2, [x + 400, y + 360], {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+        "authentication": "predefinedCredentialType", "nodeCredentialType": "gmailOAuth2", "options": {}},
+        credentials=json.loads(json.dumps(gm["credentials"])), onError="continueRegularOutput")
+    mail = _node("Results Email", "n8n-nodes-base.gmail", gm["typeVersion"], [x + 600, y + 360], {
+        "sendTo": "={{ $('Results Note').first().json.notify || $json.emailAddress }}",
+        "subject": "={{ $('Results Note').first().json.count ? $('Results Note').first().json.count + ' candidates ready' : 'No candidates found' }}: {{ $('Results Note').first().json.role }}{{ $('Results Note').first().json.location ? ' in ' + $('Results Note').first().json.location : '' }}",
+        "message": "=<p>Your search for <b>{{ $('Results Note').first().json.role }}</b>{{ $('Results Note').first().json.location ? ' in ' + $('Results Note').first().json.location : '' }} has finished.</p>"
+                   "<p><b>{{ $('Results Note').first().json.count }}</b> candidates{{ $('Results Note').first().json.by_source ? ' (' + $('Results Note').first().json.by_source + ')' : '' }}. {{ $('Results Note').first().json.range_text }}</p>"
+                   "<p><a href=\"https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit\">Open the results sheet</a> and tick <b>Send Email?</b> on the people you want to contact.</p>",
+        "options": {"appendAttribution": False}},
+        credentials=json.loads(json.dumps(gm["credentials"])), onError="continueRegularOutput")
+    nodes.extend([note, addr, mail])
+    conns["Sourcing Summary"]["main"][0].append({"node": "Results Note", "type": "main", "index": 0})
+    conns["Results Gate"]["main"][0].append({"node": "Results Note", "type": "main", "index": 0})
+    conns["Results Note"] = {"main": [[{"node": "Recruiter Address", "type": "main", "index": 0}]]}
+    conns["Recruiter Address"] = {"main": [[{"node": "Results Email", "type": "main", "index": 0}]]}
+    return nodes, conns

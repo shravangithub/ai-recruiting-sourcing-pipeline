@@ -27,7 +27,8 @@ test('no step runs twice: only Merge nodes take more than one incoming branch', 
   const inc = {};
   for (const [src, v] of Object.entries(WF.connections)) for (const br of v.main || []) for (const t of br || []) (inc[t.node] = inc[t.node] || new Set()).add(src);
   const EITHER_OR = { 'Prep JD': ['Extract JD PDF', 'Prep Word JD'],          // mutually exclusive branches of "JD Is Word?"
-    'Log Search Complete': ['Results Gate', 'Sourcing Summary'] };            // Results Gate only fires when nothing was written
+    'Log Search Complete': ['Results Gate', 'Sourcing Summary'],             // Results Gate only fires when nothing was written
+    'Results Note': ['Results Gate', 'Sourcing Summary'] };            // Results Gate only fires when nothing was written
   for (const [node, srcs] of Object.entries(inc)) {
     if (srcs.size < 2 || NODES[node].type.endsWith('.merge')) continue;
     assert.deepEqual([...srcs].sort(), (EITHER_OR[node] || []).slice().sort(), node + ' has fan-in from ' + [...srcs].join(', '));
