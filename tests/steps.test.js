@@ -583,3 +583,26 @@ test('R20: social pages never become the Resume Link', () => {
   for (const u of ['https://www.youtube.com/@asha', 'https://medium.com/@asha', 'https://linktr.ee/asha', 'https://x.com/asha']) assert.ok(re.test(u), u);
   for (const u of ['https://asha.dev/cv.pdf', 'https://ashanair.github.io/resume']) assert.ok(!re.test(u), u);
 });
+
+// ------------------------------------------------------------ Round 21: experience check, Wellfound
+test('R21: Experience Check compares the evidence with the range asked for', async () => {
+  const run = async (cand, range) => (await runNode('Parse Contact', [{ text: '' }],
+    { 'Attach Resume': [Object.assign({ candidate_name: 'Asha Nair', profile_url: 'https://in.linkedin.com/in/asha' }, cand)],
+      'Search Criteria': [criteria({ 'Experience Range (Years)': range })] }))[0].experience_check;
+  assert.equal(await run({ experience_evidence: '4 years at a fintech' }, '3-5 years'), '✅ 4 yrs stated');
+  assert.equal(await run({ experience_evidence: '1 year' }, '3-5 years'), '⚠️ 1 yrs stated, below 3-5 yrs');
+  assert.equal(await run({ experience_evidence: '12+ years' }, '3-5 years'), '🟡 12 yrs stated, above 3-5 yrs');
+  assert.equal(await run({ experience_evidence: 'not stated', current_role: 'Senior Backend Engineer' }, '5-8 years'), '✅ Senior title');
+  assert.equal(await run({ experience_evidence: 'not stated', current_role: 'Junior Developer' }, '5-8 years'), '⚠️ Junior title, asked 5-8 yrs');
+  assert.equal(await run({ experience_evidence: 'not stated', github_since: '2014' }, '3-5 years'), '🟡 Not stated · on GitHub since 2014');
+  assert.equal(await run({ experience_evidence: '6 years' }, 'Any'), 'ℹ️ 6 yrs stated');
+  assert.equal(await run({}, 'Any'), '- Not stated');
+});
+
+test('R21: Wellfound profiles are searched; Wellfound job and company pages are dropped', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Wellfound'] })] });
+  assert.ok(q.some((x) => /site:wellfound\.com\/u/.test(x.q)));
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32);
+  const [m] = await runNode('Merge Pages', [{ organic: [{ link: 'https://wellfound.com/role/l/backend-engineer/bengaluru' }, { link: 'https://wellfound.com/u/asha-nair' }] }]);
+  assert.deepEqual(m.organic.map((o) => o.link), ['https://wellfound.com/u/asha-nair']);
+});

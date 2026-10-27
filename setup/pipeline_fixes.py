@@ -1108,7 +1108,7 @@ SHEET_COLUMNS_V2 = ['Rank', 'Name', 'Role', 'Fit Score', 'Summary', 'Key Skills'
                     'Verified Title', 'Location', 'Location Review', 'Email', 'Phone', 'GitHub', 'Work History', 'Education',
                     'LinkedIn', 'Resume Link', 'Date Added', 'Source Platform', 'Resume Source', 'Contact Source',
                     'Search Role', 'Search Location', 'Search Geography', 'Pipeline Status', 'Outreach Status',
-                    'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL']
+                    'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL', 'Experience Check']
 
 LOCATION_DECIDE = r"""
 // Final step before the sheet: decide where each person is and set the final rank
@@ -2092,4 +2092,77 @@ def apply_round20(nodes, conns):
     conns["Results Gate"]["main"][0].append({"node": "Results Note", "type": "main", "index": 0})
     conns["Results Note"] = {"main": [[{"node": "Recruiter Address", "type": "main", "index": 0}]]}
     conns["Recruiter Address"] = {"main": [[{"node": "Results Email", "type": "main", "index": 0}]]}
+    return nodes, conns
+
+
+# ======================================================================
+# Round 21:
+# 1. "Experience Check" column: what the evidence says (years stated in the
+#    profile, Senior/Junior in the title, GitHub account age) against the
+#    range the recruiter asked for.
+# 2. Wellfound public profiles (wellfound.com/u/...) as a source, through
+#    Google. Naukri and Instahyre are not added: candidate profiles there are
+#    private (recruiter database access only), so Google can't find them.
+# ======================================================================
+EXPERIENCE_CHECK = r"""
+// --- experience check: what the evidence says vs the range asked for ---
+(function(){
+  let want = '';
+  try { want = String($('Search Criteria').first().json['Experience Range (Years)'] || ''); } catch (e) {}
+  const m = want.match(/(\d+)\s*-\s*(\d+)/), plus = want.match(/(\d+)\s*\+/);
+  const lo = m ? Number(m[1]) : (plus ? Number(plus[1]) : null), hi = m ? Number(m[2]) : null;
+  const range = lo === null ? '' : (hi === null ? lo + '+ yrs' : lo + '-' + hi + ' yrs');
+  const text = [merged.experience_evidence, merged.current_role, merged.verified_title].filter(function(x){ return x && x !== 'not stated'; }).join(' | ');
+  let years = null;
+  (text.match(/(\d{1,2})\s*\+?\s*(?:years?|yrs?)/gi) || []).forEach(function(t){ const n = parseInt(t, 10); if (n > 0 && n <= 40 && (years === null || n > years)) years = n; });
+  const senior = /\b(principal|staff|lead|head|director|architect|senior|sr\.?|manager)\b/i.test(text);
+  const junior = /\b(intern|junior|jr\.?|fresher|graduate|trainee)\b/i.test(text);
+  let since = parseInt(String(merged.github_since || ''), 10);
+  const thisYear = Number($now.toFormat('yyyy'));
+  let out;
+  if (years !== null) {
+    if (lo === null) out = 'ℹ️ ' + years + ' yrs stated';
+    else if (years < lo) out = '⚠️ ' + years + ' yrs stated, below ' + range;
+    else if (hi !== null && years > hi + 2) out = '🟡 ' + years + ' yrs stated, above ' + range;
+    else out = '✅ ' + years + ' yrs stated';
+  } else if (senior) {
+    out = (hi !== null && hi < 5) ? '🟡 Senior title, asked ' + range : '✅ Senior title';
+  } else if (junior) {
+    out = (lo !== null && lo >= 3) ? '⚠️ Junior title, asked ' + range : '✅ Junior title';
+  } else if (since > 2000 && since <= thisYear) {
+    out = '🟡 Not stated · on GitHub since ' + since;
+  } else {
+    out = '- Not stated';
+  }
+  merged.experience_check = out;
+})();
+"""
+
+
+def apply_round21(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round21 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    # 1. experience check
+    R("Merge GitHub", "const ghName = s(resp.name);", "merged.github_since = s(resp.created_at).slice(0, 4);\n  const ghName = s(resp.name);")
+    R("Parse Contact", "// --- data confidence flag", EXPERIENCE_CHECK.lstrip() + "// --- data confidence flag")
+    cols = N["Append row in sheet"]["parameters"]["columns"]
+    cols["value"]["Experience Check"] = "={{ $json.experience_check || '' }}"
+    cols["schema"].append({"id": "Experience Check", "displayName": "Experience Check", "required": False, "defaultMatch": False,
+                           "display": True, "type": "string", "canBeUsedToMatch": True, "removed": False})
+    # the requisition row has the same columns
+    R("Add Req Header", "dedupe_key: 'REQ|' + $execution.id,", "dedupe_key: 'REQ|' + $execution.id, experience_check: '',")
+
+    # 2. Wellfound
+    R("Build Search Query", "if (has(/reddit/i)) otherSites.push('site:reddit.com/r/forhire', 'site:reddit.com/user');",
+      "if (has(/reddit/i)) otherSites.push('site:reddit.com/r/forhire', 'site:reddit.com/user');\nif (has(/wellfound|angel/i)) otherSites.push('site:wellfound.com/u');")
+    R("Merge Pages", "wellfound\\.com\\/jobs", "wellfound\\.com\\/(jobs|role|company|location|startups)")
+    R("Location Check & Rank", "['dribbble.com','Dribbble'],['behance.net','Behance']]", "['dribbble.com','Dribbble'],['behance.net','Behance'],['wellfound.com','Wellfound']]")
+    page2 = N["Check Search"]["parameters"]["formFields"]["values"]
+    src = [f for f in page2 if f.get("fieldName") == "sources"][0]
+    src["fieldOptions"]["values"].insert(4, {"option": "Wellfound"})
     return nodes, conns

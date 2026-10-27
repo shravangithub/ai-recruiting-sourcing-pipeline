@@ -51,7 +51,7 @@ const PIPELINE_NAME = 'AI Recruiting Sourcing Pipeline';
 const SHEET_COLUMNS = ['Rank', 'Name', 'Role', 'Fit Score', 'Summary', 'Key Skills', 'Verified Gender', 'Current Company',
   'Verified Title', 'Location', 'Location Review', 'Email', 'Phone', 'GitHub', 'Work History', 'Education', 'LinkedIn',
   'Resume Link', 'Date Added', 'Source Platform', 'Resume Source', 'Contact Source', 'Search Role', 'Search Location',
-  'Search Geography', 'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL'];
+  'Search Geography', 'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL', 'Experience Check'];
 const LOG_COLUMNS = ['Run ID', 'Status', 'Role', 'Location', 'Candidates', 'Rows', 'Started At', 'Completed At'];
 const USAGE_TAB_ID = 2134273428; // the pipeline's Sheets nodes point at this tab id
 const LOG_TAB_ID = 1;
