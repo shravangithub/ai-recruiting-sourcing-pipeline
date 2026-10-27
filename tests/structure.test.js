@@ -161,3 +161,21 @@ test('UAT: the zero-result check waits for the candidate branch to reach the she
   assert.equal(NODES['Candidates Done'].parameters.numberInputs, 2);
   assert.deepEqual(WF.connections['Candidates Done'].main[0].map((t) => t.node), ['Results Gate']);
 });
+
+test('sheet: REQ header sits between the CRM merge and the sheet write; new columns are written', () => {
+  assert.deepEqual(WF.connections['Merge CRM State'].main[0].map((t) => t.node).sort(), ['Add Req Header', 'Send a message']);
+  assert.deepEqual(WF.connections['Add Req Header'].main[0].map((t) => t.node), ['Append row in sheet']);
+  const v = NODES['Append row in sheet'].parameters.columns.value;
+  for (const c of ['Location Review', 'Search Geography']) assert.ok(v[c], c);
+  assert.ok(!/location_check/.test(v.Location), 'review note lives in its own column');
+});
+
+test('setup: new sheets get the colours (REQ band, review highlight, fit-score scale)', () => {
+  const styled = new Function(handler.slice(handler.indexOf('const SHEET_COLUMNS'), handler.indexOf('async function checkKey')) + '; return styleRequests(1);')();
+  const txt = JSON.stringify(styled);
+  assert.match(txt, /=\$A2=\\"REQ\\"/);
+  assert.match(txt, /Review:/);
+  assert.match(txt, /gradientRule/);
+  assert.match(txt, /frozenColumnCount/);
+  assert.match(handler, /concat\(styleRequests\(LOG_TAB_ID\)\)/);
+});

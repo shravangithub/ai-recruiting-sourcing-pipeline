@@ -49,11 +49,56 @@ const CRED_NAMES = {
 const OAUTH = ['SHEETS', 'DRIVE', 'GMAIL', 'SLACK'];
 const PIPELINE_NAME = 'AI Recruiting Sourcing Pipeline';
 const SHEET_COLUMNS = ['Rank', 'Name', 'Role', 'Fit Score', 'Summary', 'Key Skills', 'Verified Gender', 'Current Company',
-  'Verified Title', 'Location', 'Email', 'Phone', 'GitHub', 'Work History', 'Education', 'LinkedIn', 'Resume Link',
-  'Date Added', 'Source Platform', 'Resume Source', 'Contact Source', 'Search Role', 'Search Location',
-  'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL'];
+  'Verified Title', 'Location', 'Location Review', 'Email', 'Phone', 'GitHub', 'Work History', 'Education', 'LinkedIn',
+  'Resume Link', 'Date Added', 'Source Platform', 'Resume Source', 'Contact Source', 'Search Role', 'Search Location',
+  'Search Geography', 'Pipeline Status', 'Outreach Status', 'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL'];
 const LOG_COLUMNS = ['Run ID', 'Status', 'Role', 'Location', 'Candidates', 'Rows', 'Started At', 'Completed At'];
 const USAGE_TAB_ID = 2134273428; // the pipeline's Sheets nodes point at this tab id
+const LOG_TAB_ID = 1;
+
+// Colours and layout for the results sheet and Search Log (Google Sheets batchUpdate requests).
+// Rule order matters: the first matching rule wins for a cell.
+function styleRequests(logTabId) {
+  const rgb = (hex) => ({ red: parseInt(hex.slice(1, 3), 16) / 255, green: parseInt(hex.slice(3, 5), 16) / 255, blue: parseInt(hex.slice(5, 7), 16) / 255 });
+  const col = (name) => SHEET_COLUMNS.indexOf(name);
+  const all = { sheetId: 0, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: SHEET_COLUMNS.length };
+  const one = (name) => ({ sheetId: 0, startRowIndex: 1, startColumnIndex: col(name), endColumnIndex: col(name) + 1 });
+  const fmt = (bg, fg, bold) => ({ backgroundColor: rgb(bg), textFormat: Object.assign({ bold: !!bold }, fg ? { foregroundColor: rgb(fg) } : {}) });
+  const rule = (index, range, condition, format) => ({ addConditionalFormatRule: { index, rule: { ranges: [range], booleanRule: { condition, format } } } });
+  const letter = (i) => String.fromCharCode(65 + i);
+  const headerRow = (sheetId, n, bg) => ({ repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: n },
+    cell: { userEnteredFormat: { backgroundColor: rgb(bg), textFormat: { bold: true, foregroundColor: rgb('#FFFFFF') }, verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP' } },
+    fields: 'userEnteredFormat(backgroundColor,textFormat,verticalAlignment,wrapStrategy)' } });
+  const reqs = [
+    headerRow(0, SHEET_COLUMNS.length, '#111827'),
+    { updateSheetProperties: { properties: { sheetId: 0, gridProperties: { frozenRowCount: 1, frozenColumnCount: 2 }, tabColorStyle: { rgbColor: rgb('#4F46E5') } },
+      fields: 'gridProperties.frozenRowCount,gridProperties.frozenColumnCount,tabColorStyle' } },
+    // one "REQ" row per search: deep indigo band across the whole row
+    rule(0, all, { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: '=$A2="REQ"' }] }, fmt('#3730A3', '#FFFFFF', true)),
+    // Location Review: green = in the city, amber = country only / not shown, orange = recruiter must review
+    rule(1, one('Location Review'), { type: 'TEXT_STARTS_WITH', values: [{ userEnteredValue: '✅' }] }, fmt('#D1FAE5', '#065F46', true)),
+    rule(2, one('Location Review'), { type: 'TEXT_STARTS_WITH', values: [{ userEnteredValue: '🟡' }] }, fmt('#FEF3C7', '#92400E', false)),
+    rule(3, one('Location Review'), { type: 'TEXT_CONTAINS', values: [{ userEnteredValue: 'Review:' }] }, fmt('#FDBA74', '#7C2D12', true)),
+    rule(4, all, { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: '=ISNUMBER(SEARCH("Review:",$' + letter(col('Location Review')) + '2))' }] }, fmt('#FFF7ED', null, false)),
+    rule(5, one('Confidence'), { type: 'TEXT_EQ', values: [{ userEnteredValue: 'High' }] }, fmt('#D1FAE5', '#065F46', false)),
+    rule(6, one('Confidence'), { type: 'TEXT_EQ', values: [{ userEnteredValue: 'Low' }] }, fmt('#FEE2E2', '#991B1B', false)),
+    // Fit score 1-10: red -> yellow -> green
+    { addConditionalFormatRule: { index: 7, rule: { ranges: [one('Fit Score')], gradientRule: {
+      minpoint: { color: rgb('#FECACA'), type: 'NUMBER', value: '1' }, midpoint: { color: rgb('#FEF08A'), type: 'NUMBER', value: '5' },
+      maxpoint: { color: rgb('#86EFAC'), type: 'NUMBER', value: '10' } } } } },
+  ];
+  if (logTabId !== undefined && logTabId !== null) {
+    const status = { sheetId: logTabId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 2 };
+    reqs.push(headerRow(logTabId, LOG_COLUMNS.length, '#0F766E'),
+      { updateSheetProperties: { properties: { sheetId: logTabId, gridProperties: { frozenRowCount: 1 }, tabColorStyle: { rgbColor: rgb('#0D9488') } },
+        fields: 'gridProperties.frozenRowCount,tabColorStyle' } },
+      rule(0, status, { type: 'TEXT_CONTAINS', values: [{ userEnteredValue: 'Complete' }] }, fmt('#D1FAE5', '#065F46', true)),
+      rule(1, status, { type: 'TEXT_CONTAINS', values: [{ userEnteredValue: 'Processing' }] }, fmt('#DBEAFE', '#1E40AF', true)),
+      rule(2, status, { type: 'TEXT_CONTAINS', values: [{ userEnteredValue: 'Paused' }] }, fmt('#FEE2E2', '#991B1B', true)));
+  }
+  return reqs;
+}
+
 
 async function checkKey() {
   if (!KEY) return 'Paste your n8n API key first.';
@@ -193,7 +238,7 @@ function sheetBody(company) {
         { values: ['Month', 'Serper_Used', 'PDL_Used'].map(str) },
         { values: [str(monthLabel()), num(0), num(0)] },
       ] }] },
-      { properties: { title: 'Search Log', gridProperties: { frozenRowCount: 1 } }, data: [header(LOG_COLUMNS)] },
+      { properties: { sheetId: LOG_TAB_ID, title: 'Search Log', gridProperties: { frozenRowCount: 1 } }, data: [header(LOG_COLUMNS)] },
     ],
   };
 }
@@ -215,7 +260,7 @@ async function createSheetAndFolder(ids, company) {
           authentication: 'predefinedCredentialType', nodeCredentialType: 'googleSheetsOAuth2Api', sendBody: true, specifyBody: 'json',
           jsonBody: JSON.stringify({ requests: [{ setDataValidation: { range: { sheetId: 0, startRowIndex: 1,
             startColumnIndex: SHEET_COLUMNS.indexOf('Send Email?'), endColumnIndex: SHEET_COLUMNS.indexOf('Send Email?') + 1 },
-            rule: { condition: { type: 'BOOLEAN' }, showCustomUi: true } } }] }), options: {} },
+            rule: { condition: { type: 'BOOLEAN' }, showCustomUi: true } } }].concat(styleRequests(LOG_TAB_ID)) }), options: {} },
         credentials: { googleSheetsOAuth2Api: { id: ids.SHEETS, name: CRED_NAMES.SHEETS } } },
       { id: 'h3', name: 'Create folder', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [440, 0], onError: 'continueRegularOutput',
         parameters: { method: 'POST', url: 'https://www.googleapis.com/drive/v3/files', authentication: 'predefinedCredentialType',

@@ -143,8 +143,12 @@ test('location: in-city first, same country next, other countries removed', asyn
     ['Unknown LI', 6, '', 'https://in.linkedin.com/in/e'], ['SO global', 9, '', 'https://stackoverflow.com/users/1/f']]
     .map(([n, f, l, u]) => ({ candidate_name: n, fit_score: f, location: l, profile_url: u }));
   const out = await runNode('Location Check & Rank', rows, { 'Search Criteria': [criteria()] });
-  assert.deepEqual(out.map((x) => x.candidate_name), ['BLR dev', 'Unknown LI', 'Mumbai dev']);
-  assert.equal(out[0].location_dropped_total, 3);
+  // only the people clearly in another country are removed; unknown-city people stay, labelled
+  assert.deepEqual(out.map((x) => x.candidate_name), ['BLR dev', 'Unknown LI', 'Mumbai dev', 'SO global']);
+  assert.equal(out[0].location_dropped_total, 2);
+  assert.equal(out[0].location_review, '✅ In Bangalore');
+  assert.match(out[2].location_review, /^🟡 India - other city/);
+  assert.match(out[3].location_review, /Review: Stack Overflow can't filter by location/);
 });
 
 test('no city requested -> nobody removed', async () => {
@@ -271,12 +275,53 @@ test('UAT: no city-profile query without a city, or when those sources are not t
   assert.ok(!notTicked.some((x) => x.kind === 'city-profiles'));
 });
 
-test('UAT: a Kaggle / Stack Overflow person whose profile shows the city is kept; unknown location still dropped', async () => {
+test('UAT: Kaggle / Stack Overflow people are kept: in-city first, unknown location flagged for review', async () => {
   const rows = [['Kaggle BLR', 8, 'Bengaluru, Karnataka, India', 'https://www.kaggle.com/someone'],
     ['SO BLR', 7, 'Bangalore', 'https://stackoverflow.com/users/42/x'], ['Kaggle unknown', 9, '', 'https://www.kaggle.com/other']]
     .map(([n, f, l, u]) => ({ candidate_name: n, fit_score: f, location: l, profile_url: u }));
   const out = await runNode('Location Check & Rank', rows, { 'Search Criteria': [criteria()] });
-  assert.deepEqual(out.map((x) => x.candidate_name), ['Kaggle BLR', 'SO BLR']);
+  assert.deepEqual(out.map((x) => x.candidate_name), ['Kaggle BLR', 'SO BLR', 'Kaggle unknown']);
+  assert.match(out[2].location_review, /^⚠️ Review: Kaggle/);
+});
+
+test('recruiter rule: city unknown but country known -> kept, sheet shows the country', async () => {
+  const rows = [{ candidate_name: 'Country only', fit_score: 8, location: 'Karnataka, India', profile_url: 'https://in.linkedin.com/in/x' },
+    { candidate_name: 'Elsewhere', fit_score: 9, location: 'Toronto, Canada', profile_url: 'https://in.linkedin.com/in/y' }];
+  const out = await runNode('Location Check & Rank', rows, { 'Search Criteria': [criteria()] });
+  assert.deepEqual(out.map((x) => x.candidate_name), ['Country only']);
+  assert.equal(out[0].location_review, '🟡 India - city not listed');
+});
+
+test('sheet: each search starts with one REQ row above its results', async () => {
+  const items = [{ candidate_name: 'A', is_new: true, search_geography: 'Bangalore, India' }, { candidate_name: 'B', is_new: false, search_geography: 'Bangalore, India' }];
+  const out = await runNode('Add Req Header', items, { 'Search Criteria': [criteria({ 'Target Role': 'Senior Machine Learning Engineer', 'Target Platforms': ['LinkedIn', 'Kaggle'] })] });
+  assert.equal(out.length, 3);
+  assert.equal(out[0].rank, 'REQ');
+  assert.match(out[0].candidate_name, /Senior Machine Learning Engineer/);
+  assert.equal(out[0].current_role, 'Bangalore, India');
+  assert.match(out[0].match_summary, /LinkedIn, Kaggle\. 1 candidate\(s\) listed below; 1 already in the sheet/);
+  assert.match(out[0].dedupe_key, /^REQ\|/);
+  assert.deepEqual(out.slice(1).map((x) => x.candidate_name), ['A', 'B']);
+  assert.deepEqual(await runNode('Add Req Header', [], { 'Search Criteria': [criteria()] }), []);
+});
+
+test('sheet: Search Geography shows what the recruiter searched (city + region, no repeats)', async () => {
+  const [row] = await runNode('Parse Contact', [{}], { 'Attach Resume': [Object.assign({}, baseCand)], 'Save CV to Drive': [{}], 'Search Criteria': [criteria({ 'Search Region': 'India' })] });
+  assert.equal(row.search_geography, 'Bangalore, India');
+  const [g] = await runNode('Parse Contact', [{}], { 'Attach Resume': [Object.assign({}, baseCand)], 'Save CV to Drive': [{}], 'Search Criteria': [criteria({ Location: '', 'Search Region': 'Global (all regions)' })] });
+  assert.equal(g.search_geography, 'Global');
+});
+
+test('sheet: same person, same req -> their row is updated; different req -> a new row in that req block', async () => {
+  const cand = { dedupe_key: 'url:https://github.com/ravik', search_role: 'Backend Engineer', search_location: 'Bangalore', profile_url: 'https://github.com/ravik' };
+  const sheet = [{ 'Dedupe Key': 'url:https://github.com/ravik', 'Search Role': 'Backend Engineer', 'Search Location': 'Bangalore', 'Send Email?': 'TRUE', 'Pipeline Status': 'Shortlisted' }];
+  const [same] = await runNode('Merge CRM State', [cand], { 'Load CRM Rows': sheet });
+  assert.equal(same.is_new, false);
+  assert.equal(same.send_email, 'TRUE');
+  assert.equal(same.dedupe_key, 'url:https://github.com/ravik', 'keeps the existing row key so the row is updated in place');
+  const [other] = await runNode('Merge CRM State', [Object.assign({}, cand, { search_role: 'Data Engineer' })], { 'Load CRM Rows': sheet });
+  assert.equal(other.is_new, true);
+  assert.match(other.dedupe_key, /\|req:data engineer@bangalore$/);
 });
 
 test('UAT: a long PDF that only mentions the name in its text is not their resume', async () => {

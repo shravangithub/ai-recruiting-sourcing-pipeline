@@ -1094,3 +1094,174 @@ def apply_round12(nodes, conns):
       "    const extra = words.length > take ? words.slice(0, -take) : [];")
     p["jsCode"] = s
     return nodes, conns
+
+
+# ======================================================================
+# Round 13 (recruiter feedback): never drop a candidate just because their
+# city is unknown; say what we know (country) or flag them for review when the
+# platform can't filter by location. Each search gets a "REQ" header row above
+# its results, a "Search Geography" column, and a "Location Review" column the
+# sheet colours by value.
+# ======================================================================
+SHEET_COLUMNS_V2 = ['Rank', 'Name', 'Role', 'Fit Score', 'Summary', 'Key Skills', 'Verified Gender', 'Current Company',
+                    'Verified Title', 'Location', 'Location Review', 'Email', 'Phone', 'GitHub', 'Work History', 'Education',
+                    'LinkedIn', 'Resume Link', 'Date Added', 'Source Platform', 'Resume Source', 'Contact Source',
+                    'Search Role', 'Search Location', 'Search Geography', 'Pipeline Status', 'Outreach Status',
+                    'Dedupe Key', 'Send Email?', 'Confidence', 'Profile URL']
+
+LOCATION_DECIDE = r"""
+// Final step before the sheet: decide where each person is and set the final rank
+// across ALL sources. Only people CLEARLY in another country are removed; anyone
+// whose city isn't known stays, labelled with what we do know.
+const form = $('Search Criteria').first().json;
+const wanted = String(form['Location'] || '').split('-')[0].trim();
+const wantAliases = aliasesFor(wanted);
+const wantCountry = countryOf(wanted) || countryOf(form['Search Region'] || '');
+const titleCase = function(s){ return String(s || '').replace(/\b\w/g, function(ch){ return ch.toUpperCase(); }); };
+// sources whose own search cannot filter by city (Google results from them carry the city in the snippet)
+const GLOBAL_SOURCES = [['stackoverflow.com','Stack Overflow'], ['gitlab.com','GitLab'], ['dev.to','Dev.to'], ['huggingface.co','Hugging Face'],
+  ['kaggle.com','Kaggle'], ['ycombinator.com','Hacker News'], ['reddit.com','Reddit']];
+const kept = [];
+let dropped = 0;
+$input.all().forEach(function(it, idx) {
+  const c = Object.assign({}, it.json);
+  const url = String(c.profile_url || '').toLowerCase();
+  const locText = [c.location, c.candidate_location].filter(Boolean).join(' | ');
+  if (!c.location && c.candidate_location) c.location = c.candidate_location;
+  const gs = GLOBAL_SOURCES.find(function(g){ return url.indexOf(g[0]) !== -1; });
+  let tier = 0, label = '', review = '';
+  if (wanted) {
+    const lt = ' ' + locText.toLowerCase() + ' ';
+    const inCity = !!locText && wantAliases.some(function(a){ return lt.indexOf(a) !== -1; });
+    const country = locText ? countryOf(locText) : '';
+    const otherCity = !!locText && CITY_ALIASES.some(function(g){ return g !== wantAliases && g.some(function(a){ return a.length > 3 && lt.indexOf(a) !== -1; }); });
+    if (inCity) { tier = 0; label = 'in ' + wanted; review = '✅ In ' + wanted; }
+    else if (wantCountry && country && country !== wantCountry) { tier = 9; }
+    else if (country) { tier = 2; label = 'same country, different city';
+      review = '🟡 ' + titleCase(country) + (otherCity ? ' - other city' : ' - city not listed'); }
+    else if (gs) { tier = 3; label = 'location unknown';
+      review = '⚠️ Review: ' + gs[1] + " can't filter by location - check profile"; }
+    else { tier = 1; label = 'location unknown';
+      review = '🟡 Location not on profile (found by ' + wanted + ' search)'; }
+  }
+  if (tier === 9) { dropped++; return; }
+  c.location_tier = tier;
+  c.location_check = label;
+  c.location_review = review;
+  kept.push({ json: c, pairedItem: { item: idx } });
+});
+kept.sort(function(a, b) {
+  if (a.json.location_tier !== b.json.location_tier) return a.json.location_tier - b.json.location_tier;
+  return (Number(b.json.fit_score) || 0) - (Number(a.json.fit_score) || 0);
+});
+kept.forEach(function(k, i) { k.json.rank = i + 1; k.json.location_dropped_total = dropped; });
+return kept;
+"""
+
+CRM_MATCH_V2 = r"""const cand = $json;
+// One row per person PER REQ: the same person found for a different role or city
+// gets their own row under that req's header.
+function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+const reqOf = function(role, loc) { return '|req:' + norm(role) + '@' + norm(loc); };
+const baseKey = norm(cand.dedupe_key);
+const key = baseKey ? baseKey + reqOf(cand.search_role, cand.search_location) : '';
+const liKey = String(cand.verified_linkedin || cand.profile_url || '').toLowerCase().trim();
+let rows = [];
+try { rows = $('Load CRM Rows').all().map(function(i){ return i.json; }); } catch (e) { rows = []; }
+const sameReq = function(r) { return norm(r['Search Role']) === norm(cand.search_role) && norm(r['Search Location']) === norm(cand.search_location); };
+let existing = null;
+for (const r of rows) {
+  const rk = norm(r['Dedupe Key']);
+  if (key && rk && (rk === key || (rk === baseKey && sameReq(r)))) { existing = r; break; }
+}
+if (!existing && liKey) {
+  for (const r of rows) {
+    const rli = String(r['LinkedIn'] || '').toLowerCase().trim();
+    if (rli && rli === liKey && sameReq(r)) { existing = r; break; }
+  }
+}
+const merged = Object.assign({}, cand);
+merged.dedupe_key = existing ? String(existing['Dedupe Key']) : key;
+if (existing) {"""
+
+REQ_HEADER = r"""
+// One "REQ" row above each search's results, so every search reads as a block:
+// what was searched, where, when, and how many people are listed below it.
+const items = $input.all();
+if (!items.length) return [];
+const f = $('Search Criteria').first().json;
+const role = f['Target Role'] || 'Search';
+const geo = items[0].json.search_geography || 'Global';
+let platforms = f['Target Platforms'];
+if (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',') : [];
+const fresh = items.filter(function(i){ return i.json.is_new !== false; }).length;
+const refreshed = items.length - fresh;
+const when = $now.toFormat('dd LLL yyyy, HH:mm');
+const header = {
+  rank: 'REQ',
+  candidate_name: '📋 ' + role,
+  current_role: geo,
+  fit_score: '',
+  match_summary: 'Searched ' + when + ' on ' + (platforms.map(function(p){ return String(p).trim(); }).filter(Boolean).join(', ') || 'all sources') +
+    '. ' + fresh + ' candidate(s) listed below' + (refreshed ? '; ' + refreshed + ' already in the sheet from an earlier run of this req were refreshed in place.' : '.'),
+  location: '', location_review: '', search_role: role, search_location: f['Location'] || '', search_geography: geo,
+  date_added: $now.toFormat('yyyy-MM-dd HH:mm'), pipeline_status: 'Req', outreach_status: '', send_email: 'FALSE',
+  dedupe_key: 'REQ|' + $execution.id, profile_url: '', source_platform: '', confidence: ''
+};
+return [{ json: header, pairedItem: { item: 0 } }].concat(items.map(function(it, i){ return { json: it.json, pairedItem: { item: i } }; }));
+"""
+
+GEOGRAPHY_JS = ("\nmerged.search_geography = (function(){ const f = $('Search Criteria').first().json; "
+                "const parts = [String(f['Location'] || '').trim(), String(f['Search Region'] || '').replace(/\\s*\\(.*\\)\\s*/, '').trim()]"
+                ".filter(function(p){ return p && !/^global|^all/i.test(p); }); "
+                "const out = []; parts.forEach(function(p){ if (!out.some(function(o){ return o.toLowerCase() === p.toLowerCase(); })) out.push(p); }); "
+                "return out.length ? out.join(', ') : 'Global'; })();\n")
+
+
+def apply_round13(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(text, old, new):
+        assert old in text, "round13: anchor not found: " + old[:80]
+        return text.replace(old, new, 1)
+
+    # 1. location decision: keep unknown-city people, label them
+    lc = N["Location Check & Rank"]["parameters"]
+    i = lc["jsCode"].index("// Final step before the sheet")
+    lc["jsCode"] = lc["jsCode"][:i] + LOCATION_DECIDE.lstrip()
+
+    # 2. geography searched, on every row
+    pc = N["Parse Contact"]["parameters"]
+    pc["jsCode"] = R(pc["jsCode"], "merged.pipeline_status = 'Sourced';", GEOGRAPHY_JS + "merged.pipeline_status = 'Sourced';")
+
+    # 3. one row per person per req
+    cm = N["Merge CRM State"]["parameters"]
+    head, tail = cm["jsCode"].split("if (existing) {", 1)
+    cm["jsCode"] = CRM_MATCH_V2 + tail
+
+    # 4. REQ header row before each search's rows
+    ap = N["Append row in sheet"]
+    nodes.append(_node("Add Req Header", "n8n-nodes-base.code", 2, [ap["position"][0] - 120, ap["position"][1] - 160], {"jsCode": REQ_HEADER}))
+    mc = conns["Merge CRM State"]["main"][0]
+    conns["Merge CRM State"]["main"][0] = [t for t in mc if t["node"] != "Append row in sheet"] + [{"node": "Add Req Header", "type": "main", "index": 0}]
+    conns["Add Req Header"] = {"main": [[{"node": "Append row in sheet", "type": "main", "index": 0}]]}
+
+    # 5. sheet columns
+    cols = ap["parameters"]["columns"]
+    cols["value"]["Location"] = "={{ $json.location || '' }}"
+    cols["value"]["Location Review"] = "={{ $json.location_review || '' }}"
+    cols["value"]["Search Geography"] = "={{ $json.search_geography || '' }}"
+    have = {s["id"] for s in cols["schema"]}
+    for c in ["Location Review", "Search Geography", "Profile URL"]:
+        if c not in have:
+            cols["schema"].append({"id": c, "displayName": c, "required": False, "defaultMatch": False, "display": True,
+                                   "type": "string", "canBeUsedToMatch": True, "removed": False})
+    cols["schema"].sort(key=lambda s: SHEET_COLUMNS_V2.index(s["id"]) if s["id"] in SHEET_COLUMNS_V2 else 99)
+
+    # 6. the checkbox column moved
+    tb = N["Tick Boxes"]["parameters"]
+    body = json.loads(tb["jsonBody"])
+    idx = SHEET_COLUMNS_V2.index("Send Email?")
+    body["requests"][0]["setDataValidation"]["range"].update({"startColumnIndex": idx, "endColumnIndex": idx + 1})
+    tb["jsonBody"] = json.dumps(body)
+    return nodes, conns
