@@ -1683,37 +1683,40 @@ def apply_round18(nodes, conns):
 # ======================================================================
 FORM_CSS = r"""
 :root { --ink:#161A2E; --muted:#5B6178; --line:#D3D6E2; --soft:#EEF0FD; --accent:#3B4BD6; --accent-dark:#2A37A8; --bg:#F4F5F9; }
-body { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
-.container { padding: 40px 16px; }
-.card { max-width: 720px; margin: 0 auto; border: 1px solid #E3E5EE; border-radius: 18px; box-shadow: none; padding: 36px 40px; }
+body { background: var(--bg) !important; color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.container { max-width: 760px !important; width: 100% !important; box-sizing: border-box; margin: 0 auto; padding: 40px 16px; }
+.card { width: 100%; box-sizing: border-box; border: 1px solid #E3E5EE; border-radius: 18px; box-shadow: none; padding: 36px 40px; }
 .form-header { text-align: left; margin-bottom: 8px; }
-.form-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-align: left; }
+.form-header h1, h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-align: left; }
 .form-header p { font-size: 15px; line-height: 1.55; color: var(--muted); text-align: left; }
 .form-group { margin-bottom: 22px; }
 .form-label, label { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }
 input[type=text], input[type=email], input[type=number], textarea, select {
   width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
-  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; }
+  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; font-family: inherit !important; }
 input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,75,214,.15); outline: none; }
 textarea { min-height: 110px; line-height: 1.5; resize: vertical; }
-::placeholder { color: #8A8FA5; }
-.tr-tip { margin: 0 0 4px; padding: 12px 14px; border-radius: 10px; background: var(--soft); color: #2A3170; font-size: 13.5px; line-height: 1.55; }
-.tr-tip b { color: var(--accent-dark); }
-.tr-sec { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid #EEF0F5; font-size: 13px; font-weight: 700;
+::placeholder { color: #8A8FA5; font-family: inherit; }
+/* html blocks: a tip (has bold text) or a section heading */
+.form-group.html div:has(b) { padding: 12px 14px; border-radius: 10px; background: var(--soft); color: #2A3170; font-size: 13.5px; line-height: 1.55; }
+.form-group.html div:has(b) b { color: var(--accent-dark); }
+.form-group.html div:not(:has(b)) { margin-top: 10px; padding-top: 18px; border-top: 1px solid #EEF0F5; font-size: 13px; font-weight: 700;
   letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.form-group.html { margin-bottom: 10px; }
 /* sources as tiles */
 .multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px;
-  border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }
+.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px; margin: 0;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; min-width: 0; }
 .multiselect-option:has(input:checked) { border: 2px solid var(--accent); background: #F7F8FF; }
-.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
-.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; }
-button[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent); color: #fff;
+.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; color: var(--ink); overflow-wrap: anywhere; }
+button, button[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent) !important; color: #fff;
   font-size: 16px; font-weight: 700; cursor: pointer; }
-button[type=submit]:hover { background: var(--accent-dark); }
+button:hover { background: var(--accent-dark) !important; }
+.n8n-link { display: none !important; }
 @media (max-width: 640px) {
   .card { padding: 24px 18px; border-radius: 14px; }
-  .form-header h1 { font-size: 26px; }
+  .form-header h1, h1 { font-size: 26px; }
   .multiselect { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 """
@@ -1754,7 +1757,7 @@ def _tx(name, label, default, placeholder=""):
 PAGE2_FIELDS = [
     {"fieldType": "html", "elementName": "s_role", "html": "<div class=\"tr-sec\">Role</div>"},
     _tx("role", "Job title", "={{ $json['Target Role'] || '' }}", "e.g. Backend Engineer"),
-    _dd("similar", "Include similar titles", ["Yes", "No"], "={{ /^no$/i.test($json['Expand Job Title Synonyms'] || '') ? 'No' : 'Yes' }}"),
+    _dd("similar", "Include similar titles (recommended)", ["Yes", "No"], "Yes"),
     _dd("experience", "Experience", ["Any", "0-2 years", "3-5 years", "5-8 years", "8+ years"],
         "={{ ['0-2 years','3-5 years','5-8 years','8+ years'].includes($json['Experience Range (Years)']) ? $json['Experience Range (Years)'] : 'Any' }}"),
     {"fieldType": "html", "elementName": "s_skills", "html": "<div class=\"tr-sec\">Skills</div>"},
@@ -1802,7 +1805,7 @@ return [{ json: {
   'Current Employer': String(val('employer', 'Current employer') || '').trim(),
   'Keywords to Exclude': String(val('exclude', 'Exclude words') || '').trim(),
   'Education': val('education', 'Education') || 'Any',
-  'Expand Job Title Synonyms': val('similar', 'Include similar titles') || 'Yes',
+  'Expand Job Title Synonyms': val('similar', 'Include similar titles (recommended)') || 'Yes',
   'Experience Range (Years)': val('experience', 'Experience') || 'Any',
   'Gender Preference': val('gender', 'Gender preference') || 'Any',
   'Target Platforms': platforms,
@@ -1862,6 +1865,7 @@ def apply_round19(nodes, conns):
     tp["options"]["buttonLabel"] = "Next: check the search"
     tp["options"]["customCss"] = FORM_CSS
     tp["options"].pop("respondWithOptions", None)
+    tp["options"]["appendAttribution"] = False
     N["Parse NL Search"]["parameters"]["responses"]["values"][0]["content"] = N["Parse NL Search"]["parameters"]["responses"]["values"][0]["content"].replace(
         "json['Natural Language Search']", "json['Brief']")
     R("Prep JD", "json['Job Description']", "json['Job description']")
