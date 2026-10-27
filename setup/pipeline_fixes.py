@@ -1617,3 +1617,51 @@ def apply_round17(nodes, conns):
     assert old_base in g["jsCode"], "round17: GH base anchor missing"
     g["jsCode"] = g["jsCode"].replace(old_base, "const base = lang ? 'language:' + lang + ' repos:>3' : 'repos:>5 followers:>10';", 1)
     return nodes, conns
+
+
+# ======================================================================
+# Round 18 (after the channel-by-channel test):
+# - Ticking one platform now searches only that platform. LinkedIn + GitHub
+#   are added only when nothing is ticked.
+# - Google Sheets calls retry on "too many requests" (several searches at
+#   once hit the Sheets rate limit and one run wrote nothing).
+# - X / Dribbble / Behance / Reddit and Kaggle / SO / HF / GitLab get a second,
+#   differently-worded Google query (role vs skills), since few profiles on
+#   these sites carry both the title and the skill words.
+# ======================================================================
+def apply_round18(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round18 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    # 1. only what was ticked
+    sc = N["Search Criteria"]["parameters"]["jsCode"]
+    i = sc.index("// LinkedIn and GitHub are the core people sources: always include them")
+    j = sc.index("platforms.push(must); });", i) + len("platforms.push(must); });")
+    N["Search Criteria"]["parameters"]["jsCode"] = sc[:i] + "// only the platforms the recruiter ticked (LinkedIn + GitHub when none were ticked)" + sc[j:]
+
+    # 2. Sheets: retry on rate limits
+    for n in nodes:
+        if n["type"].endswith("googleSheets"):
+            n["retryOnFail"] = True
+            n["maxTries"] = 5
+            n["waitBetweenTries"] = 5000
+
+    # 3. second wording for the low-yield sites
+    R("Build Search Query",
+      """    [orOf(otherSites)], roleOpts, locOpts, skillsDrop, exclOpts, ['-inurl:jobs', '']]) });
+}""",
+      """    [orOf(otherSites)], roleOpts, locOpts, skillsDrop, exclOpts, ['-inurl:jobs', '']]) });
+  // people on these sites often show only a title or only their skills
+  queries.push({ kind: 'profiles', pages: 1, q: fit([[orOf(otherSites)], roleOpts, locOpts, exclOpts]) });
+  if (skillArr.length || skillRawBool) queries.push({ kind: 'profiles', pages: 1, q: fit([[orOf(otherSites)], skillOpts, locOpts, exclOpts]) });
+}""")
+    R("Build Search Query",
+      """  queries.push({ kind: 'city-profiles', pages: 2, q: fit([[orOf(citySites)], locOpts, topic, exclOpts, notProfiles]) });""",
+      """  queries.push({ kind: 'city-profiles', pages: 2, q: fit([[orOf(citySites)], locOpts, topic, exclOpts, notProfiles]) });
+  // and once by job title, for profiles that don't list the skill words
+  if (topic !== roleOpts && roleOpts.length) queries.push({ kind: 'city-profiles', pages: 1, q: fit([[orOf(citySites)], locOpts, roleOpts, exclOpts, notProfiles]) });""")
+    return nodes, conns

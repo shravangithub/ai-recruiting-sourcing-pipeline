@@ -32,7 +32,7 @@ test('B: filled fields override the brief; dropdown + typed skills merge without
   assert.equal(c['Location'], 'Chennai');
   assert.equal(c['Primary Skills'], 'Java, Kafka, gRPC');
   assert.equal(c['Experience Range (Years)'], '3-5 years');
-  assert.deepEqual(c['Target Platforms'], ['Stack Overflow', 'LinkedIn', 'Github']);
+  assert.deepEqual(c['Target Platforms'], ['Stack Overflow'], 'only what was ticked');
 });
 
 test('AI parser failure does not break the search (falls back to the form)', async () => {
@@ -260,7 +260,7 @@ test('UAT: Kaggle / Stack Overflow / Hugging Face are searched by city through G
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior Machine Learning Engineer', 'Primary Skills': 'Python, PyTorch',
     'Target Platforms': ['LinkedIn', 'Kaggle', 'Stack Overflow', 'Hugging Face'] })] });
   const city = q.filter((x) => x.kind === 'city-profiles');
-  assert.equal(city.length, 2, 'two pages');
+  assert.equal(city.length, 3, 'skills query x2 pages + title query x1');
   assert.match(city[0].q, /site:kaggle\.com/);
   assert.match(city[0].q, /site:stackoverflow\.com\/users/);
   assert.match(city[0].q, /bengaluru/i);
@@ -385,7 +385,7 @@ test('GitLab is searched through Google (its API only matches usernames)', async
   assert.deepEqual(await runNode('Build GitLab Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['GitLab'] })] }), []);
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn', 'GitLab'] })] });
   const g = q.filter((x) => x.kind === 'city-profiles');
-  assert.equal(g.length, 2);
+  assert.equal(g.length, 3);
   assert.match(g[0].q, /site:gitlab\.com/);
   assert.match(g[0].q, /-inurl:issues/);
   const noCity = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ Location: '', 'Target Platforms': ['GitLab'] })] });
@@ -463,4 +463,30 @@ test('R17: GitHub runs for DevOps skills and falls back when there is no languag
   assert.equal(pe[0].gh_query, 'repos:>5 followers:>10 location:pune');
   const pm = await runNode('Build GH Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager', 'Key Skills & Criteria': 'Roadmaps, Stakeholders', Location: 'Pune' })] });
   assert.deepEqual(pm, [], 'non-technical roles still skip GitHub');
+});
+
+// ------------------------------------------------------------ Round 18
+test('R18: ticking one platform searches only that platform; none ticked -> LinkedIn + GitHub', async () => {
+  const [one] = await runNode('Search Criteria', [{}], {
+    'On form submission': [Object.assign({}, formBase, { '1) Target Role': 'Backend Engineer', '3) Location': 'Pune', '11) Target Platforms': ['Kaggle'] })],
+    'Parse NL Search': [nl({})] });
+  assert.deepEqual(one['Target Platforms'], ['Kaggle']);
+  const [none] = await runNode('Search Criteria', [{}], {
+    'On form submission': [Object.assign({}, formBase, { '1) Target Role': 'Backend Engineer', '3) Location': 'Pune' })],
+    'Parse NL Search': [nl({})] });
+  assert.deepEqual(none['Target Platforms'], ['LinkedIn', 'Github']);
+});
+
+test('R18: X/Reddit and Kaggle-type sites get title and skill variants, all within 32 words', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria(Object.assign({}, LONG, { 'Target Platforms': ['X (Twitter)', 'Hugging Face'] }))] });
+  const other = [...new Set(q.filter((x) => /site:x\.com/.test(x.q)).map((x) => x.q))];
+  assert.equal(other.length, 3);
+  const city = [...new Set(q.filter((x) => x.kind === 'city-profiles').map((x) => x.q))];
+  assert.equal(city.length, 2);
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32);
+});
+
+test('R18: every Google Sheets step retries on rate limits', () => {
+  const { WF } = require('./harness');
+  for (const n of WF.nodes.filter((n) => n.type.endsWith('googleSheets'))) assert.equal(n.retryOnFail, true, n.name);
 });
