@@ -1428,3 +1428,192 @@ def apply_round16(nodes, conns):
     conns["Serper Retry"] = {"main": [[{"node": "Serper Pages", "type": "main", "index": 1}]]}
     conns["Serper Pages"] = {"main": [[{"node": "Wait For All Sources", "type": "main", "index": 0}]]}
     return nodes, conns
+
+
+# ======================================================================
+# Round 17 (channel-by-channel test): Google reads only the first 32 words of
+# a query. The open-web query was ~44 words, so its job-site exclusions were
+# silently ignored and half the results were job ads. Every Google query is
+# now built from prioritised parts and trimmed to 32 words (exclusions go
+# first, the site filter and the role go last). LinkedIn gets its own query
+# instead of sharing one with X / Dribbble / Behance / Reddit. Open Web runs
+# two short variants, and job-ad links are dropped after the search, which
+# costs no query words. GitHub no longer skips searches whose skills aren't a
+# programming language (DevOps: Kubernetes, Terraform, AWS).
+# ======================================================================
+QUERY_BUILD_V2 = r"""
+// ---- Every Google query must fit in 32 words (Google ignores the rest). ----
+// Parts are listed most important first; each part has richer -> leaner
+// versions. While a query is too long, the least important part shrinks first.
+const LIMIT = 32;
+function wc(s) { return String(s || '').trim().split(/\s+/).filter(Boolean).length; }
+function fit(parts) {
+  const idx = parts.map(function(){ return 0; });
+  const make = function(){ return parts.map(function(p, i){ return p[idx[i]]; }).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(); };
+  let s = make();
+  while (wc(s) > LIMIT) {
+    let moved = false;
+    for (let i = parts.length - 1; i >= 0; i--) { if (idx[i] < parts[i].length - 1) { idx[i]++; moved = true; break; } }
+    if (!moved) break;
+    s = make();
+  }
+  return s;
+}
+function orOf(list) { list = list.filter(Boolean); if (!list.length) return ''; return list.length > 1 ? '(' + list.join(' OR ') + ')' : list[0]; }
+function shrink(list) { const out = []; for (let n = list.length; n >= 1; n--) out.push(orOf(list.slice(0, n))); return out; }
+
+// Role: core title (last two words, or three for compounds) as a phrase, the
+// rest as required words, plus at most two synonyms of the core title.
+let roleRaw = '', roleVariants = [], roleExtra = '';
+if (role) {
+  if (looksBoolean(role)) {
+    roleRaw = '(' + role + ')';
+  } else {
+    const words = role.toLowerCase().split(/\s+/).filter(Boolean);
+    const COMPOUND = /^(machine learning|deep learning|site reliability|full stack|data science|human resources|talent acquisition|business development|customer success|quality assurance|product marketing|technical program|business intelligence|natural language|computer vision)$/;
+    const take = (words.length >= 3 && (COMPOUND.test(words.slice(-3, -1).join(' ')) || synMap[words.slice(-3).join(' ')])) ? 3 : 2;
+    const core = words.length > take ? words.slice(-take).join(' ') : words.join(' ');
+    roleExtra = words.length > take ? words.slice(0, -take).join(' ') : '';
+    let variants = [core];
+    if (synMap[core] && expand !== 'no' && expand !== 'false') variants = synMap[core];
+    else if (synMap[role.toLowerCase()]) variants = synMap[role.toLowerCase()];
+    roleVariants = variants.slice(0, 3).map(function(x){ return '"' + x + '"'; });
+  }
+}
+const roleOpts = roleRaw ? [roleRaw] : shrink(roleVariants).map(function(t){ return (t + ' ' + roleExtra).trim(); });
+const roleShort = roleOpts[roleOpts.length - 1] || '';
+
+// Skills: must-haves only (secondary skills are used for ranking, not search);
+// a skill already in the role words isn't repeated.
+let skillArr = [];
+let skillRawBool = '';
+const skillSrc = String(form['Primary Skills'] || '') || String(skillsRaw || '');
+if (looksBoolean(skillSrc)) skillRawBool = '(' + skillSrc.trim() + ')';
+else {
+  const rl = role.toLowerCase();
+  skillArr = skillSrc.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s && rl.indexOf(s.toLowerCase()) === -1; }).slice(0, 3).map(q);
+}
+const skillOpts = skillRawBool ? [skillRawBool] : (skillArr.length ? shrink(skillArr) : ['']);
+const skillsDrop = skillOpts.concat(['']);
+
+const excludes = String(excludeRaw).split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+const exclOpts = excludes.length ? [excludes.map(function(s){ return '-' + q(s); }).join(' '), excludes.slice(0, 2).map(function(s){ return '-' + q(s); }).join(' '), ''] : [''];
+const employerOpts = employer ? [q(employer), ''] : [''];
+
+const eduMap = {
+  'bachelors / degree': ['bachelor','"b.tech"','degree'],
+  'masters': ['masters','"m.tech"','msc'],
+  'phd': ['phd','doctorate'],
+  'mba': ['mba']
+};
+let eduOpts = [''];
+if (education && !/^any$/i.test(education)) {
+  const v = eduMap[education.toLowerCase()];
+  eduOpts = v ? shrink(v).concat(['']) : [q(education), ''];
+}
+
+// Location: city + its aliases (Bangalore OR Bengaluru), trimmed to the city alone if needed
+const locList = aliasesFor(loc).filter(function(a){ return a.length > 3; }).map(q);
+const locOpts = locList.length ? shrink(locList.slice(0, 3)) : (loc ? [q(loc.toLowerCase())] : ['']);
+
+let platforms = form['Target Platforms'];
+if (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
+const has = function(re){ return platforms.some(function(pl){ return re.test(String(pl)); }); };
+const otherSites = [];
+if (has(/twitter|^x\b/i)) otherSites.push('site:x.com', 'site:twitter.com');
+if (has(/dribbble/i)) otherSites.push('site:dribbble.com');
+if (has(/behance/i)) otherSites.push('site:behance.net');
+if (has(/reddit/i)) otherSites.push('site:reddit.com/r/forhire', 'site:reddit.com/user');
+const openWeb = has(/google|open web/i);
+
+const regionMap = {
+  'india':'in','united states':'us','usa':'us','us':'us','united kingdom':'gb','uk':'gb','canada':'ca','australia':'au',
+  'germany':'de','france':'fr','netherlands':'nl','singapore':'sg','united arab emirates':'ae','uae':'ae','dubai':'ae',
+  'ireland':'ie','spain':'es','italy':'it','japan':'jp','brazil':'br','saudi arabia':'sa'
+};
+const regionRaw = String(form['Search Region'] || '').trim();
+let gl = '';
+if (regionRaw && !/^global|^all/i.test(regionRaw)) gl = regionMap[regionRaw.toLowerCase().replace(/\s*\(.*\)\s*/, '').trim()] || '';
+if (!gl) { const c = countryOf(loc); const byCountry = {'india':'in','united states':'us','united kingdom':'gb','singapore':'sg','united arab emirates':'ae','germany':'de','netherlands':'nl','canada':'ca','australia':'au'}; gl = byCountry[c] || ''; }
+
+const queries = [];
+// 1) LinkedIn profiles - its own query so other sites don't crowd it out
+if (has(/linkedin/i)) {
+  queries.push({ kind: 'profiles', pages: 3, q: fit([
+    ['site:linkedin.com/in'], roleOpts, locOpts, skillOpts,
+    employerOpts, eduOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });
+}
+// 2) X / Dribbble / Behance / Reddit profiles
+if (otherSites.length) {
+  queries.push({ kind: 'profiles', pages: 2, q: fit([
+    [orOf(otherSites)], roleOpts, locOpts, skillsDrop, exclOpts, ['-inurl:jobs', '']]) });
+}
+// 3) Open web: personal sites, CVs and portfolios. Two short variants; job
+// pages are also removed after the search (Merge Pages), which costs no words.
+if (openWeb) {
+  const noise = ['-inurl:jobs -inurl:careers -inurl:job -"apply now" -hiring', '-inurl:jobs -inurl:careers', ''];
+  queries.push({ kind: 'open-web', pages: 2, q: fit([
+    [roleShort ? roleOpts[0] : ''], ['(resume OR cv OR "curriculum vitae")'], locOpts, skillsDrop, exclOpts, noise]) });
+  queries.push({ kind: 'open-web', pages: 2, q: fit([
+    [roleShort ? roleOpts[0] : ''], ['("about me" OR portfolio OR site:github.io)'], locOpts, skillsDrop, exclOpts, noise]) });
+}
+// 4) Kaggle / Stack Overflow / Hugging Face (by city) and GitLab (always) through Google
+const cityPlatforms = { 'Kaggle': 'site:kaggle.com', 'Stack Overflow': 'site:stackoverflow.com/users', 'Hugging Face': 'site:huggingface.co', 'GitLab': 'site:gitlab.com' };
+const citySites = platforms.filter(function(pl){ return cityPlatforms[pl]; }).map(function(pl){ return cityPlatforms[pl]; });
+if (citySites.length && (locList.length || loc || citySites.indexOf('site:gitlab.com') !== -1)) {
+  const topic = skillArr.length || skillRawBool ? skillOpts : roleOpts;
+  const notProfiles = ['-inurl:datasets -inurl:discussion -inurl:competitions -inurl:models -inurl:spaces -inurl:questions -inurl:issues -inurl:merge_requests -inurl:-/',
+    '-inurl:datasets -inurl:discussion -inurl:questions -inurl:issues', ''];
+  queries.push({ kind: 'city-profiles', pages: 2, q: fit([[orOf(citySites)], locOpts, topic, exclOpts, notProfiles]) });
+}
+const out = [];
+for (const qq of queries) {
+  if (wc(qq.q) > LIMIT) throw new Error('query over ' + LIMIT + ' words: ' + qq.q);
+  for (let pg = 1; pg <= qq.pages; pg++) {
+    const body = { q: qq.q, page: pg, num: 10 };
+    if (gl) body.gl = gl;
+    out.push({ json: { q: qq.q, kind: qq.kind, page: pg, gl: gl || 'global', words: wc(qq.q), serper_body: body, platforms_used: qq.kind } });
+  }
+}
+// keep the pipeline flowing even when no web platform was ticked
+if (!out.length) return [];
+return out;
+"""
+
+JOB_AD_FILTER = r"""
+// Job ads, job boards and document dumps are never candidates: drop them here
+// (after the search) instead of spending Google's 32 query words on exclusions.
+const JOB_AD = /myworkdayjobs|greenhouse\.io|lever\.co|smartrecruiters|\/\/careers?\.|\/careers?\/|\/jobs?\/|\/job-|naukri\.com|indeed\.|glassdoor\.|foundit\.|instahyre\.|cutshort\.io|wellfound\.com\/jobs|codingjobboard|scribd\.com|jobschat|linkedin\.com\/jobs|shine\.com|timesjobs|monsterindia|iimjobs|hirist/i;
+"""
+
+
+def apply_round17(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    p = N["Build Search Query"]["parameters"]
+    anchor = "// Role: a long exact phrase"
+    assert anchor in p["jsCode"], "round17: Build Search Query anchor missing"
+    p["jsCode"] = p["jsCode"][:p["jsCode"].index(anchor)] + QUERY_BUILD_V2.lstrip()
+
+    m = N["Merge Pages"]["parameters"]
+    old = "    if (seen[key]) continue;"
+    assert old in m["jsCode"], "round17: Merge Pages anchor missing"
+    m["jsCode"] = JOB_AD_FILTER.lstrip() + m["jsCode"].replace(
+        old, "    if (seen[key]) continue;\n    if (o && o.link && JOB_AD.test(String(o.link))) { seen[key] = true; continue; }", 1)
+
+    g = N["Build GH Query"]["parameters"]
+    old = "let lang = '';"
+    assert old in g["jsCode"], "round17: Build GH Query anchor missing"
+    g["jsCode"] = g["jsCode"].replace(
+        "const langMap = { ",
+        "const langMap = { 'terraform':'hcl','kubernetes':'go','k8s':'go','docker':'go','helm':'go','ansible':'python','aws':'python','azure':'python','gcp':'python','pytorch':'python','tensorflow':'python','spark':'scala','swiftui':'swift','android':'kotlin','flutter':'dart','dart':'dart', ", 1)
+    old_skip = "if (!lang) return [];"
+    assert old_skip in g["jsCode"], "round17: GH skip anchor missing"
+    g["jsCode"] = g["jsCode"].replace(
+        old_skip,
+        "// no language: technical roles still search active developers in the city;\n"
+        "// non-technical roles (HR, sales, PM...) skip GitHub, which would only add random developers\n"
+        "if (!lang && !/engineer|developer|devops|\\bsre\\b|architect|programmer|scientist|\\bcoder\\b/i.test(role)) return [];", 1)
+    old_base = "const base = (lang ? 'language:' + lang + ' ' : '') + 'repos:>3';"
+    assert old_base in g["jsCode"], "round17: GH base anchor missing"
+    g["jsCode"] = g["jsCode"].replace(old_base, "const base = lang ? 'language:' + lang + ' repos:>3' : 'repos:>5 followers:>10';", 1)
+    return nodes, conns

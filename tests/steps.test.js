@@ -407,3 +407,60 @@ test('an empty Google page is retried once; pages with results are not', async (
   assert.equal(out.length, 1);
   assert.deepEqual(out[0].serper_body, { q: 'site:linkedin.com/in x', num: 10, page: 1, gl: 'in' });
 });
+
+// ------------------------------------------------------------ Round 17: 32-word Google limit, job-ad filter, GitHub fallback
+const LONG = { 'Target Role': 'Senior Machine Learning Engineer', 'Primary Skills': 'Python, PyTorch, TensorFlow, Kubernetes, Spark',
+  'Key Skills & Criteria': 'Python, PyTorch, TensorFlow, Kubernetes, Spark', Location: 'Bangalore', 'Keywords to Exclude': 'intern, trainee, fresher, student',
+  'Education': 'Masters', 'Current Employer': 'Acme Analytics', 'Expand Job Title Synonyms': 'Yes',
+  'Target Platforms': ['LinkedIn', 'X (Twitter)', 'Dribbble', 'Behance', 'Reddit', 'Google / Open Web', 'Kaggle', 'Stack Overflow', 'Hugging Face', 'GitLab'] };
+const words = (s) => s.trim().split(/\s+/).length;
+
+test('R17: every Google query fits in 32 words, even for a long brief', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria(LONG)] });
+  const kinds = new Set(q.map((x) => x.kind));
+  assert.ok(kinds.has('profiles') && kinds.has('open-web') && kinds.has('city-profiles'));
+  for (const x of q) assert.ok(words(x.q) <= 32, x.kind + ' is ' + words(x.q) + ' words: ' + x.q);
+  const li = q.find((x) => /site:linkedin\.com\/in/.test(x.q)).q;
+  assert.match(li, /"machine learning engineer"/);
+  assert.match(li, /bangalore/);
+  assert.match(li, /Python/);
+  assert.ok(!/site:dribbble/.test(li), 'LinkedIn has its own query');
+  const others = q.find((x) => /site:dribbble/.test(x.q));
+  assert.ok(others && /site:behance\.net/.test(others.q) && /site:x\.com/.test(others.q));
+  assert.equal(q.filter((x) => x.kind === 'open-web').length, 4, 'two open-web variants x 2 pages');
+  const city = q.find((x) => x.kind === 'city-profiles').q;
+  assert.match(city, /site:kaggle\.com/);
+  assert.match(city, /site:gitlab\.com/);
+});
+
+test('R17: the trimming drops exclusions before role, city or site', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria(Object.assign({}, LONG, { 'Target Platforms': ['Google / Open Web'] }))] });
+  for (const x of q) {
+    assert.ok(words(x.q) <= 32);
+    assert.match(x.q, /"machine learning engineer"/);
+    assert.match(x.q, /bangalore/);
+  }
+  assert.ok(q.some((x) => /resume/.test(x.q)) && q.some((x) => /portfolio/.test(x.q)));
+});
+
+test('R17: job ads and job boards are removed from Google results', async () => {
+  const organic = [
+    { link: 'https://acme.wd102.myworkdayjobs.com/en-US/Acme/job/Senior-ML-Engineer', title: 'Senior ML Engineer' },
+    { link: 'https://careers.example.com/job/ml-engineer-bengaluru', title: 'ML Engineer' },
+    { link: 'https://www.naukri.com/machine-learning-python-jobs', title: 'jobs' },
+    { link: 'https://www.scribd.com/document/1/ML-engineer', title: 'cv' },
+    { link: 'https://janedoe.github.io/cv', title: 'Jane Doe - CV' },
+    { link: 'https://in.linkedin.com/in/jane-doe', title: 'Jane Doe - ML Engineer' },
+  ];
+  const [m] = await runNode('Merge Pages', [{ organic }]);
+  assert.deepEqual(m.organic.map((o) => o.link), ['https://janedoe.github.io/cv', 'https://in.linkedin.com/in/jane-doe']);
+});
+
+test('R17: GitHub runs for DevOps skills and falls back when there is no language', async () => {
+  const devops = await runNode('Build GH Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'DevOps Engineer', 'Key Skills & Criteria': 'Kubernetes, Terraform, AWS', Location: 'Pune' })] });
+  assert.deepEqual(devops.map((x) => x.gh_query), ['language:go repos:>3 location:pune', 'language:go repos:>3 location:pimpri']);
+  const pe = await runNode('Build GH Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Platform Engineer', 'Key Skills & Criteria': 'Observability, Incident management', Location: 'Pune' })] });
+  assert.equal(pe[0].gh_query, 'repos:>5 followers:>10 location:pune');
+  const pm = await runNode('Build GH Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager', 'Key Skills & Criteria': 'Roadmaps, Stakeholders', Location: 'Pune' })] });
+  assert.deepEqual(pm, [], 'non-technical roles still skip GitHub');
+});
