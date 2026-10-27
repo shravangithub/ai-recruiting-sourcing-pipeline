@@ -3772,6 +3772,74 @@
     3112,
     -368
    ]
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// Pages that came back empty (Google sometimes returns nothing for a valid\n// query): send them once more after a short pause.\nconst out = [];\n$input.all().forEach(function(it, i) {\n  const j = it.json || {};\n  const sp = j.searchParameters;\n  if (sp && sp.q && !(j.organic && j.organic.length)) {\n    const body = { q: sp.q, num: sp.num || 10, page: sp.page || 1 };\n    if (sp.gl) body.gl = sp.gl;\n    out.push({ json: { serper_body: body }, pairedItem: { item: i } });\n  }\n});\nreturn out;\n"
+   },
+   "id": "fix-empty-pages",
+   "name": "Empty Pages",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    792,
+    92
+   ]
+  },
+  {
+   "parameters": {
+    "resume": "timeInterval",
+    "amount": 4,
+    "unit": "seconds"
+   },
+   "id": "fix-pause-before-retry",
+   "name": "Pause Before Retry",
+   "type": "n8n-nodes-base.wait",
+   "typeVersion": 1.1,
+   "position": [
+    952,
+    92
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "=https://google.serper.dev/search",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.serper_body) }}",
+    "options": {}
+   },
+   "id": "fix-serper-retry",
+   "name": "Serper Retry",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    1112,
+    92
+   ],
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "__CRED_SERPER__",
+     "name": "Sourcing · Serper"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "numberInputs": 2
+   },
+   "id": "fix-serper-pages",
+   "name": "Serper Pages",
+   "type": "n8n-nodes-base.merge",
+   "typeVersion": 3,
+   "position": [
+    1272,
+    -48
+   ]
   }
  ],
  "connections": {
@@ -3922,7 +3990,12 @@
    "main": [
     [
      {
-      "node": "Wait For All Sources",
+      "node": "Serper Pages",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Empty Pages",
       "type": "main",
       "index": 0
      }
@@ -4865,6 +4938,50 @@
     [
      {
       "node": "Append row in sheet",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Empty Pages": {
+   "main": [
+    [
+     {
+      "node": "Pause Before Retry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Pause Before Retry": {
+   "main": [
+    [
+     {
+      "node": "Serper Retry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Serper Retry": {
+   "main": [
+    [
+     {
+      "node": "Serper Pages",
+      "type": "main",
+      "index": 1
+     }
+    ]
+   ]
+  },
+  "Serper Pages": {
+   "main": [
+    [
+     {
+      "node": "Wait For All Sources",
       "type": "main",
       "index": 0
      }

@@ -184,3 +184,10 @@ test('setup: new sheets get light, whole-row colours (requisition, in city, coun
   assert.match(JSON.stringify(rules), /Review:/);
   assert.match(handler, /concat\(styleRequests\(LOG_TAB_ID\)\)/);
 });
+
+test('Serper results and retries both reach the source merge', () => {
+  assert.deepEqual(WF.connections['Serper Search'].main[0].map((t) => t.node).sort(), ['Empty Pages', 'Serper Pages']);
+  assert.deepEqual(WF.connections['Serper Retry'].main[0], [{ node: 'Serper Pages', type: 'main', index: 1 }]);
+  assert.deepEqual(WF.connections['Serper Pages'].main[0], [{ node: 'Wait For All Sources', type: 'main', index: 0 }]);
+  assert.equal(NODES['Pause Before Retry'].parameters.unit, 'seconds');
+});

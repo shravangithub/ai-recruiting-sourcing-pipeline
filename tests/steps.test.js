@@ -399,3 +399,11 @@ test('Hacker News: city required, skills optional; candidate links to their HN p
   const [o] = await runNode('HN To Organic', [{ id: 'sagarw', about: 'DevOps', karma: 10 }], { 'HN Split Authors': [{ author: 'sagarw', objectID: '1', comment_text: 'Location: Pune, India. Kubernetes, AWS' }] });
   assert.equal(o.organic[0].link, 'https://news.ycombinator.com/user?id=sagarw');
 });
+
+test('an empty Google page is retried once; pages with results are not', async () => {
+  const pages = [{ searchParameters: { q: 'site:linkedin.com/in x', gl: 'in', num: 10, page: 1 }, organic: [] },
+    { searchParameters: { q: 'site:linkedin.com/in x', gl: 'in', num: 10, page: 2 }, organic: [{ link: 'a' }] }];
+  const out = await runNode('Empty Pages', pages, {});
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].serper_body, { q: 'site:linkedin.com/in x', num: 10, page: 1, gl: 'in' });
+});

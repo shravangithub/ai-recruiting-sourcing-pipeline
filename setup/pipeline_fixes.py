@@ -1383,3 +1383,48 @@ def apply_round15(nodes, conns):
       "  + (optional.length ? '&optionalWords=' + encodeURIComponent(optional.join(' ')) : '');")
     R("Format Search Results", "stackoverflow\\.com\\/users\\/|", "stackoverflow\\.com\\/users\\/|news\\.ycombinator\\.com\\/user\\?id=|")
     return nodes, conns
+
+
+# ======================================================================
+# Round 16 (recruiter UAT): Google (via Serper) occasionally returns an empty
+# page for a valid query - one run lost all three LinkedIn pages that returned
+# 10 results each a few minutes later. Retry empty pages once after a pause.
+# ======================================================================
+EMPTY_PAGES = r"""
+// Pages that came back empty (Google sometimes returns nothing for a valid
+// query): send them once more after a short pause.
+const out = [];
+$input.all().forEach(function(it, i) {
+  const j = it.json || {};
+  const sp = j.searchParameters;
+  if (sp && sp.q && !(j.organic && j.organic.length)) {
+    const body = { q: sp.q, num: sp.num || 10, page: sp.page || 1 };
+    if (sp.gl) body.gl = sp.gl;
+    out.push({ json: { serper_body: body }, pairedItem: { item: i } });
+  }
+});
+return out;
+"""
+
+
+def apply_round16(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    s = N["Serper Search"]
+    x, y = s["position"]
+    assert conns["Serper Search"]["main"][0] == [{"node": "Wait For All Sources", "type": "main", "index": 0}]
+    nodes.append(_node("Empty Pages", "n8n-nodes-base.code", 2, [x + 120, y + 140], {"jsCode": EMPTY_PAGES}))
+    nodes.append(_node("Pause Before Retry", "n8n-nodes-base.wait", 1.1, [x + 280, y + 140], {"resume": "timeInterval", "amount": 4, "unit": "seconds"}))
+    retry = json.loads(json.dumps(s))
+    retry["name"] = "Serper Retry"
+    retry["id"] = "fix-serper-retry"
+    retry["position"] = [x + 440, y + 140]
+    retry["onError"] = "continueRegularOutput"
+    nodes.append(retry)
+    nodes.append(_node("Serper Pages", "n8n-nodes-base.merge", 3, [x + 600, y], {"numberInputs": 2}))
+    conns["Serper Search"]["main"][0] = [{"node": "Serper Pages", "type": "main", "index": 0},
+                                         {"node": "Empty Pages", "type": "main", "index": 0}]
+    conns["Empty Pages"] = {"main": [[{"node": "Pause Before Retry", "type": "main", "index": 0}]]}
+    conns["Pause Before Retry"] = {"main": [[{"node": "Serper Retry", "type": "main", "index": 0}]]}
+    conns["Serper Retry"] = {"main": [[{"node": "Serper Pages", "type": "main", "index": 1}]]}
+    conns["Serper Pages"] = {"main": [[{"node": "Wait For All Sources", "type": "main", "index": 0}]]}
+    return nodes, conns
