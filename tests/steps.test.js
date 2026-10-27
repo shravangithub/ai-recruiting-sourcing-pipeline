@@ -297,3 +297,24 @@ test('UAT: Apollo is skipped once the monthly Apollo allowance is used up', asyn
   const under = await runNode('Build Apollo Query', [{}], { 'Search Criteria': [c], 'Budget Gate': [{ PDL_Used: 20, Serper_Used: 153 }] });
   assert.equal(under.length, 1);
 });
+
+test('UAT: zero-result check counts every AI batch, not just the first item it receives', async () => {
+  const batches = [aiOutput([{ candidate_name: 'A', is_person: true, fit_score: 6 }]), aiOutput([{ candidate_name: 'B', is_person: true, fit_score: 5 }, { candidate_name: 'C', is_person: true, fit_score: 4 }])];
+  const out = await runNode('Results Gate', [batches[0]], { 'Search Criteria': [criteria()], 'Build Search Query': [{ q: 'x', platforms_used: 'profiles' }], 'Message a model': batches });
+  assert.equal(out.length, 1);
+  assert.match(out[0].range_text, /3 people/);
+});
+
+test('UAT: "Senior Machine Learning Engineer" keeps the full title, with ML synonyms', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior Machine Learning Engineer', 'Primary Skills': 'Python, PyTorch', 'Expand Job Title Synonyms': 'Yes' })] });
+  const li = q.find((x) => x.kind === 'profiles').q;
+  assert.match(li, /"machine learning engineer"/);
+  assert.match(li, /"ml engineer"/);
+  assert.ok(!/"learning engineer"/.test(li));
+  assert.match(li, /\) senior /);
+});
+
+test('two-word titles are unchanged ("Senior Backend Engineer")', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior Backend Engineer' })] });
+  assert.match(q.find((x) => x.kind === 'profiles').q, /"backend engineer"/);
+});

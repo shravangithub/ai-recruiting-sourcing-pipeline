@@ -1032,3 +1032,65 @@ def apply_round10(nodes, conns):
     nodes.append(stop)
     conns["If"]["main"][1].append({"node": "Log Budget Stop", "type": "main", "index": 0})
     return nodes, conns
+
+
+# ======================================================================
+# Round 11 (recruiter UAT re-run): the zero-result check ran BEFORE the
+# candidates reached the sheet whenever one branch had nothing in it (e.g.
+# no Apollo lookups), posting a false "no candidates" alert. A Merge that
+# waits for the end of the candidate branch fixes the order (verified on a
+# live n8n: it runs last in every case, including truly zero results).
+# ======================================================================
+def apply_round11(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    gate = N["Results Gate"]
+    nodes.append(_node("Candidates Done", "n8n-nodes-base.merge", 3,
+                       [gate["position"][0] - 200, gate["position"][1]], {"numberInputs": 2}))
+    mm = conns["Message a model"]["main"][0]
+    assert any(t["node"] == "Results Gate" for t in mm)
+    conns["Message a model"]["main"][0] = [t for t in mm if t["node"] != "Results Gate"] + [
+        {"node": "Candidates Done", "type": "main", "index": 0}]
+    conns["Append row in sheet"]["main"][0].append({"node": "Candidates Done", "type": "main", "index": 1})
+    conns["Candidates Done"] = {"main": [[{"node": "Results Gate", "type": "main", "index": 0}]]}
+    code = gate["parameters"]["jsCode"]
+    old = "for (const it of $input.all()) {"
+    assert old in code
+    gate["parameters"]["jsCode"] = code.replace(
+        "// Runs after the candidate branch has finished (n8n runs branches in order).",
+        "// Runs after the candidate branch has finished: \"Candidates Done\" waits for the\n"
+        "// sheet write (or, when nothing reaches the sheet, for the run to settle).").replace(
+        old,
+        "let aiItems; try { aiItems = $('Message a model').all(); } catch (e) { aiItems = $input.all(); }\n"
+        "for (const it of aiItems) {")
+    return nodes, conns
+
+
+# ======================================================================
+# Round 12 (recruiter UAT): "Senior Machine Learning Engineer" was searched as
+# "learning engineer" senior machine - the core title was always the last two
+# words. Recognise three-word titles built on a compound ("machine learning",
+# "site reliability", "full stack", "human resources", ...).
+# ======================================================================
+def apply_round12(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    p = N["Build Search Query"]["parameters"]
+    s = p["jsCode"]
+
+    def R(old, new):
+        nonlocal s
+        assert old in s, "round12: anchor not found: " + old[:60]
+        s = s.replace(old, new, 1)
+
+    R("  'data scientist': [",
+      "  'machine learning engineer': ['machine learning engineer','ml engineer','applied scientist','ai engineer','deep learning engineer'],\n"
+      "  'site reliability engineer': ['site reliability engineer','sre','devops engineer','platform engineer'],\n"
+      "  'data scientist': [")
+    R("    const core = words.length > 2 ? words.slice(-2).join(' ') : words.join(' ');\n"
+      "    const extra = words.length > 2 ? words.slice(0, -2) : [];",
+      "    // titles built on a two-word compound keep all three words: \"machine learning engineer\"\n"
+      "    const COMPOUND = /^(machine learning|deep learning|site reliability|full stack|data science|human resources|talent acquisition|business development|customer success|quality assurance|product marketing|technical program|business intelligence|natural language|computer vision)$/;\n"
+      "    const take = (words.length >= 3 && (COMPOUND.test(words.slice(-3, -1).join(' ')) || synMap[words.slice(-3).join(' ')])) ? 3 : 2;\n"
+      "    const core = words.length > take ? words.slice(-take).join(' ') : words.join(' ');\n"
+      "    const extra = words.length > take ? words.slice(0, -take) : [];")
+    p["jsCode"] = s
+    return nodes, conns

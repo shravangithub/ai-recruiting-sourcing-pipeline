@@ -150,3 +150,14 @@ test('UAT: a run stopped by the Google search limit says so in the Search Log', 
   for (const col of Object.keys(n.parameters.columns.value)) assert.ok(LOG_COLUMNS.includes(col), col);
   assert.match(n.parameters.columns.value.Status, /Paused/);
 });
+
+test('UAT: the zero-result check waits for the candidate branch to reach the sheet', () => {
+  const fromAI = (WF.connections['Message a model'].main[0] || []).map((t) => t.node);
+  assert.ok(!fromAI.includes('Results Gate'), 'Results Gate must not hang directly off the AI step');
+  assert.ok(fromAI.includes('Candidates Done'));
+  const fromSheet = (WF.connections['Append row in sheet'].main[0] || []).filter((t) => t.node === 'Candidates Done');
+  assert.equal(fromSheet.length, 1);
+  assert.equal(fromSheet[0].index, 1);
+  assert.equal(NODES['Candidates Done'].parameters.numberInputs, 2);
+  assert.deepEqual(WF.connections['Candidates Done'].main[0].map((t) => t.node), ['Results Gate']);
+});
