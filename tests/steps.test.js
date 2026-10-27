@@ -289,3 +289,11 @@ test('UAT: a long PDF that only mentions the name in its text is not their resum
   const [r3] = await runNode('Attach Resume', [{ organic: [{ link: 'https://rk-dev.github.io/curriculum/', title: 'Curriculum', snippet: 'Ravi Kumar resume' }] }], { 'Location Check & Rank': [own] });
   assert.equal(r3.resume_link, 'https://rk-dev.github.io/curriculum/', 'their own site from GitHub is still accepted');
 });
+
+test('UAT: Apollo is skipped once the monthly Apollo allowance is used up', async () => {
+  const c = criteria({ 'Target Platforms': ['LinkedIn'] });
+  const over = await runNode('Build Apollo Query', [{}], { 'Search Criteria': [c], 'Budget Gate': [{ PDL_Used: 127, Serper_Used: 153 }] });
+  assert.equal(over.length, 0);
+  const under = await runNode('Build Apollo Query', [{}], { 'Search Criteria': [c], 'Budget Gate': [{ PDL_Used: 20, Serper_Used: 153 }] });
+  assert.equal(under.length, 1);
+});

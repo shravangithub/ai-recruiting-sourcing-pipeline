@@ -992,3 +992,43 @@ def apply_round9(nodes, conns):
     dl["url"] = RESUME_FILE_URL
     dl["options"]["timeout"] = 10000
     return nodes, conns
+
+
+# ======================================================================
+# Round 10 (recruiter UAT re-run): the monthly Apollo allowance stopped the
+# whole search, silently (the only notice went to Slack).
+# ======================================================================
+SERPER_CAP = 1000
+APOLLO_CAP = 100
+APOLLO_LEFT = "Number($('Budget Gate').first().json.PDL_Used || 0) < %d" % APOLLO_CAP
+
+
+def apply_round10(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    # 1. only the Serper (Google search) allowance can stop a run
+    cond = N["If"]["parameters"]["conditions"]
+    cond["conditions"] = [c for c in cond["conditions"] if "PDL_Used" not in c["leftValue"]]
+    assert len(cond["conditions"]) == 1 and "Serper_Used" in cond["conditions"][0]["leftValue"]
+
+    # 2. Apollo allowance used up -> skip Apollo search and lookups, keep everything else
+    aq = N["Build Apollo Query"]["parameters"]
+    aq["jsCode"] = ("// Monthly Apollo allowance used up: skip Apollo, the other sources still run.\n"
+                    "try { if (!(" + APOLLO_LEFT + ")) return []; } catch (e) {}\n" + aq["jsCode"])
+    hl = N["Has LinkedIn"]["parameters"]["conditions"]["conditions"][0]
+    assert hl["leftValue"].startswith("={{ ") and hl["leftValue"].endswith(" }}")
+    hl["leftValue"] = "={{ (" + hl["leftValue"][4:-3] + ") && " + APOLLO_LEFT + " }}"
+
+    # 3. a run stopped by the limit says so in the Search Log (Slack may not be connected)
+    ls = N["Log Search Start"]
+    stop = json.loads(json.dumps(ls))
+    stop["name"] = "Log Budget Stop"
+    stop["id"] = "fix-log-budget-stop"
+    stop["position"] = [N["Send a message1"]["position"][0], N["Send a message1"]["position"][1] + 180]
+    stop["parameters"]["columns"]["value"].update({
+        "Status": "={{ '⛔ Paused - monthly Google search limit reached (' + $('Budget Gate').first().json.Serper_Used + '/%d). Resumes next month.' }}" % SERPER_CAP,
+        "Completed At": "={{ $now.toFormat('yyyy-LL-dd HH:mm:ss') }}"})
+    stop["onError"] = "continueRegularOutput"
+    nodes.append(stop)
+    conns["If"]["main"][1].append({"node": "Log Budget Stop", "type": "main", "index": 0})
+    return nodes, conns

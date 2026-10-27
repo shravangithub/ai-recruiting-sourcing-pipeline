@@ -112,7 +112,7 @@ test('UAT: setup checkbox rule is open-ended too', () => {
 test('UAT: every Apollo-sourced row is enriched (first-name-only rows are useless); LinkedIn rows only in the top 25', () => {
   const c = NODES['Has LinkedIn'].parameters.conditions.conditions;
   const expr = c.map((x) => x.leftValue).join(' ');
-  const evalRow = (row) => Function('$json', 'return ' + expr.replace(/^=\{\{|\}\}$/g, ''))(row);
+  const evalRow = (row, used = 0) => Function('$json', '$', 'return ' + expr.replace(/^=\{\{|\}\}$/g, ''))(row, () => ({ first: () => ({ json: { PDL_Used: used } }) }));
   assert.equal(c.length, 1);
   assert.equal(evalRow({ profile_url: 'https://www.apollo.io/people/abc', rank: 40 }), true);
   assert.equal(evalRow({ profile_url: 'https://in.linkedin.com/in/x', rank: 10 }), true);
@@ -130,4 +130,23 @@ test('UAT: only real files (PDF / Word / Drive / Dropbox) are downloaded; web pa
   assert.equal(urlFor('https://x.org/Ravi_Resume.DOCX'), 'https://x.org/Ravi_Resume.DOCX');
   assert.equal(urlFor('https://rk-dev.github.io/'), '');
   assert.equal(urlFor(''), '');
+});
+
+test('UAT: Apollo allowance used up -> no Apollo lookups, but the search still runs', () => {
+  const c = NODES['If'].parameters.conditions.conditions;
+  assert.equal(c.length, 1);
+  assert.match(c[0].leftValue, /Serper_Used/);
+  const expr = NODES['Has LinkedIn'].parameters.conditions.conditions[0].leftValue.replace(/^=\{\{|\}\}$/g, '');
+  const ev = (used) => Function('$json', '$', 'return ' + expr)({ profile_url: 'https://www.apollo.io/people/a', rank: 1 }, () => ({ first: () => ({ json: { PDL_Used: used } }) }));
+  assert.equal(ev(10), true);
+  assert.equal(ev(127), false);
+});
+
+test('UAT: a run stopped by the Google search limit says so in the Search Log', () => {
+  const stopTargets = (WF.connections['If'].main[1] || []).map((t) => t.node);
+  assert.ok(stopTargets.includes('Log Budget Stop'));
+  const n = NODES['Log Budget Stop'];
+  assert.equal(n.parameters.sheetName.value, 'Search Log');
+  for (const col of Object.keys(n.parameters.columns.value)) assert.ok(LOG_COLUMNS.includes(col), col);
+  assert.match(n.parameters.columns.value.Status, /Paused/);
 });

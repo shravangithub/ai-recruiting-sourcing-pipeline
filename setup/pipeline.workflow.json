@@ -1386,15 +1386,6 @@
         "type": "number",
         "operation": "lt"
        }
-      },
-      {
-       "id": "39a7dfbe-5631-4b6f-8c2a-9696956c57c5",
-       "leftValue": "={{ $json.PDL_Used }}",
-       "rightValue": 100,
-       "operator": {
-        "type": "number",
-        "operation": "lt"
-       }
       }
      ],
      "combinator": "and"
@@ -1536,7 +1527,7 @@
      "conditions": [
       {
        "id": "fix-enrich",
-       "leftValue": "={{ /apollo\\.io\\/people\\//i.test($json.profile_url || '') || (/linkedin\\.com/i.test($json.profile_url || '') && Number($json.rank) <= 25) }}",
+       "leftValue": "={{ (/apollo\\.io\\/people\\//i.test($json.profile_url || '') || (/linkedin\\.com/i.test($json.profile_url || '') && Number($json.rank) <= 25)) && Number($('Budget Gate').first().json.PDL_Used || 0) < 100 }}",
        "rightValue": true,
        "operator": {
         "type": "boolean",
@@ -3049,7 +3040,7 @@
   },
   {
    "parameters": {
-    "jsCode": "const form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n// Apollo's DB is corporate/LinkedIn-identified people -> only run it when\n// LinkedIn is a requested platform (skip for pure GitHub/HN/SO searches).\nconst liSelected = platforms.some(function(p){ return /linkedin/i.test(String(p)); });\nif (!liSelected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst employer = String(form['Current Employer'] || '').trim();\nif (!role && !skillsRaw) return [];\n// tuneable for Professional plan: raise PER_PAGE / PAGES once upgraded.\nconst PER_PAGE = 25;   // records per page (Apollo: 1 search credit per page)\nconst PAGES = 1;       // number of pages to pull per run\n// map experience band -> Apollo seniority buckets (best-effort)\nconst exp = String(form['Experience Range (Years)'] || '').toLowerCase();\nlet seniorities = [];\nif (exp.indexOf('8+') !== -1) seniorities = ['director','vp','head','manager','senior'];\nelse if (exp.indexOf('5-8') !== -1) seniorities = ['senior','manager'];\nelse if (exp.indexOf('3-5') !== -1) seniorities = ['senior','entry'];\nconst titles = role ? [role] : [];\nconst keywords = skillsRaw ? skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean).join(' ') : '';\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { page: pg, per_page: PER_PAGE };\n  if (titles.length) body.person_titles = titles;\n  if (loc) body.person_locations = [loc];\n  // keywords are ANDed by Apollo: only use them when there is no title to search on\n  if (keywords && !titles.length) body.q_keywords = keywords;\n  if (employer) body.q_organization_domains = null, body.organization_names = [employer];\n  if (seniorities.length) body.person_seniorities = seniorities;\n  out.push({ json: { apollo_body: body, apollo_page: pg } });\n}\nreturn out;\n"
+    "jsCode": "// Monthly Apollo allowance used up: skip Apollo, the other sources still run.\ntry { if (!(Number($('Budget Gate').first().json.PDL_Used || 0) < 100)) return []; } catch (e) {}\nconst form = $('Search Criteria').first().json;\nlet platforms = form['Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\n// Apollo's DB is corporate/LinkedIn-identified people -> only run it when\n// LinkedIn is a requested platform (skip for pure GitHub/HN/SO searches).\nconst liSelected = platforms.some(function(p){ return /linkedin/i.test(String(p)); });\nif (!liSelected) return [];\nconst role = String(form['Target Role'] || '').trim();\nconst skillsRaw = String(form['Key Skills & Criteria'] || '').trim();\nconst loc = String(form['Location'] || '').split('-')[0].trim();\nconst employer = String(form['Current Employer'] || '').trim();\nif (!role && !skillsRaw) return [];\n// tuneable for Professional plan: raise PER_PAGE / PAGES once upgraded.\nconst PER_PAGE = 25;   // records per page (Apollo: 1 search credit per page)\nconst PAGES = 1;       // number of pages to pull per run\n// map experience band -> Apollo seniority buckets (best-effort)\nconst exp = String(form['Experience Range (Years)'] || '').toLowerCase();\nlet seniorities = [];\nif (exp.indexOf('8+') !== -1) seniorities = ['director','vp','head','manager','senior'];\nelse if (exp.indexOf('5-8') !== -1) seniorities = ['senior','manager'];\nelse if (exp.indexOf('3-5') !== -1) seniorities = ['senior','entry'];\nconst titles = role ? [role] : [];\nconst keywords = skillsRaw ? skillsRaw.split(',').map(function(s){return s.trim();}).filter(Boolean).join(' ') : '';\nconst out = [];\nfor (let pg = 1; pg <= PAGES; pg++) {\n  const body = { page: pg, per_page: PER_PAGE };\n  if (titles.length) body.person_titles = titles;\n  if (loc) body.person_locations = [loc];\n  // keywords are ANDed by Apollo: only use them when there is no title to search on\n  if (keywords && !titles.length) body.q_keywords = keywords;\n  if (employer) body.q_organization_domains = null, body.organization_names = [employer];\n  if (seniorities.length) body.person_seniorities = seniorities;\n  out.push({ json: { apollo_body: body, apollo_page: pg } });\n}\nreturn out;\n"
    },
    "id": "apollo-search-000-4a00-9000-000000000071",
    "name": "Build Apollo Query",
@@ -3609,6 +3600,130 @@
      "name": "Sourcing · Google Sheets"
     }
    }
+  },
+  {
+   "parameters": {
+    "operation": "appendOrUpdate",
+    "documentId": {
+     "__rl": true,
+     "value": "__SHEET_ID__",
+     "mode": "list",
+     "cachedResultName": "n8n",
+     "cachedResultUrl": "https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit?usp=drivesdk"
+    },
+    "sheetName": {
+     "__rl": true,
+     "value": "Search Log",
+     "mode": "name"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "Run ID": "={{ $execution.id }}",
+      "Status": "={{ '⛔ Paused - monthly Google search limit reached (' + $('Budget Gate').first().json.Serper_Used + '/1000). Resumes next month.' }}",
+      "Role": "={{ $('Search Criteria').first().json['Target Role'] }}",
+      "Location": "={{ $('Search Criteria').first().json['Location'] }}",
+      "Candidates": "",
+      "Rows": "",
+      "Started At": "={{ $now.toFormat('yyyy-LL-dd HH:mm:ss') }}",
+      "Completed At": "={{ $now.toFormat('yyyy-LL-dd HH:mm:ss') }}"
+     },
+     "matchingColumns": [
+      "Run ID"
+     ],
+     "schema": [
+      {
+       "id": "Run ID",
+       "displayName": "Run ID",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": true
+      },
+      {
+       "id": "Status",
+       "displayName": "Status",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      },
+      {
+       "id": "Role",
+       "displayName": "Role",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      },
+      {
+       "id": "Location",
+       "displayName": "Location",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      },
+      {
+       "id": "Candidates",
+       "displayName": "Candidates",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      },
+      {
+       "id": "Rows",
+       "displayName": "Rows",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      },
+      {
+       "id": "Started At",
+       "displayName": "Started At",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      },
+      {
+       "id": "Completed At",
+       "displayName": "Completed At",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "fix-log-budget-stop",
+   "name": "Log Budget Stop",
+   "type": "n8n-nodes-base.googleSheets",
+   "typeVersion": 4.7,
+   "position": [
+    672,
+    324
+   ],
+   "executeOnce": true,
+   "credentials": {
+    "googleSheetsOAuth2Api": {
+     "id": "__CRED_SHEETS__",
+     "name": "Sourcing · Google Sheets"
+    }
+   },
+   "onError": "continueRegularOutput"
   }
  ],
  "connections": {
@@ -3733,6 +3848,11 @@
     [
      {
       "node": "Send a message1",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Log Budget Stop",
       "type": "main",
       "index": 0
      }
