@@ -2100,8 +2100,8 @@ def apply_round20(nodes, conns):
 # 1. "Experience Check" column: what the evidence says (years stated in the
 #    profile, Senior/Junior in the title, GitHub account age) against the
 #    range the recruiter asked for.
-# 2. Wellfound public profiles (wellfound.com/u/...) as a source, through
-#    Google. Naukri and Instahyre are not added: candidate profiles there are
+# 2. Wellfound tried and NOT offered: Google no longer indexes wellfound.com/u
+#    profiles (0 results live). Naukri and Instahyre are not added: candidate profiles there are
 #    private (recruiter database access only), so Google can't find them.
 # ======================================================================
 EXPERIENCE_CHECK = r"""
@@ -2162,7 +2162,8 @@ def apply_round21(nodes, conns):
       "if (has(/reddit/i)) otherSites.push('site:reddit.com/r/forhire', 'site:reddit.com/user');\nif (has(/wellfound|angel/i)) otherSites.push('site:wellfound.com/u');")
     R("Merge Pages", "wellfound\\.com\\/jobs", "wellfound\\.com\\/(jobs|role|company|location|startups)")
     R("Location Check & Rank", "['dribbble.com','Dribbble'],['behance.net','Behance']]", "['dribbble.com','Dribbble'],['behance.net','Behance'],['wellfound.com','Wellfound']]")
-    page2 = N["Check Search"]["parameters"]["formFields"]["values"]
-    src = [f for f in page2 if f.get("fieldName") == "sources"][0]
-    src["fieldOptions"]["values"].insert(4, {"option": "Wellfound"})
+    # Live test (27 Oct): Google returns nothing for site:wellfound.com/u, even for
+    # "site:wellfound.com/u Python bangalore" - Wellfound profiles are no longer
+    # indexed. The query code stays (harmless) but Wellfound is NOT offered on
+    # the form, so recruiters don't tick a source that can't return anyone.
     return nodes, conns
