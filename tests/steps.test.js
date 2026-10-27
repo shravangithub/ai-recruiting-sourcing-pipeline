@@ -12,7 +12,7 @@ const nl = (o) => aiOutput(o);
 
 // ------------------------------------------------------------ Search Criteria
 test('A: plain-English brief only -> role, location, experience, skills from the brief', async () => {
-  const [c] = await runNode('Search Criteria', [{}], {
+  const [c] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { 'Natural Language Search': 'Senior data engineer in Hyderabad, Spark and Airflow, 5+ years' })],
     'Parse NL Search': [nl({ target_role: 'Data Engineer', key_skills: 'Spark, Airflow', location: 'Hyderabad', experience_range: '5-8 years' })] });
   assert.equal(c['Target Role'], 'Data Engineer');
@@ -23,7 +23,7 @@ test('A: plain-English brief only -> role, location, experience, skills from the
 });
 
 test('B: filled fields override the brief; dropdown + typed skills merge without duplicates', async () => {
-  const [c] = await runNode('Search Criteria', [{}], {
+  const [c] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { 'Natural Language Search': 'python dev in pune', '1) Target Role': 'Backend Engineer',
       '2) Primary Skills (must-have)': ['Java', 'Kafka'], '2b) Add other primary skills': 'gRPC, java', '3) Location': 'Chennai',
       '9) Experience Range (Years)': '3-5 years', '11) Target Platforms': ['Stack Overflow'] })],
@@ -36,7 +36,7 @@ test('B: filled fields override the brief; dropdown + typed skills merge without
 });
 
 test('AI parser failure does not break the search (falls back to the form)', async () => {
-  const [c] = await runNode('Search Criteria', [{}], {
+  const [c] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { '1) Target Role': 'QA Engineer', '3) Location': 'Pune' })],
     'Parse NL Search': [{ error: { message: '429 no credits' } }] });
   assert.equal(c['Target Role'], 'QA Engineer');
@@ -45,7 +45,7 @@ test('AI parser failure does not break the search (falls back to the form)', asy
 });
 
 test('no skills anywhere -> tech words taken from the role', async () => {
-  const [c] = await runNode('Search Criteria', [{}], {
+  const [c] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { 'Natural Language Search': 'golang developer bangalore' })],
     'Parse NL Search': [nl({ target_role: 'golang developer', location: 'Bangalore', key_skills: '' })] });
   assert.equal(c['Primary Skills'], 'Golang');
@@ -467,11 +467,11 @@ test('R17: GitHub runs for DevOps skills and falls back when there is no languag
 
 // ------------------------------------------------------------ Round 18
 test('R18: ticking one platform searches only that platform; none ticked -> LinkedIn + GitHub', async () => {
-  const [one] = await runNode('Search Criteria', [{}], {
+  const [one] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { '1) Target Role': 'Backend Engineer', '3) Location': 'Pune', '11) Target Platforms': ['Kaggle'] })],
     'Parse NL Search': [nl({})] });
   assert.deepEqual(one['Target Platforms'], ['Kaggle']);
-  const [none] = await runNode('Search Criteria', [{}], {
+  const [none] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { '1) Target Role': 'Backend Engineer', '3) Location': 'Pune' })],
     'Parse NL Search': [nl({})] });
   assert.deepEqual(none['Target Platforms'], ['LinkedIn', 'Github']);
@@ -489,4 +489,52 @@ test('R18: X/Reddit and Kaggle-type sites get title and skill variants, all with
 test('R18: every Google Sheets step retries on rate limits', () => {
   const { WF } = require('./harness');
   for (const n of WF.nodes.filter((n) => n.type.endsWith('googleSheets'))) assert.equal(n.retryOnFail, true, n.name);
+});
+
+// ------------------------------------------------------------ Round 19: two-page form, parallel scoring, per-source counts, commit emails
+test('R19: page 2 answers become the search criteria (same shape as before)', async () => {
+  const [c] = await runNode('Search Criteria', [{ role: 'Backend Engineer', similar: 'Yes', experience: 'Any', must: 'Java, Kafka, java',
+    nice: 'AWS', city: 'Pune', region: 'India', industry: '', employer: '', exclude: 'intern', education: 'Any', gender: 'Any', sources: ['GitHub', 'Kaggle'] }],
+    { 'Draft Criteria': [{ nl_used: true, 'Primary Skills': 'Python' }] });
+  assert.equal(c['Target Role'], 'Backend Engineer');
+  assert.equal(c['Primary Skills'], 'Java, Kafka');
+  assert.equal(c['Secondary Skills'], 'AWS');
+  assert.equal(c['Key Skills & Criteria'], 'Java, Kafka, AWS');
+  assert.equal(c['Location'], 'Pune');
+  assert.deepEqual(c['Target Platforms'], ['GitHub', 'Kaggle']);
+  assert.equal(c['Experience Range (Years)'], 'Any');
+  assert.equal(c['nl_used'], true);
+  const [g] = await runNode('Search Criteria', [{ role: 'QA', region: 'Global (all regions)' }], { 'Draft Criteria': [{ 'Primary Skills': 'Selenium' }] });
+  assert.equal(g['Search Region'], '');
+  assert.equal(g['Primary Skills'], 'Selenium', 'skills fall back to the brief');
+  assert.deepEqual(g['Target Platforms'], ['LinkedIn', 'Github']);
+});
+
+test('R19: the scoring prompt is built per batch with the criteria and the JD', async () => {
+  const b = await runNode('Format Search Results', [{ organic: [{ title: 'Asha N - Backend Engineer', snippet: 'Java', link: 'https://in.linkedin.com/in/asha' }] }],
+    { 'Search Criteria': [criteria()], 'Prep JD': [{ jd_text: 'Build payment APIs' }] });
+  assert.match(b[0].prompt, /Target Role: Java backend developer/);
+  assert.match(b[0].prompt, /Build payment APIs/);
+  assert.match(b[0].prompt, /\[1\] Asha N/);
+  assert.match(b[0].system, /JSON/);
+  const none = await runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }]);
+  assert.match(none[0].prompt, /No job description was provided/);
+});
+
+test('R19: requisition row lists candidates per source', async () => {
+  const items = [{ source_platform: 'LinkedIn', search_geography: 'Bangalore' }, { source_platform: 'GitHub' }, { source_platform: 'LinkedIn' }];
+  const out = await runNode('Add Req Header', items, { 'Search Criteria': [criteria()], 'Prep JD': [{ jd_present: false }] });
+  assert.match(out[0].match_summary, /by source: LinkedIn 2 · GitHub 1/);
+});
+
+test('R19: a GitHub commit email is used only when it is clearly theirs', async () => {
+  const cand = { github_url: 'https://github.com/asha-dev', rank: 3, email: '' };
+  const resp = { items: [
+    { author: { login: 'someone-else' }, commit: { author: { email: 'x@corp.com' } } },
+    { author: { login: 'asha-dev' }, commit: { author: { email: '123+asha@users.noreply.github.com' } } },
+    { author: { login: 'asha-dev' }, commit: { author: { email: 'asha@example-mail.in' } } }] };
+  const [a] = await runNode('Attach Commit Email', [resp], { 'Attach Resume': [cand] });
+  assert.equal(a.commit_email, 'asha@example-mail.in');
+  const [b] = await runNode('Attach Commit Email', [{ rate: {} }], { 'Attach Resume': [cand] });
+  assert.equal(b.commit_email, '');
 });

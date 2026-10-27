@@ -29,6 +29,7 @@ Each fix addresses a problem seen in real runs:
     "Profile URL" column; Search Log counts and "Started At" fixed.
 """
 import json
+import re
 
 APOLLO_ENRICH_TOP = 25
 RESUME_SEARCH_TOP = 20
@@ -1664,4 +1665,291 @@ def apply_round18(nodes, conns):
       """  queries.push({ kind: 'city-profiles', pages: 2, q: fit([[orOf(citySites)], locOpts, topic, exclOpts, notProfiles]) });
   // and once by job title, for profiles that don't list the skill words
   if (topic !== roleOpts && roleOpts.length) queries.push({ kind: 'city-profiles', pages: 1, q: fit([[orOf(citySites)], locOpts, roleOpts, exclOpts, notProfiles]) });""")
+    return nodes, conns
+
+
+# ======================================================================
+# Round 19 (UX + speed + contacts):
+# 1. Brief-first, two-page form. Page 1: describe the person (and JD).
+#    Page 2: "Here's what we'll search for" - every field pre-filled from the
+#    brief, editable, sources as tiles. Then a "Search started" page.
+#    The old parser node becomes "Draft Criteria"; "Search Criteria" now reads
+#    page 2, so every downstream node is unchanged.
+# 2. AI scoring runs all batches in parallel (HTTP call to OpenAI instead of
+#    the one-at-a-time model node). Same prompt, same output shape.
+# 3. The requisition row lists candidates per source.
+# 4. GitHub candidates without an email: their public commit email is used
+#    (top 20 only, noreply addresses ignored).
+# ======================================================================
+FORM_CSS = r"""
+:root { --ink:#161A2E; --muted:#5B6178; --line:#D3D6E2; --soft:#EEF0FD; --accent:#3B4BD6; --accent-dark:#2A37A8; --bg:#F4F5F9; }
+body { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.container { padding: 40px 16px; }
+.card { max-width: 720px; margin: 0 auto; border: 1px solid #E3E5EE; border-radius: 18px; box-shadow: none; padding: 36px 40px; }
+.form-header { text-align: left; margin-bottom: 8px; }
+.form-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-align: left; }
+.form-header p { font-size: 15px; line-height: 1.55; color: var(--muted); text-align: left; }
+.form-group { margin-bottom: 22px; }
+.form-label, label { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }
+input[type=text], input[type=email], input[type=number], textarea, select {
+  width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,75,214,.15); outline: none; }
+textarea { min-height: 110px; line-height: 1.5; resize: vertical; }
+::placeholder { color: #8A8FA5; }
+.tr-tip { margin: 0 0 4px; padding: 12px 14px; border-radius: 10px; background: var(--soft); color: #2A3170; font-size: 13.5px; line-height: 1.55; }
+.tr-tip b { color: var(--accent-dark); }
+.tr-sec { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid #EEF0F5; font-size: 13px; font-weight: 700;
+  letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+/* sources as tiles */
+.multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }
+.multiselect-option:has(input:checked) { border: 2px solid var(--accent); background: #F7F8FF; }
+.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; }
+button[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent); color: #fff;
+  font-size: 16px; font-weight: 700; cursor: pointer; }
+button[type=submit]:hover { background: var(--accent-dark); }
+@media (max-width: 640px) {
+  .card { padding: 24px 18px; border-radius: 14px; }
+  .form-header h1 { font-size: 26px; }
+  .multiselect { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+"""
+
+PAGE1_FIELDS = [
+    {"fieldType": "html", "elementName": "tip",
+     "html": "<div class=\"tr-tip\">Write it the way you'd brief a sourcer: <b>role, city, years, must-have skills</b>, anything to avoid. "
+             "On the next page you'll see exactly what we read and can change any of it. Prefer filling fields yourself? Leave this empty and press Next.</div>"},
+    {"fieldLabel": "Brief", "fieldType": "textarea",
+     "placeholder": "e.g. Senior backend engineer in Bangalore, 5+ years of Java, Spring Boot and Kafka. No interns. Look on LinkedIn and GitHub."},
+    {"fieldLabel": "Job description", "fieldType": "textarea",
+     "placeholder": "Optional. Paste the JD and every candidate is scored against it."},
+    {"fieldLabel": "Job description file", "fieldType": "file", "multipleFiles": False,
+     "acceptFileTypes": ".pdf,.doc,.docx,.txt,.md,.markdown,.rtf,.html,.htm,.csv"},
+]
+
+PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
+             "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance"]
+REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
+           "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
+
+
+def _opts(xs):
+    return {"values": [{"option": x} for x in xs]}
+
+
+def _dd(name, label, options, default):
+    return {"fieldName": name, "fieldLabel": label, "fieldType": "dropdown", "fieldOptions": _opts(options), "defaultValue": default}
+
+
+def _tx(name, label, default, placeholder=""):
+    f = {"fieldName": name, "fieldLabel": label, "fieldType": "text", "defaultValue": default}
+    if placeholder:
+        f["placeholder"] = placeholder
+    return f
+
+
+PAGE2_FIELDS = [
+    {"fieldType": "html", "elementName": "s_role", "html": "<div class=\"tr-sec\">Role</div>"},
+    _tx("role", "Job title", "={{ $json['Target Role'] || '' }}", "e.g. Backend Engineer"),
+    _dd("similar", "Include similar titles", ["Yes", "No"], "={{ /^no$/i.test($json['Expand Job Title Synonyms'] || '') ? 'No' : 'Yes' }}"),
+    _dd("experience", "Experience", ["Any", "0-2 years", "3-5 years", "5-8 years", "8+ years"],
+        "={{ ['0-2 years','3-5 years','5-8 years','8+ years'].includes($json['Experience Range (Years)']) ? $json['Experience Range (Years)'] : 'Any' }}"),
+    {"fieldType": "html", "elementName": "s_skills", "html": "<div class=\"tr-sec\">Skills</div>"},
+    _tx("must", "Must-have skills (comma-separated)", "={{ $json['Primary Skills'] || '' }}", "e.g. Java, Spring Boot, Kafka"),
+    _tx("nice", "Nice-to-have skills (only used for ranking)", "={{ $json['Secondary Skills'] || '' }}", "e.g. AWS, Microservices"),
+    {"fieldType": "html", "elementName": "s_where", "html": "<div class=\"tr-sec\">Where</div>"},
+    _tx("city", "City", "={{ $json['Location'] || '' }}", "e.g. Bangalore"),
+    _dd("region", "Country / region", REGIONS,
+        "={{ " + json.dumps(REGIONS) + ".includes($json['Search Region']) ? $json['Search Region'] : ($json['Location'] ? 'India' : 'Global (all regions)') }}"),
+    {"fieldType": "html", "elementName": "s_more", "html": "<div class=\"tr-sec\">More filters (optional)</div>"},
+    _tx("industry", "Industry", "={{ $json['Preferred Industry'] || '' }}", "e.g. Fintech, SaaS"),
+    _tx("employer", "Current employer", "={{ $json['Current Employer'] || '' }}", "Only people at this company"),
+    _tx("exclude", "Exclude words", "={{ $json['Keywords to Exclude'] || '' }}", "e.g. intern, trainee"),
+    _dd("education", "Education", ["Any", "Bachelors / Degree", "Masters", "PhD", "MBA"],
+        "={{ ['Bachelors / Degree','Masters','PhD','MBA'].includes($json['Education']) ? $json['Education'] : 'Any' }}"),
+    _dd("gender", "Gender preference", ["Any", "Female", "Male"],
+        "={{ ['Female','Male'].includes($json['Gender Preference']) ? $json['Gender Preference'] : 'Any' }}"),
+    {"fieldType": "html", "elementName": "s_src", "html": "<div class=\"tr-sec\">Where to look</div>"},
+    {"fieldName": "sources", "fieldLabel": "Sources", "fieldType": "checkbox", "fieldOptions": _opts(PLATFORMS),
+     "defaultValue": "={{ ($json['Target Platforms'] || ['LinkedIn','GitHub']).map(function(p){ return /^github$/i.test(p) ? 'GitHub' : p; }).join(',') }}"},
+]
+
+FINAL_CRITERIA = r"""
+// Page 2 of the form ("Here's what we'll search for"): what the recruiter
+// confirmed. Same output shape as before, so every later step is unchanged.
+const f = $input.first().json || {};
+const d = (function(){ try { return $('Draft Criteria').first().json; } catch (e) { return {}; } })();
+const val = function(k, label){ const v = f[k] !== undefined ? f[k] : f[label]; return v === undefined || v === null ? '' : v; };
+const list = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };
+const seen = {};
+let primary = list(val('must', 'Must-have skills (comma-separated)')).filter(function(s){ const k = s.toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });
+let secondary = list(val('nice', 'Nice-to-have skills (only used for ranking)')).filter(function(s){ const k = s.toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });
+if (!primary.length) primary = list(d['Primary Skills']);
+let platforms = list(val('sources', 'Sources'));
+if (!platforms.length) platforms = ['LinkedIn', 'Github'];
+const region = String(val('region', 'Country / region') || '');
+return [{ json: {
+  'Target Role': String(val('role', 'Job title') || d['Target Role'] || '').trim(),
+  'Key Skills & Criteria': primary.concat(secondary).join(', '),
+  'Primary Skills': primary.join(', '),
+  'Secondary Skills': secondary.join(', '),
+  'Use Secondary Skills': secondary.length > 0,
+  'Location': String(val('city', 'City') || '').trim(),
+  'Preferred Industry': String(val('industry', 'Industry') || '').trim(),
+  'Current Employer': String(val('employer', 'Current employer') || '').trim(),
+  'Keywords to Exclude': String(val('exclude', 'Exclude words') || '').trim(),
+  'Education': val('education', 'Education') || 'Any',
+  'Expand Job Title Synonyms': val('similar', 'Include similar titles') || 'Yes',
+  'Experience Range (Years)': val('experience', 'Experience') || 'Any',
+  'Gender Preference': val('gender', 'Gender preference') || 'Any',
+  'Target Platforms': platforms,
+  'Search Region': /^global/i.test(region) ? '' : region,
+  'nl_used': !!d.nl_used
+} }];
+"""
+
+COMMIT_URL = ("={{ (function(j){ var m = String(j.github_url || j.profile_url || '').match(/github\\.com\\/([A-Za-z0-9-]+)\\/?$/i);"
+              " return (m && !j.email && Number(j.rank) <= 20) ? 'https://api.github.com/search/commits?q=' + encodeURIComponent('author:' + m[1])"
+              " + '&sort=author-date&order=desc&per_page=10' : 'https://api.github.com/rate_limit'; })($json) }}")
+
+ATTACH_COMMIT = r"""
+// A GitHub developer's public commit email, when their profile shows none.
+// Only addresses that clearly belong to them (no noreply / bot / example).
+const a = Object.assign({}, $('Attach Resume').item.json);
+const r = $json || {};
+const login = (String(a.github_url || a.profile_url || '').match(/github\.com\/([A-Za-z0-9-]+)\/?$/i) || [])[1] || '';
+let email = '';
+if (login && !a.email && Array.isArray(r.items)) {
+  for (const it of r.items) {
+    const e = String((it && it.commit && it.commit.author && it.commit.author.email) || '').trim();
+    const who = String((it && it.author && it.author.login) || '').toLowerCase();
+    if (who === login.toLowerCase() && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(e)
+        && !/noreply|no-reply|localhost|\.local$|example\.(com|org)|invalid|\[bot\]|github\.com$/i.test(e)) { email = e; break; }
+  }
+}
+a.commit_email = email;
+return { json: a };
+"""
+
+
+def _template_to_js(t):
+    assert t.startswith("=")
+    t = t[1:]
+    assert "`" not in t and "${" not in t
+    t = t.replace("\\", "\\\\")
+    t = re.sub(r"\{\{(.*?)\}\}", lambda m: "${" + m.group(1) + "}", t, flags=re.S)
+    t = t.replace("$('Search Criteria').first().json", "S('Search Criteria')").replace("$('Prep JD').first().json", "S('Prep JD')")
+    return t
+
+
+def apply_round19(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round19 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    # ---- 1. two-page form
+    trig = N["On form submission"]
+    tp = trig["parameters"]
+    tp["formTitle"] = "Who are you hiring?"
+    tp["formDescription"] = "Describe the person in a sentence or two. Next, you'll check what we understood before the search starts."
+    tp["formFields"] = {"values": PAGE1_FIELDS}
+    tp["options"]["buttonLabel"] = "Next: check the search"
+    tp["options"]["customCss"] = FORM_CSS
+    tp["options"].pop("respondWithOptions", None)
+    N["Parse NL Search"]["parameters"]["responses"]["values"][0]["content"] = N["Parse NL Search"]["parameters"]["responses"]["values"][0]["content"].replace(
+        "json['Natural Language Search']", "json['Brief']")
+    R("Prep JD", "json['Job Description']", "json['Job description']")
+
+    sc = N["Search Criteria"]
+    sc["name"] = "Draft Criteria"
+    sc["id"] = "fix-draft-criteria"
+    N["Draft Criteria"] = sc
+    R("Draft Criteria", "const nlUsed = String(form['Natural Language Search'] || '').trim().length > 0;",
+      "const nlUsed = String(form['Brief'] || '').trim().length > 0;")
+    R("Draft Criteria", "pick(form['9) Experience Range (Years)'], p.experience_range, '0-2 years')",
+      "pick(form['9) Experience Range (Years)'], p.experience_range, 'Any')")
+    R("Draft Criteria", "pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'No')",
+      "pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'Yes')")
+    x, y = sc["position"]
+    page2 = _node("Check Search", "n8n-nodes-base.form", 2.5, [x + 200, y], {
+        "operation": "page", "defineForm": "fields",
+        "formFields": {"values": PAGE2_FIELDS},
+        "options": {"formTitle": "Here's what we'll search for",
+                    "formDescription": "Read from your brief and JD. Change anything, then search.",
+                    "buttonLabel": "Search candidates", "customCss": FORM_CSS}})
+    page2["webhookId"] = "fix-check-search-page"
+    done = _node("Search Started", "n8n-nodes-base.form", 2.5, [x + 400, y - 200], {
+        "operation": "completion", "respondWith": "text", "completionTitle": "Search started",
+        "completionMessage": "Results appear in your Google Sheet in 2 to 5 minutes. The Search Log tab shows Processing, then Complete with the candidate count. You can close this page.",
+        "options": {"customCss": FORM_CSS}})
+    done["webhookId"] = "fix-search-started-page"
+    final = _node("Search Criteria", "n8n-nodes-base.code", 2, [x + 400, y], {"jsCode": FINAL_CRITERIA})
+    nodes.extend([page2, done, final])
+    conns["Draft Criteria"] = conns.pop("Search Criteria")
+    conns["Draft Criteria"]["main"][0] = [{"node": "Check Search", "type": "main", "index": 0}]
+    conns["Check Search"] = {"main": [[{"node": "Search Started", "type": "main", "index": 0}, {"node": "Search Criteria", "type": "main", "index": 0}]]}
+    conns["Search Criteria"] = {"main": [[{"node": "Guardrail Check", "type": "main", "index": 0}]]}
+    for src, c in conns.items():
+        for outs in c.get("main", []):
+            for t in outs or []:
+                if t["node"] == "Search Criteria" and src not in ("Check Search",):
+                    t["node"] = "Draft Criteria"
+
+    # ---- 2. parallel AI scoring
+    mam = N["Message a model"]
+    vals = mam["parameters"]["responses"]["values"]
+    user_t = [v for v in vals if not v.get("role")][0]["content"]
+    sys_t = [v for v in vals if v.get("role") == "system"][0]["content"]
+    model = mam["parameters"]["modelId"]["value"]
+    js = _template_to_js(user_t)
+    R("Format Search Results", "const out = [];",
+      "const S = function(n){ try { return $(n).first().json || {}; } catch (e) { return {}; } };\n"
+      "const SYSTEM = " + json.dumps(sys_t) + ";\n"
+      "function scoringPrompt(page_text) { const $json = { page_text: page_text }; return `" + js + "`; }\n"
+      "const out = [];")
+    R("Format Search Results", "out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length } });",
+      "out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length, prompt: scoringPrompt(text), system: SYSTEM } });")
+    pos, cred = mam["position"], mam["credentials"]
+    nodes.remove(mam)
+    http = _node("Message a model", "n8n-nodes-base.httpRequest", 4.2, pos, {
+        "method": "POST", "url": "https://api.openai.com/v1/responses",
+        "authentication": "predefinedCredentialType", "nodeCredentialType": "openAiApi",
+        "sendBody": True, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: '" + model + "', input: [{ role: 'system', content: $json.system }, { role: 'user', content: $json.prompt }] }) }}",
+        "options": {"batching": {"batch": {"batchSize": 8, "batchInterval": 0}}, "timeout": 120000}},
+        credentials=cred, retryOnFail=True, maxTries=3, waitBetweenTries=3000)
+    http["id"] = "fix-parallel-scoring"
+    nodes.append(http)
+
+    # ---- 3. per-source counts on the requisition row
+    R("Add Req Header", "parts.push(result);",
+      "const bySrc = {};\n"
+      "items.forEach(function(i){ const s = i.json.source_platform || 'Other'; bySrc[s] = (bySrc[s] || 0) + 1; });\n"
+      "const srcLine = Object.keys(bySrc).sort(function(a, b){ return bySrc[b] - bySrc[a]; }).map(function(k){ return k + ' ' + bySrc[k]; }).join(' · ');\n"
+      "if (srcLine) result += '; by source: ' + srcLine;\n"
+      "parts.push(result);")
+
+    # ---- 4. GitHub commit emails
+    ge = N["GitHub Enrich"]
+    ax, ay = N["Attach Resume"]["position"]
+    cs = _node("Commit Email Search", "n8n-nodes-base.httpRequest", 4.2, [ax + 100, ay + 160], {
+        "url": COMMIT_URL, "authentication": "predefinedCredentialType", "nodeCredentialType": "githubApi",
+        "sendHeaders": True, "headerParameters": {"parameters": [{"name": "Accept", "value": "application/vnd.github+json"},
+                                                                  {"name": "User-Agent", "value": "talentrubric-sourcing"}]},
+        "options": {}}, credentials=json.loads(json.dumps(ge["credentials"])), onError="continueRegularOutput")
+    cs["id"] = "fix-commit-email-search"
+    ac = _node("Attach Commit Email", "n8n-nodes-base.code", 2, [ax + 260, ay + 160], {"jsCode": ATTACH_COMMIT, "mode": "runOnceForEachItem"})
+    nodes.extend([cs, ac])
+    conns["Attach Resume"] = {"main": [[{"node": "Commit Email Search", "type": "main", "index": 0}]]}
+    conns["Commit Email Search"] = {"main": [[{"node": "Attach Commit Email", "type": "main", "index": 0}]]}
+    conns["Attach Commit Email"] = {"main": [[{"node": "Download Resume", "type": "main", "index": 0}]]}
+    R("Parse Contact", "const merged = Object.assign({}, cand);",
+      "const merged = Object.assign({}, cand);\n"
+      "try { const ce = $('Attach Commit Email').item.json.commit_email; if (ce && !merged.email) { merged.email = ce; merged.email_status = 'public in GitHub commits'; } } catch (e) {}")
     return nodes, conns

@@ -55,11 +55,13 @@ test('results sheet writes only to columns the setup creates', () => {
 
 test('form fields read by the workflow exist on the form', () => {
   const labels = NODES['On form submission'].parameters.formFields.values.map((f) => f.fieldLabel).filter(Boolean);
-  const code = NODES['Search Criteria'].parameters.jsCode + NODES['Prep JD'].parameters.jsCode;
-  for (const m of code.matchAll(/form\['([^']+)'\]|json\['([^']+)'\]/g)) {
-    const label = m[1] || m[2];
-    if (/^\d|Natural Language|Job Description/.test(label)) assert.ok(labels.includes(label), 'form field missing: ' + label);
-  }
+  for (const l of ['Brief', 'Job description', 'Job description file']) assert.ok(labels.includes(l), l);
+  assert.match(NODES['Prep JD'].parameters.jsCode, /json\['Job description'\]/);
+  assert.match(JSON.stringify(NODES['Parse NL Search'].parameters), /json\['Brief'\]/);
+  const page2 = NODES['Check Search'].parameters.formFields.values.map((f) => f.fieldName).filter(Boolean);
+  for (const m of NODES['Search Criteria'].parameters.jsCode.matchAll(/val\('([a-z]+)'/g)) assert.ok(page2.includes(m[1]), 'page 2 field missing: ' + m[1]);
+  assert.deepEqual(WF.connections['Draft Criteria'].main[0].map((t) => t.node), ['Check Search']);
+  assert.deepEqual(WF.connections['Check Search'].main[0].map((t) => t.node), ['Search Started', 'Search Criteria']);
 });
 
 test('no account-specific values or vendor placeholders ship in the template', () => {
@@ -88,8 +90,8 @@ test('UAT: the sheet write never overwrites "Send Email?" with a constant', () =
 });
 
 test('UAT: confirmation page does not promise Slack posts', () => {
-  const t = NODES['On form submission'].parameters.options.respondWithOptions.values.formSubmittedText;
-  assert.ok(!/also post to the recruitment Slack channel/.test(t));
+  const t = NODES['Search Started'].parameters.completionMessage;
+  assert.ok(!/Slack/.test(t));
 });
 
 test('UAT: new rows get a "Send Email?" checkbox after every search (rule only, no values, so no gaps)', () => {

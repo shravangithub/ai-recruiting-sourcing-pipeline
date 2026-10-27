@@ -88,6 +88,7 @@ def main():
     src_nodes, src_conns = pipeline_fixes.apply_round16(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round17(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round18(src_nodes, src_conns)
+    src_nodes, src_conns = pipeline_fixes.apply_round19(src_nodes, src_conns)
     nodes = []
     for n in src_nodes:
         n = swap(n)
@@ -131,7 +132,7 @@ def main():
                    "Profile URL", "count = $('Location Check & Rank').all().length", "outside top", "location not confirmed",
                    "skipped - below top", "STRICT HONESTY",
                    "restored_total", "public on GitHub profile", "personal website (from GitHub)",
-                   "10. line (number", "Writes ' + lang", "can't filter by location - check profile", "site:reddit.com/r/forhire", "return 'Open Web';", "const LIMIT = 32;", "JOB_AD.test", "followers:>10", "only the platforms the recruiter ticked", "and once by job title"):
+                   "10. line (number", "Writes ' + lang", "can't filter by location - check profile", "site:reddit.com/r/forhire", "return 'Open Web';", "const LIMIT = 32;", "JOB_AD.test", "followers:>10", "only the platforms the recruiter ticked", "and once by job title", "Here's what we'll search for", "by source: ", "public in GitHub commits", "api.openai.com/v1/responses"):
         assert marker in text, f"fix not applied: {marker}"
     assert "$('Merge GitHub').item" not in text and "PDL Skills" not in text
     OUT.write_text(text + "\n")

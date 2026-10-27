@@ -3,43 +3,6 @@
  "nodes": [
   {
    "parameters": {
-    "modelId": {
-     "__rl": true,
-     "value": "gpt-4o-mini",
-     "mode": "list",
-     "cachedResultName": "GPT-4O-MINI"
-    },
-    "responses": {
-     "values": [
-      {
-       "content": "=You are an expert recruiter evaluating candidates for __COMPANY__.\n\n--- HIRING CRITERIA ---\nTarget Role: {{ $('Search Criteria').first().json['Target Role'] }}\nKey Skills & Requirements: {{ $('Search Criteria').first().json['Key Skills & Criteria'] }}\nExperience Range (Years): {{ $('Search Criteria').first().json['Experience Range (Years)'] }}\nGender Preference: {{ $('Search Criteria').first().json['Gender Preference'] }}\nTarget Location: {{ $('Search Criteria').first().json['Location'] || 'any' }}\nMust-have skills: {{ $('Search Criteria').first().json['Primary Skills'] || $('Search Criteria').first().json['Key Skills & Criteria'] }}\nNice-to-have skills: {{ $('Search Criteria').first().json['Secondary Skills'] || 'none' }}\n\n--- FULL JOB DESCRIPTION (may be empty; if present, treat as the authoritative source of requirements) ---\n{{ $('Prep JD').first().json.jd_text || 'No job description was provided; use the criteria above only.' }}\n\n--- SCRAPED CANDIDATE CONTENT (each line is one candidate: Title | Snippet | URL) ---\n{{ $json.page_text }}\n\n--- INSTRUCTIONS ---\n--- SOURCING PLAYBOOK (expert best practices from Glen Cathey / Boolean Black Belt / SocialTalent — apply these) ---\n1. PERSON vs JOB POSTING (most important): A real candidate line names an INDIVIDUAL and describes THEIR experience (a personal name, \"Senior X at Y\", \"I built...\"). A JOB POSTING describes a role to be filled — signals include \"We are looking\", \"Responsibilities\", \"Apply\", \"job description\", \"N jobs in <city>\", salary ranges, and company careers/ATS URLs (careers.*, jobs.*, boards.greenhouse.io, lever.co, workday, indeed, glassdoor, naukri). Any job posting, ATS page, directory or aggregator listing MUST get candidate_name \"\" and fit_score 0 so it is excluded — never turn a job title into a fake candidate name.\n2. SEMANTIC INFERENCE: credit skills and seniority that are implied but not stated verbatim (e.g. \"led/mentored a team\" implies seniority; \"GAAP\" implies accounting; \"Kubernetes + Terraform\" implies DevOps/SRE; \"published research\" implies depth). Do not require exact keyword matches.\n3. TITLE VARIETY: the same role carries many titles across companies — judge on substance, not exact title match (SDE ≈ Software Engineer; SRE ≈ Platform/Infrastructure Engineer; Applied Scientist ≈ ML Engineer). Reward adjacent/synonymous titles that demonstrate the required capability.\n4. SIGNAL QUALITY: prefer candidates with concrete, verifiable evidence (specific technologies, measurable impact, named employers) over vague self-description.\n\nEvaluate EVERY candidate line in the scraped content against the HIRING CRITERIA above.\nIf a FULL JOB DESCRIPTION is provided above, weigh it heavily: match each candidate against the specific responsibilities, must-have skills and seniority described in it, and reference JD-specific requirements in the match_summary. If no job description was provided, rely on the hiring criteria fields only.\nIf a line is NOT an individual person (a job posting, company page, directory, list, article or hiring announcement), set is_person to false.\nEVERY real person MUST be returned with is_person true and a fit_score from 1 to 10. Never drop or zero-score a real person: the recruiter decides. Score must-have skills and role match highest, then seniority, then nice-to-have skills.\nEXPERIENCE: compare against the requested Experience Range only when the line actually states years, dates or seniority. If it does, lower the score for clearly too-junior people (students/interns -> 1-3) and say so. If it does not, write 'experience not stated' - NEVER guess a number of years.\nSTRICT HONESTY: use ONLY facts present in the candidate's line. Do not invent employers, years, skills or locations. key_skills must be skills the line actually shows (a Java/Spring maintainer is not a Python developer).\nAlso factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.\nReturn a JSON ARRAY with one object for EVERY line (same order), each with exactly these fields:\n1. candidate_name (string) - the person's real full name as written; for a GitHub/GitLab/Kaggle line with no real name, use the username. Never invent a name. \"\" if no person.\n2. is_person (boolean)\n3. current_role (string, as stated, else \"\")\n4. fit_score (number 1-10 for people, 0 only when is_person is false)\n5. match_summary (string, 2 short sentences: why they fit and what is missing/unknown)\n6. key_skills (array of strings, only skills evidenced in the line)\n7. candidate_location (string - city/region/country exactly as stated in the line, else \"\")\n8. experience_evidence (string - years/seniority as stated, else \"not stated\")\n9. profile_url (string - the URL at the end of their line, copied exactly)\n10. line (number - the [n] at the start of that line)\nEach line starts with [n]. You MUST return exactly one object per line, for every line, including weak matches.\nSort the array by fit_score descending. Return ONLY the JSON array."
-      },
-      {
-       "role": "system",
-       "content": "You are a JSON generator. Return ONLY a valid, raw JSON array of candidate objects without any markdown code blocks, conversational text, or formatting."
-      }
-     ]
-    },
-    "builtInTools": {},
-    "options": {}
-   },
-   "id": "6351adcd-44a2-4605-a2b8-c19c3a94ea89",
-   "name": "Message a model",
-   "type": "@n8n/n8n-nodes-langchain.openAi",
-   "typeVersion": 2.3,
-   "position": [
-    1120,
-    -48
-   ],
-   "credentials": {
-    "openAiApi": {
-     "id": "__CRED_OPENAI__",
-     "name": "Sourcing · OpenAI"
-    }
-   }
-  },
-  {
-   "parameters": {
     "jsCode": "\n// Parse the AI output per batch. Anyone from a people-only source (GitHub,\n// GitLab, LinkedIn, Apollo, Stack Overflow, Kaggle, Hugging Face) that the AI\n// skipped is put back with a neutral score, so no real profile is lost.\nlet batches = [];\ntry { batches = $('Format Search Results').all().map(function(i){ return i.json.lines || []; }); } catch (e) { batches = []; }\nfunction nameFromTitle(t) {\n  t = String(t || '');\n  const m = t.match(/^(.+?) \\(@[^)]+\\)/); if (m) return m[1].trim();\n  return t.replace(/\\s*[-(].*$/, '').trim();\n}\nconst out = [];\nconst seen = {};\nlet restored = 0;\n$input.all().forEach(function(item, b) {\n  let raw;\n  if (item.json.output && item.json.output[0] && item.json.output[0].content && item.json.output[0].content[0]) raw = item.json.output[0].content[0].text;\n  else if (typeof item.json.text === 'string') raw = item.json.text;\n  else raw = '[]';\n  raw = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();\n  let parsed;\n  try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }\n  if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.candidates)) parsed = parsed.candidates;\n  if (!Array.isArray(parsed)) parsed = [parsed];\n  const lines = batches[b] || [];\n  const gotLine = {}, gotUrl = {};\n  for (const c of parsed) {\n    if (!c) continue;\n    let url = String(c.profile_url || '').trim();\n    const ln = Number(c.line);\n    if (ln && lines[ln - 1]) { gotLine[ln] = 1; if (!url) url = lines[ln - 1].link; }\n    if (url) gotUrl[url.toLowerCase().replace(/\\/+$/, '')] = 1;\n    const key = url.toLowerCase().replace(/\\/+$/, '') || String(c.candidate_name || '').toLowerCase();\n    if (!key || seen[key]) continue;\n    seen[key] = true;\n    out.push({ json: {\n      candidate_name: c.candidate_name || '',\n      is_person: c.is_person !== false && !!c.candidate_name,\n      current_role: c.current_role || '',\n      fit_score: typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0,\n      match_summary: c.match_summary || '',\n      key_skills: Array.isArray(c.key_skills) ? c.key_skills : [],\n      candidate_location: String(c.candidate_location || '').trim(),\n      experience_evidence: String(c.experience_evidence || '').trim(),\n      profile_url: url\n    } });\n  }\n  for (const l of lines) {\n    const key = l.link.toLowerCase().replace(/\\/+$/, '');\n    if (!l.person || gotLine[l.n] || gotUrl[key] || seen[key]) continue;\n    seen[key] = true; restored++;\n    out.push({ json: { candidate_name: nameFromTitle(l.title), is_person: true, current_role: '', fit_score: 3,\n      match_summary: 'Not scored by the AI (it skipped this profile) - please review manually.', key_skills: [],\n      candidate_location: '', experience_evidence: 'not stated', profile_url: l.link, restored: true } });\n  }\n});\nif (out.length) out[0].json.restored_total = restored;\nreturn out;\n"
    },
    "id": "0f3ce84b-7362-43fd-b910-b7ac5879941a",
@@ -666,721 +629,36 @@
   },
   {
    "parameters": {
-    "formTitle": "__COMPANY__ — Candidate Sourcing",
-    "formDescription": "Find candidates two ways: (A) describe the role in plain English, or (B) fill the numbered fields. Fill just one option and hit Search.",
+    "formTitle": "Who are you hiring?",
+    "formDescription": "Describe the person in a sentence or two. Next, you'll check what we understood before the search starts.",
     "formFields": {
      "values": [
       {
        "fieldType": "html",
-       "elementName": "top_intro",
-       "html": "<div class=\"tr-intro\"><b>How this works</b> &mdash; choose <b>one</b> of the two ways to search:<ul><li><b>Option A</b> &mdash; describe the person in plain English. The AI fills the fields for you.</li><li><b>Option B</b> &mdash; fill the numbered fields yourself.</li></ul>If you use both, the numbered fields win.</div>"
+       "elementName": "tip",
+       "html": "<div class=\"tr-tip\">Write it the way you'd brief a sourcer: <b>role, city, years, must-have skills</b>, anything to avoid. On the next page you'll see exactly what we read and can change any of it. Prefer filling fields yourself? Leave this empty and press Next.</div>"
       },
       {
-       "fieldType": "html",
-       "elementName": "sec_a",
-       "html": "<div class=\"tr-sec tr-sec-a\"><div class=\"tr-sec-title\">Option A</div><div class=\"tr-sec-sub\">Describe the candidate in one or two sentences.</div></div>"
-      },
-      {
-       "fieldLabel": "Natural Language Search",
+       "fieldLabel": "Brief",
        "fieldType": "textarea",
-       "placeholder": "e.g. \"Senior backend engineer in Bangalore, 5+ yrs Java, Spring Boot & Kafka. Exclude interns. Search LinkedIn and GitHub.\""
+       "placeholder": "e.g. Senior backend engineer in Bangalore, 5+ years of Java, Spring Boot and Kafka. No interns. Look on LinkedIn and GitHub."
       },
       {
-       "fieldLabel": "Job Description",
+       "fieldLabel": "Job description",
        "fieldType": "textarea",
-       "placeholder": "Optional. Paste the full JD here (or upload a file below). The AI scores each candidate against it."
+       "placeholder": "Optional. Paste the JD and every candidate is scored against it."
       },
       {
-       "fieldLabel": "Job Description File (PDF, Word, TXT, RTF, HTML, MD)",
+       "fieldLabel": "Job description file",
        "fieldType": "file",
        "multipleFiles": false,
        "acceptFileTypes": ".pdf,.doc,.docx,.txt,.md,.markdown,.rtf,.html,.htm,.csv"
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_jdfile",
-       "html": "<div class=\"tr-hint\">Optional. Upload the JD instead of pasting it (PDF, Word, TXT, RTF, HTML or Markdown).</div>"
-      },
-      {
-       "fieldType": "html",
-       "elementName": "or_divider",
-       "html": "<div class=\"tr-or\"><span>OR</span></div>"
-      },
-      {
-       "fieldType": "html",
-       "elementName": "sec_b",
-       "html": "<div class=\"tr-sec tr-sec-b\"><div class=\"tr-sec-title\">Option B</div><div class=\"tr-sec-sub\">Fill the fields below. Anything here overrides Option A.</div></div>"
-      },
-      {
-       "fieldLabel": "1) Target Role",
-       "placeholder": "The job title you're hiring for. e.g. Backend Engineer, Data Scientist, Product Manager"
-      },
-      {
-       "fieldLabel": "2) Primary Skills (must-have)",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Java"
-         },
-         {
-          "option": "Python"
-         },
-         {
-          "option": "JavaScript"
-         },
-         {
-          "option": "TypeScript"
-         },
-         {
-          "option": "Go"
-         },
-         {
-          "option": "Rust"
-         },
-         {
-          "option": "C++"
-         },
-         {
-          "option": "C#"
-         },
-         {
-          "option": "Ruby"
-         },
-         {
-          "option": "PHP"
-         },
-         {
-          "option": "Kotlin"
-         },
-         {
-          "option": "Swift"
-         },
-         {
-          "option": "Scala"
-         },
-         {
-          "option": "React"
-         },
-         {
-          "option": "Angular"
-         },
-         {
-          "option": "Vue"
-         },
-         {
-          "option": "Node.js"
-         },
-         {
-          "option": "Spring Boot"
-         },
-         {
-          "option": "Django"
-         },
-         {
-          "option": "FastAPI"
-         },
-         {
-          "option": ".NET"
-         },
-         {
-          "option": "SQL"
-         },
-         {
-          "option": "PostgreSQL"
-         },
-         {
-          "option": "MongoDB"
-         },
-         {
-          "option": "MySQL"
-         },
-         {
-          "option": "Redis"
-         },
-         {
-          "option": "Kafka"
-         },
-         {
-          "option": "Elasticsearch"
-         },
-         {
-          "option": "GraphQL"
-         },
-         {
-          "option": "AWS"
-         },
-         {
-          "option": "Azure"
-         },
-         {
-          "option": "GCP"
-         },
-         {
-          "option": "Docker"
-         },
-         {
-          "option": "Kubernetes"
-         },
-         {
-          "option": "Terraform"
-         },
-         {
-          "option": "CI/CD"
-         },
-         {
-          "option": "Microservices"
-         },
-         {
-          "option": "Machine Learning"
-         },
-         {
-          "option": "Deep Learning"
-         },
-         {
-          "option": "NLP"
-         },
-         {
-          "option": "LLMs"
-         },
-         {
-          "option": "PyTorch"
-         },
-         {
-          "option": "TensorFlow"
-         },
-         {
-          "option": "Data Analysis"
-         },
-         {
-          "option": "Spark"
-         },
-         {
-          "option": "Airflow"
-         },
-         {
-          "option": "Android"
-         },
-         {
-          "option": "iOS"
-         },
-         {
-          "option": "Flutter"
-         },
-         {
-          "option": "React Native"
-         },
-         {
-          "option": "Sales"
-         },
-         {
-          "option": "Marketing"
-         },
-         {
-          "option": "SEO"
-         },
-         {
-          "option": "Content Writing"
-         },
-         {
-          "option": "Finance"
-         },
-         {
-          "option": "Accounting"
-         },
-         {
-          "option": "HR"
-         },
-         {
-          "option": "Recruiting"
-         },
-         {
-          "option": "Customer Success"
-         },
-         {
-          "option": "Project Management"
-         },
-         {
-          "option": "Product Management"
-         },
-         {
-          "option": "UX Design"
-         },
-         {
-          "option": "UI Design"
-         },
-         {
-          "option": "Figma"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_primary",
-       "html": "<div class=\"tr-hint\">Pick the <b>must-have</b> skills from the list (you can select several). These are <b>required</b> in the search.</div>"
-      },
-      {
-       "fieldLabel": "2b) Add other primary skills",
-       "placeholder": "Comma-separated skills not in the list. e.g. gRPC, Temporal, DuckDB"
-      },
-      {
-       "fieldLabel": "2c) Secondary Skills (nice-to-have)",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Java"
-         },
-         {
-          "option": "Python"
-         },
-         {
-          "option": "JavaScript"
-         },
-         {
-          "option": "TypeScript"
-         },
-         {
-          "option": "Go"
-         },
-         {
-          "option": "Rust"
-         },
-         {
-          "option": "C++"
-         },
-         {
-          "option": "C#"
-         },
-         {
-          "option": "Ruby"
-         },
-         {
-          "option": "PHP"
-         },
-         {
-          "option": "Kotlin"
-         },
-         {
-          "option": "Swift"
-         },
-         {
-          "option": "Scala"
-         },
-         {
-          "option": "React"
-         },
-         {
-          "option": "Angular"
-         },
-         {
-          "option": "Vue"
-         },
-         {
-          "option": "Node.js"
-         },
-         {
-          "option": "Spring Boot"
-         },
-         {
-          "option": "Django"
-         },
-         {
-          "option": "FastAPI"
-         },
-         {
-          "option": ".NET"
-         },
-         {
-          "option": "SQL"
-         },
-         {
-          "option": "PostgreSQL"
-         },
-         {
-          "option": "MongoDB"
-         },
-         {
-          "option": "MySQL"
-         },
-         {
-          "option": "Redis"
-         },
-         {
-          "option": "Kafka"
-         },
-         {
-          "option": "Elasticsearch"
-         },
-         {
-          "option": "GraphQL"
-         },
-         {
-          "option": "AWS"
-         },
-         {
-          "option": "Azure"
-         },
-         {
-          "option": "GCP"
-         },
-         {
-          "option": "Docker"
-         },
-         {
-          "option": "Kubernetes"
-         },
-         {
-          "option": "Terraform"
-         },
-         {
-          "option": "CI/CD"
-         },
-         {
-          "option": "Microservices"
-         },
-         {
-          "option": "Machine Learning"
-         },
-         {
-          "option": "Deep Learning"
-         },
-         {
-          "option": "NLP"
-         },
-         {
-          "option": "LLMs"
-         },
-         {
-          "option": "PyTorch"
-         },
-         {
-          "option": "TensorFlow"
-         },
-         {
-          "option": "Data Analysis"
-         },
-         {
-          "option": "Spark"
-         },
-         {
-          "option": "Airflow"
-         },
-         {
-          "option": "Android"
-         },
-         {
-          "option": "iOS"
-         },
-         {
-          "option": "Flutter"
-         },
-         {
-          "option": "React Native"
-         },
-         {
-          "option": "Sales"
-         },
-         {
-          "option": "Marketing"
-         },
-         {
-          "option": "SEO"
-         },
-         {
-          "option": "Content Writing"
-         },
-         {
-          "option": "Finance"
-         },
-         {
-          "option": "Accounting"
-         },
-         {
-          "option": "HR"
-         },
-         {
-          "option": "Recruiting"
-         },
-         {
-          "option": "Customer Success"
-         },
-         {
-          "option": "Project Management"
-         },
-         {
-          "option": "Product Management"
-         },
-         {
-          "option": "UX Design"
-         },
-         {
-          "option": "UI Design"
-         },
-         {
-          "option": "Figma"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_secondary",
-       "html": "<div class=\"tr-hint\">Optional <b>nice-to-have</b> skills. These <b>widen the match</b> and can be switched off below.</div>"
-      },
-      {
-       "fieldLabel": "2d) Add other secondary skills",
-       "placeholder": "Comma-separated extra skills. e.g. Grafana, Splunk"
-      },
-      {
-       "fieldLabel": "2e) Use Secondary Skills?",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Yes"
-         },
-         {
-          "option": "No"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_usesec",
-       "html": "<div class=\"tr-hint\">Pick <b>No</b> to ignore secondary skills and search on the primary must-haves only.</div>"
-      },
-      {
-       "fieldLabel": "3) Location",
-       "placeholder": "City or region (use the city before any dash). e.g. Bangalore"
-      },
-      {
-       "fieldLabel": "4) Preferred Industry",
-       "placeholder": "Optional. e.g. Fintech, SaaS, E-commerce"
-      },
-      {
-       "fieldLabel": "5) Current Employer",
-       "placeholder": "Optional. Only people currently at this company. e.g. Flipkart"
-      },
-      {
-       "fieldLabel": "6) Keywords to Exclude",
-       "placeholder": "Optional. Comma-separated terms to filter out. e.g. intern, recruiter, freelance"
-      },
-      {
-       "fieldLabel": "7) Education",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Any"
-         },
-         {
-          "option": "Bachelors / Degree"
-         },
-         {
-          "option": "Masters"
-         },
-         {
-          "option": "PhD"
-         },
-         {
-          "option": "MBA"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_education",
-       "html": "<div class=\"tr-hint\">Minimum qualification. Pick <b>Any</b> to ignore education.</div>"
-      },
-      {
-       "fieldLabel": "8) Expand Job Title Synonyms",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "No"
-         },
-         {
-          "option": "Yes"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_expand",
-       "html": "<div class=\"tr-hint\"><b>Yes</b> also matches similar titles (SDE, Software Developer) for a wider search. Recommended.</div>"
-      },
-      {
-       "fieldLabel": "9) Experience Range (Years)",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Auto (from description)"
-         },
-         {
-          "option": "0-2 years"
-         },
-         {
-          "option": "3-5 years"
-         },
-         {
-          "option": "5-8 years"
-         },
-         {
-          "option": "8+ years"
-         }
-        ]
-       },
-       "requiredField": true
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_exp",
-       "html": "<div class=\"tr-hint\">This is the <b>minimum</b> experience &mdash; e.g. <b>8+ years</b> excludes anyone below 8. Pick <b>Auto</b> to read it from your description.</div>"
-      },
-      {
-       "fieldLabel": "10) Gender Preference",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Auto (from description)"
-         },
-         {
-          "option": "Any"
-         },
-         {
-          "option": "Female"
-         },
-         {
-          "option": "Male"
-         }
-        ]
-       },
-       "requiredField": true
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_gender",
-       "html": "<div class=\"tr-hint\">Pick <b>Any</b> to rank purely on merit.</div>"
-      },
-      {
-       "fieldLabel": "11) Target Platforms",
-       "fieldType": "checkbox",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "LinkedIn"
-         },
-         {
-          "option": "Github"
-         },
-         {
-          "option": "X (Twitter)"
-         },
-         {
-          "option": "Stack Overflow"
-         },
-         {
-          "option": "Dribbble"
-         },
-         {
-          "option": "Behance"
-         },
-         {
-          "option": "Hacker News"
-         },
-         {
-          "option": "Reddit"
-         },
-         {
-          "option": "Dev.to"
-         },
-         {
-          "option": "GitLab"
-         },
-         {
-          "option": "Hugging Face"
-         },
-         {
-          "option": "Kaggle"
-         },
-         {
-          "option": "Google / Open Web"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_platforms",
-       "html": "<div class=\"tr-hint\">Where to search. <b>LinkedIn + GitHub</b> give the best real people; <b>Kaggle</b> for data-science/ML; <b>Google / Open Web</b> for a broad sweep.</div>"
-      },
-      {
-       "fieldLabel": "12) Search Region (Geography)",
-       "fieldType": "dropdown",
-       "fieldOptions": {
-        "values": [
-         {
-          "option": "Global (all regions)"
-         },
-         {
-          "option": "India"
-         },
-         {
-          "option": "United States"
-         },
-         {
-          "option": "United Kingdom"
-         },
-         {
-          "option": "Canada"
-         },
-         {
-          "option": "Australia"
-         },
-         {
-          "option": "Germany"
-         },
-         {
-          "option": "France"
-         },
-         {
-          "option": "Netherlands"
-         },
-         {
-          "option": "Singapore"
-         },
-         {
-          "option": "United Arab Emirates"
-         },
-         {
-          "option": "Ireland"
-         }
-        ]
-       }
-      },
-      {
-       "fieldType": "html",
-       "elementName": "hint_region",
-       "html": "<div class=\"tr-hint\">Focus on a country/region. Pick <b>Global</b> for no geographic filter.</div>"
       }
      ]
     },
     "options": {
-     "buttonLabel": "Search candidates",
-     "respondWithOptions": {
-      "values": {
-       "formSubmittedText": "✅ Your sourcing request has been received and is now processing. Live status is shown in the Google Sheet 'Search Log' tab — it flips from 🔄 Processing to ✅ Complete (with the candidate count and row range) when the run finishes, usually within a few minutes. Large searches across many sources can take up to 10 minutes. If Slack is connected, a summary is posted there too. You can safely close this page."
-      }
-     },
-     "customCss": "\n:root {\n  --tr-primary: #2f6df6;\n  --tr-primary-dark: #1e4fd6;\n  --tr-ink: #1f2937;\n  --tr-muted: #6b7280;\n  --tr-border: #d7dee8;\n  --tr-bg: #f4f7fb;\n}\nbody { background: var(--tr-bg); }\n.form-container, .card { max-width: 640px; margin: 0 auto; }\nh1, .form-header h1 { color: var(--tr-ink); font-weight: 800; letter-spacing: -.3px; }\n.form-header, .form-description { color: var(--tr-muted); }\n\n/* consistent spacing + alignment for every field row */\n.form-group { margin-bottom: 18px; }\nlabel { font-weight: 600; color: var(--tr-ink); margin-bottom: 6px; display: block; }\n\n/* inputs: uniform look + clear focus */\ninput[type=text], input[type=email], input[type=number], textarea, select {\n  width: 100%; box-sizing: border-box; border: 1px solid var(--tr-border);\n  border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--tr-ink);\n  background: #fff; transition: border-color .15s, box-shadow .15s;\n}\ninput:focus, textarea:focus, select:focus {\n  border-color: var(--tr-primary); box-shadow: 0 0 0 3px rgba(47,109,246,.15); outline: none;\n}\ntextarea { min-height: 92px; resize: vertical; }\n\n/* uniform hint styling (replaces the old mismatched inline blocks) */\n.tr-hint {\n  margin: -10px 0 2px; padding: 8px 12px; font-size: 12.5px; color: #55617a;\n  line-height: 1.55; background: #f5f8ff; border-left: 3px solid var(--tr-primary);\n  border-radius: 0 6px 6px 0;\n}\n.tr-hint b { color: var(--tr-primary-dark); }\n\n/* intro card */\n.tr-intro {\n  padding: 14px 16px; background: #eef4ff; border: 1px solid #cfe0ff;\n  border-radius: 10px; font-size: 13.5px; line-height: 1.6; color: #24324a; margin-bottom: 10px;\n}\n.tr-intro ul { margin: 8px 0 4px 18px; padding: 0; }\n.tr-intro li { margin: 2px 0; }\n\n/* section headers */\n.tr-sec { margin: 18px 0 12px; padding: 12px 16px; border-radius: 10px; border: 1px solid transparent; }\n.tr-sec-title { font-size: 16px; font-weight: 800; color: var(--tr-ink); }\n.tr-sec-sub { font-size: 12.5px; color: var(--tr-muted); margin-top: 3px; }\n.tr-sec-a { background: #f1fbf4; border-color: #c4e8cf; }\n.tr-sec-b { background: #fff6ec; border-color: #f2dcbe; }\n\n/* OR divider */\n.tr-or { display: flex; align-items: center; text-align: center; margin: 22px 0 8px; }\n.tr-or::before, .tr-or::after { content: \"\"; flex: 1; height: 1px; background: var(--tr-border); }\n.tr-or span { padding: 0 14px; font-weight: 800; font-size: 14px; color: #97a2b3; letter-spacing: 1px; }\n\n/* checkbox + radio grid: aligned two-column, tidy */\n.form-group.checkbox .form-check, .form-group.radio .form-check {\n  display: inline-flex; align-items: center; gap: 8px; width: 48%;\n  margin: 4px 1% 4px 0; padding: 8px 10px; border: 1px solid var(--tr-border);\n  border-radius: 8px; background: #fff; font-size: 13.5px; color: var(--tr-ink); box-sizing: border-box;\n}\n.form-check input { margin: 0; }\n\n/* submit button */\nbutton[type=submit], .btn-primary {\n  background: var(--tr-primary); border: none; border-radius: 9px; color: #fff;\n  font-weight: 700; font-size: 15px; padding: 12px 18px; width: 100%; cursor: pointer;\n  transition: background .15s, transform .02s;\n}\nbutton[type=submit]:hover, .btn-primary:hover { background: var(--tr-primary-dark); }\nbutton[type=submit]:active { transform: translateY(1px); }\n"
+     "buttonLabel": "Next: check the search",
+     "customCss": "\n:root { --ink:#161A2E; --muted:#5B6178; --line:#D3D6E2; --soft:#EEF0FD; --accent:#3B4BD6; --accent-dark:#2A37A8; --bg:#F4F5F9; }\nbody { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif; }\n.container { padding: 40px 16px; }\n.card { max-width: 720px; margin: 0 auto; border: 1px solid #E3E5EE; border-radius: 18px; box-shadow: none; padding: 36px 40px; }\n.form-header { text-align: left; margin-bottom: 8px; }\n.form-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-align: left; }\n.form-header p { font-size: 15px; line-height: 1.55; color: var(--muted); text-align: left; }\n.form-group { margin-bottom: 22px; }\n.form-label, label { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }\ninput[type=text], input[type=email], input[type=number], textarea, select {\n  width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;\n  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; }\ninput:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,75,214,.15); outline: none; }\ntextarea { min-height: 110px; line-height: 1.5; resize: vertical; }\n::placeholder { color: #8A8FA5; }\n.tr-tip { margin: 0 0 4px; padding: 12px 14px; border-radius: 10px; background: var(--soft); color: #2A3170; font-size: 13.5px; line-height: 1.55; }\n.tr-tip b { color: var(--accent-dark); }\n.tr-sec { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid #EEF0F5; font-size: 13px; font-weight: 700;\n  letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }\n/* sources as tiles */\n.multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }\n.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px;\n  border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }\n.multiselect-option:has(input:checked) { border: 2px solid var(--accent); background: #F7F8FF; }\n.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }\n.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; }\nbutton[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent); color: #fff;\n  font-size: 16px; font-weight: 700; cursor: pointer; }\nbutton[type=submit]:hover { background: var(--accent-dark); }\n@media (max-width: 640px) {\n  .card { padding: 24px 18px; border-radius: 14px; }\n  .form-header h1 { font-size: 26px; }\n  .multiselect { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n}\n"
     }
    },
    "id": "5c16cc59-5ba4-4612-8179-ca9f993b847a",
@@ -1519,7 +797,7 @@
   },
   {
    "parameters": {
-    "jsCode": "\n// Number every line and remember which lines are always real people, so the\n// next step can put back anyone the AI skipped.\nconst all = ($input.first().json.organic || []);\nconst BATCH = 12;\nconst PERSON_SRC = /(github\\.com\\/[^\\/]+\\/?$|gitlab\\.com\\/[^\\/]+\\/?$|kaggle\\.com\\/[^\\/]+\\/?$|huggingface\\.co\\/[^\\/]+\\/?$|stackoverflow\\.com\\/users\\/|news\\.ycombinator\\.com\\/user\\?id=|apollo\\.io\\/people\\/|linkedin\\.com\\/in\\/)/i;\nconst out = [];\nfor (let i = 0; i < all.length; i += BATCH) {\n  const chunk = all.slice(i, i + BATCH);\n  const lines = chunk.map(function(o, j){ return { n: j + 1, title: String(o.title || ''), link: String(o.link || ''), person: PERSON_SRC.test(String(o.link || '')) }; });\n  const text = chunk.map(function(o, j){ return '[' + (j + 1) + '] ' + (o.title || '') + ' | ' + String(o.snippet || '').replace(/\\s+/g, ' ').slice(0, 700) + ' | ' + (o.link || ''); }).join('\\n');\n  out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length } });\n}\nif (!out.length) out.push({ json: { page_text: '', lines: [], batch: 1, pool_size: 0 } });\nreturn out;\n"
+    "jsCode": "\n// Number every line and remember which lines are always real people, so the\n// next step can put back anyone the AI skipped.\nconst all = ($input.first().json.organic || []);\nconst BATCH = 12;\nconst PERSON_SRC = /(github\\.com\\/[^\\/]+\\/?$|gitlab\\.com\\/[^\\/]+\\/?$|kaggle\\.com\\/[^\\/]+\\/?$|huggingface\\.co\\/[^\\/]+\\/?$|stackoverflow\\.com\\/users\\/|news\\.ycombinator\\.com\\/user\\?id=|apollo\\.io\\/people\\/|linkedin\\.com\\/in\\/)/i;\nconst S = function(n){ try { return $(n).first().json || {}; } catch (e) { return {}; } };\nconst SYSTEM = \"You are a JSON generator. Return ONLY a valid, raw JSON array of candidate objects without any markdown code blocks, conversational text, or formatting.\";\nfunction scoringPrompt(page_text) { const $json = { page_text: page_text }; return `You are an expert recruiter evaluating candidates for __COMPANY__.\n\n--- HIRING CRITERIA ---\nTarget Role: ${ S('Search Criteria')['Target Role'] }\nKey Skills & Requirements: ${ S('Search Criteria')['Key Skills & Criteria'] }\nExperience Range (Years): ${ S('Search Criteria')['Experience Range (Years)'] }\nGender Preference: ${ S('Search Criteria')['Gender Preference'] }\nTarget Location: ${ S('Search Criteria')['Location'] || 'any' }\nMust-have skills: ${ S('Search Criteria')['Primary Skills'] || S('Search Criteria')['Key Skills & Criteria'] }\nNice-to-have skills: ${ S('Search Criteria')['Secondary Skills'] || 'none' }\n\n--- FULL JOB DESCRIPTION (may be empty; if present, treat as the authoritative source of requirements) ---\n${ S('Prep JD').jd_text || 'No job description was provided; use the criteria above only.' }\n\n--- SCRAPED CANDIDATE CONTENT (each line is one candidate: Title | Snippet | URL) ---\n${ $json.page_text }\n\n--- INSTRUCTIONS ---\n--- SOURCING PLAYBOOK (expert best practices from Glen Cathey / Boolean Black Belt / SocialTalent — apply these) ---\n1. PERSON vs JOB POSTING (most important): A real candidate line names an INDIVIDUAL and describes THEIR experience (a personal name, \"Senior X at Y\", \"I built...\"). A JOB POSTING describes a role to be filled — signals include \"We are looking\", \"Responsibilities\", \"Apply\", \"job description\", \"N jobs in <city>\", salary ranges, and company careers/ATS URLs (careers.*, jobs.*, boards.greenhouse.io, lever.co, workday, indeed, glassdoor, naukri). Any job posting, ATS page, directory or aggregator listing MUST get candidate_name \"\" and fit_score 0 so it is excluded — never turn a job title into a fake candidate name.\n2. SEMANTIC INFERENCE: credit skills and seniority that are implied but not stated verbatim (e.g. \"led/mentored a team\" implies seniority; \"GAAP\" implies accounting; \"Kubernetes + Terraform\" implies DevOps/SRE; \"published research\" implies depth). Do not require exact keyword matches.\n3. TITLE VARIETY: the same role carries many titles across companies — judge on substance, not exact title match (SDE ≈ Software Engineer; SRE ≈ Platform/Infrastructure Engineer; Applied Scientist ≈ ML Engineer). Reward adjacent/synonymous titles that demonstrate the required capability.\n4. SIGNAL QUALITY: prefer candidates with concrete, verifiable evidence (specific technologies, measurable impact, named employers) over vague self-description.\n\nEvaluate EVERY candidate line in the scraped content against the HIRING CRITERIA above.\nIf a FULL JOB DESCRIPTION is provided above, weigh it heavily: match each candidate against the specific responsibilities, must-have skills and seniority described in it, and reference JD-specific requirements in the match_summary. If no job description was provided, rely on the hiring criteria fields only.\nIf a line is NOT an individual person (a job posting, company page, directory, list, article or hiring announcement), set is_person to false.\nEVERY real person MUST be returned with is_person true and a fit_score from 1 to 10. Never drop or zero-score a real person: the recruiter decides. Score must-have skills and role match highest, then seniority, then nice-to-have skills.\nEXPERIENCE: compare against the requested Experience Range only when the line actually states years, dates or seniority. If it does, lower the score for clearly too-junior people (students/interns -> 1-3) and say so. If it does not, write 'experience not stated' - NEVER guess a number of years.\nSTRICT HONESTY: use ONLY facts present in the candidate's line. Do not invent employers, years, skills or locations. key_skills must be skills the line actually shows (a Java/Spring maintainer is not a Python developer).\nAlso factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.\nReturn a JSON ARRAY with one object for EVERY line (same order), each with exactly these fields:\n1. candidate_name (string) - the person's real full name as written; for a GitHub/GitLab/Kaggle line with no real name, use the username. Never invent a name. \"\" if no person.\n2. is_person (boolean)\n3. current_role (string, as stated, else \"\")\n4. fit_score (number 1-10 for people, 0 only when is_person is false)\n5. match_summary (string, 2 short sentences: why they fit and what is missing/unknown)\n6. key_skills (array of strings, only skills evidenced in the line)\n7. candidate_location (string - city/region/country exactly as stated in the line, else \"\")\n8. experience_evidence (string - years/seniority as stated, else \"not stated\")\n9. profile_url (string - the URL at the end of their line, copied exactly)\n10. line (number - the [n] at the start of that line)\nEach line starts with [n]. You MUST return exactly one object per line, for every line, including weak matches.\nSort the array by fit_score descending. Return ONLY the JSON array.`; }\nconst out = [];\nfor (let i = 0; i < all.length; i += BATCH) {\n  const chunk = all.slice(i, i + BATCH);\n  const lines = chunk.map(function(o, j){ return { n: j + 1, title: String(o.title || ''), link: String(o.link || ''), person: PERSON_SRC.test(String(o.link || '')) }; });\n  const text = chunk.map(function(o, j){ return '[' + (j + 1) + '] ' + (o.title || '') + ' | ' + String(o.snippet || '').replace(/\\s+/g, ' ').slice(0, 700) + ' | ' + (o.link || ''); }).join('\\n');\n  out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length, prompt: scoringPrompt(text), system: SYSTEM } });\n}\nif (!out.length) out.push({ json: { page_text: '', lines: [], batch: 1, pool_size: 0 } });\nreturn out;\n"
    },
    "id": "339e56f3-fbbc-4889-b6b2-e9746da4f7ca",
    "name": "Format Search Results",
@@ -1678,7 +956,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.email_status.indexOf('GitHub') !== -1 ? 'GitHub profile' : (merged.enrichment_status === 'enriched' ? 'apollo' : '')))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  if (u.indexOf('kaggle.com') !== -1) return 'Kaggle';\n  if (u.indexOf('gitlab.com') !== -1) return 'GitLab';\n  if (u.indexOf('huggingface.co') !== -1) return 'Hugging Face';\n  if (u.indexOf('dev.to') !== -1) return 'Dev.to';\n  if (u.indexOf('reddit.com') !== -1) return 'Reddit';\n  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n  return 'Open Web';\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\n\nmerged.search_geography = (function(){ const f = $('Search Criteria').first().json; const parts = [String(f['Location'] || '').trim(), String(f['Search Region'] || '').replace(/\\s*\\(.*\\)\\s*/, '').trim()].filter(function(p){ return p && !/^global|^all/i.test(p); }); const out = []; parts.forEach(function(p){ if (!out.some(function(o){ return o.toLowerCase() === p.toLowerCase(); })) out.push(p); }); return out.length ? out.join(', ') : 'Global'; })();\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\n// Stable identity: prefer the profile URL (never changes across runs) so the\n// same person UPDATES their row even when Apollo later adds an email. Fall back\n// to email, then name+role+location.\nlet dkey;\nif (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else if (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- no CV file found: fall back to the person's own website / portfolio ---\nif (!merged.resume_link && !merged.drive_cv_link && merged.github_blog) {\n  let site = String(merged.github_blog).trim();\n  if (site && !/^https?:\\/\\//i.test(site)) site = 'https://' + site;\n  merged.resume_link = site;\n  merged.resume_source = 'personal website (from GitHub)';\n  merged.resume_status = 'portfolio / personal site';\n}\nif (merged.twitter && !/x\\.com|twitter/i.test(merged.work_history || '')) merged.work_history = (merged.work_history ? merged.work_history + ' | ' : '') + 'X: ' + merged.twitter;\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('monthly limit') !== -1) reasons.push('Apollo off - monthly limit reached');\n  else if (String(merged.enrichment_status||'').indexOf('below top') !== -1) reasons.push('not Apollo-enriched (outside top 25)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  else if (es.indexOf('GitHub') !== -1) { score += 1; reasons.push('email public on GitHub'); }\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n  if (merged.location_check === 'location unknown' || merged.location_check === 'location unclear') reasons.push('location not confirmed');\n  else if (merged.location_check === 'same country, different city') reasons.push('different city');\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
+    "jsCode": "const cand = $('Attach Resume').item.json || {};\nconst text = ($json && typeof $json.text === 'string') ? $json.text : '';\nconst merged = Object.assign({}, cand);\ntry { const ce = $('Attach Commit Email').item.json.commit_email; if (ce && !merged.email) { merged.email = ce; merged.email_status = 'public in GitHub commits'; } } catch (e) {}\nlet driveLink = '';\ntry { const d = $('Save CV to Drive').item.json; driveLink = (d && (d.webViewLink || d.webContentLink)) || ''; } catch (e) { driveLink = ''; }\nmerged.drive_cv_link = driveLink;\n// --- resume contact extraction with name-verification to cut false positives ---\nfunction nameTokens(n) { return String(n || '').toLowerCase().split(/[^a-z]+/).filter(function(t){ return t.length >= 3; }); }\nconst tokens = nameTokens(merged.candidate_name);\nconst firstToken = tokens.length ? tokens[0] : '';\nconst lowText = text.toLowerCase();\n// --- directory / bulk-document detection (annual reports, cause lists,\n// convocation books, merit/selection lists) contain MANY names+emails and are\n// NOT a personal CV even when the candidate's name happens to appear inside. ---\nfunction isDirectoryDoc(t, low) {\n  if (!t) return false;\n  const em = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  const uniq = {}; for (const e of em) uniq[e.toLowerCase()] = 1;\n  const emailCount = Object.keys(uniq).length;\n  if (emailCount >= 5) return true;                       // many distinct emails = directory\n  const phones = t.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/g) || [];\n  if (phones.length >= 8) return true;                    // long phone lists\n  const kw = ['annual report','cause list','convocation','gazette','merit list','selection list','provisional list','list of candidates','roll number','roll no','seat number','admit card','result sheet','notice board','shareholders','minutes of the meeting','tender'];\n  let hits = 0; for (const k of kw) { if (low.indexOf(k) !== -1) hits++; }\n  if (hits >= 1 && emailCount >= 2) return true;          // bulk-doc keyword + multiple emails\n  if (t.length > 60000 && emailCount >= 3) return true;   // very long doc w/ several emails\n  return false;\n}\nconst directoryDoc = isDirectoryDoc(text, lowText);\n// Only trust a scraped resume if the candidate's name STRONGLY appears in it:\n// for multi-token names require the first name PLUS at least one other token\n// (a shared common surname like \"singh\" alone is NOT enough); for single-token\n// names require that token.\nlet nameInDoc = false;\nif (tokens.length >= 2) {\n  const otherHit = tokens.slice(1).some(function(t){ return lowText.indexOf(t) !== -1; });\n  nameInDoc = (lowText.indexOf(firstToken) !== -1) && otherHit;\n} else if (tokens.length === 1) {\n  nameInDoc = lowText.indexOf(firstToken) !== -1;\n}\nconst GENERIC = ['principal','info','admin','administrator','contact','hr','careers','career','office','offices','support','noreply','no-reply','donotreply','enquiry','enquiries','help','sales','webmaster','registrar','dean','placement','placements','mail','email','feedback','hello','team'];\nfunction isGeneric(email) { const local = String(email).split('@')[0].toLowerCase(); return GENERIC.indexOf(local) !== -1; }\n// Institutional / government / directory domains that show up in noise PDFs\n// (court cause-lists, gazettes, college convocation books) are almost never a\n// candidate's personal email — reject them outright.\nconst NOISE_DOMAIN = /(\\.gov(\\.[a-z]{2})?$)|(\\.nic\\.in$)|(\\.gov\\.in$)|(delhihighcourt)|(\\.courts?\\.)|(copyright)|(\\.mil$)/i;\nfunction isNoiseDomain(email) { const dom = String(email).split('@')[1] || ''; return NOISE_DOMAIN.test(dom); }\n// A candidate email must contain the FIRST name, or at least two distinct name\n// tokens (kills surname-only false matches like surender.singh for Abhinav Singh).\nfunction localMatchesCandidate(local) {\n  if (!tokens.length) return false;\n  if (firstToken && local.indexOf(firstToken) !== -1) return true;\n  let hits = 0;\n  for (const t of tokens) { if (local.indexOf(t) !== -1) hits++; }\n  return hits >= 2;\n}\nif (!merged.email && text && nameInDoc && !directoryDoc) {\n  const matches = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g) || [];\n  let chosen = '';\n  for (const em of matches) {\n    if (isGeneric(em)) continue;\n    if (isNoiseDomain(em)) continue;\n    const local = em.split('@')[0].toLowerCase();\n    if (localMatchesCandidate(local)) { chosen = em; break; }\n  }\n  if (chosen) { merged.email = chosen; merged.email_status = 'from resume (unverified, name-matched)'; }\n}\nif (!merged.phone && text && nameInDoc && !directoryDoc) {\n  const ph = text.match(/(?:\\+?\\d[\\d\\s().-]{9,}\\d)/);\n  if (ph) {\n    const digits = ph[0].replace(/\\D/g,'');\n    if (digits.length >= 10 && digits.length <= 13) { merged.phone = ph[0].replace(/\\s+/g,' ').trim(); }\n  }\n}\nif (!merged.email_status) { merged.email_status = merged.email ? (merged.enrichment_status === 'enriched' ? 'apollo' : '') : ''; }\nmerged.contact_source = merged.email\n  ? (merged.email_status.indexOf('resume') !== -1 ? 'resume' : (merged.email_status.indexOf('GitHub') !== -1 ? 'GitHub profile' : (merged.enrichment_status === 'enriched' ? 'apollo' : '')))\n  : '';\n\n// --- source platform detection from profile URL ---\nfunction platformOf(url) {\n  const u = String(url || '').toLowerCase();\n  if (!u) return 'Unknown';\n  if (u.indexOf('linkedin.com') !== -1) return 'LinkedIn';\n  if (u.indexOf('github.com') !== -1) return 'GitHub';\n  if (u.indexOf('twitter.com') !== -1 || u.indexOf('x.com') !== -1) return 'X (Twitter)';\n  if (u.indexOf('stackoverflow.com') !== -1) return 'Stack Overflow';\n  if (u.indexOf('dribbble.com') !== -1) return 'Dribbble';\n  if (u.indexOf('behance.net') !== -1) return 'Behance';\n  if (u.indexOf('wellfound.com') !== -1 || u.indexOf('angel.co') !== -1) return 'Wellfound';\n  if (u.indexOf('news.ycombinator.com') !== -1) return 'Hacker News';\n  if (u.indexOf('kaggle.com') !== -1) return 'Kaggle';\n  if (u.indexOf('gitlab.com') !== -1) return 'GitLab';\n  if (u.indexOf('huggingface.co') !== -1) return 'Hugging Face';\n  if (u.indexOf('dev.to') !== -1) return 'Dev.to';\n  if (u.indexOf('reddit.com') !== -1) return 'Reddit';\n  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n  return 'Open Web';\n}\nfunction domainOf(url) {\n  try { return String(url || '').replace(/^https?:\\/\\//,'').split('/')[0]; } catch (e) { return ''; }\n}\nmerged.source_platform = platformOf(merged.profile_url);\nmerged.resume_source = merged.resume_link ? domainOf(merged.resume_link) : '';\n\n// --- CRM tracking fields ---\nmerged.date_added = $now.toFormat('yyyy-MM-dd HH:mm');\nmerged.search_role = $('Search Criteria').first().json['Target Role'] || '';\nmerged.search_location = $('Search Criteria').first().json['Location'] || '';\n\nmerged.search_geography = (function(){ const f = $('Search Criteria').first().json; const parts = [String(f['Location'] || '').trim(), String(f['Search Region'] || '').replace(/\\s*\\(.*\\)\\s*/, '').trim()].filter(function(p){ return p && !/^global|^all/i.test(p); }); const out = []; parts.forEach(function(p){ if (!out.some(function(o){ return o.toLowerCase() === p.toLowerCase(); })) out.push(p); }); return out.length ? out.join(', ') : 'Global'; })();\nmerged.pipeline_status = 'Sourced';\nmerged.outreach_status = 'Not contacted';\n\n// --- composite dedupe key: email -> profile url -> name|role|location ---\nfunction normKey(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }\n// Stable identity: prefer the profile URL (never changes across runs) so the\n// same person UPDATES their row even when Apollo later adds an email. Fall back\n// to email, then name+role+location.\nlet dkey;\nif (merged.profile_url) {\n  dkey = 'url:' + normKey(merged.profile_url).replace(/\\/+$/, '');\n} else if (merged.email) {\n  dkey = 'email:' + normKey(merged.email);\n} else {\n  dkey = 'nm:' + normKey(merged.candidate_name) + '|' + normKey(merged.current_role) + '|' + normKey(merged.search_location);\n}\nmerged.dedupe_key = dkey;\n\n// --- verify the scraped resume actually belongs to this candidate ---\n// If we attached a resume_link but the downloaded file text does NOT contain\n// the candidate's name, the link is untrustworthy -> downgrade it.\nif (merged.resume_link) {\n  if (directoryDoc) {\n    // bulk/directory document (annual report, cause list, merit list, etc.) -> not a real CV\n    merged.resume_link = '';\n    merged.resume_source = '';\n    merged.resume_status = 'rejected (bulk/directory document, not a personal CV)';\n    merged.resume_verified = false;\n  } else if (text && nameInDoc) {\n    merged.resume_status = 'verified (name found in file)';\n    merged.resume_verified = true;\n  } else if (text) {\n    // we downloaded & read the file but the name is absent -> likely wrong person\n    merged.resume_status = 'unverified (name not found in file)';\n    merged.resume_verified = false;\n  } else {\n    // file could not be read (non-pdf etc.) -> keep prior 'likely/possible' status\n    merged.resume_verified = false;\n  }\n}\n\n// --- no CV file found: fall back to the person's own website / portfolio ---\nif (!merged.resume_link && !merged.drive_cv_link && merged.github_blog) {\n  let site = String(merged.github_blog).trim();\n  if (site && !/^https?:\\/\\//i.test(site)) site = 'https://' + site;\n  merged.resume_link = site;\n  merged.resume_source = 'personal website (from GitHub)';\n  merged.resume_status = 'portfolio / personal site';\n}\nif (merged.twitter && !/x\\.com|twitter/i.test(merged.work_history || '')) merged.work_history = (merged.work_history ? merged.work_history + ' | ' : '') + 'X: ' + merged.twitter;\n// --- data confidence flag (helps recruiters trust each row) ---\n(function(){\n  let score = 0;\n  const reasons = [];\n  const plat = merged.source_platform;\n  // source-platform trust\n  if (plat === 'LinkedIn' || plat === 'GitHub' || plat === 'Wellfound' || plat === 'Stack Overflow') {\n    score += 2;\n  } else if (plat === 'Hacker News') {\n    score -= 2; reasons.push('Hacker News source (often anonymous/weak)');\n  }\n  // apollo enrichment success\n  if (merged.enrichment_status === 'enriched') score += 2;\n  else if (String(merged.enrichment_status||'').indexOf('monthly limit') !== -1) reasons.push('Apollo off - monthly limit reached');\n  else if (String(merged.enrichment_status||'').indexOf('below top') !== -1) reasons.push('not Apollo-enriched (outside top 25)');\n  // email verification quality\n  const es = String(merged.email_status || '').toLowerCase();\n  if (es === 'verified') score += 2;\n  else if (es.indexOf('extrapolated') !== -1) { score += 1; reasons.push('email extrapolated (guessed)'); }\n  else if (es.indexOf('resume') !== -1) reasons.push('email from resume (unverified)');\n  else if (es.indexOf('GitHub') !== -1) { score += 1; reasons.push('email public on GitHub'); }\n  // dedupe-key strength (name-based is weakest)\n  if (String(merged.dedupe_key||'').indexOf('nm:') === 0) { score -= 1; reasons.push('name-based match (no email/LinkedIn)'); }\n  // resume link relevance\n  if (merged.resume_status === 'possible (unverified)') reasons.push('resume link unverified');\n  else if (merged.resume_status === 'unverified (name not found in file)') { score -= 1; reasons.push('resume file name mismatch'); }\n  else if (merged.resume_status === 'verified (name found in file)') score += 1;\n  if (merged.github_status === 'enriched') { score += 1; reasons.push('GitHub-verified'); }\n  // must have an identifiable name\n  if (!merged.candidate_name) { score -= 3; reasons.push('no identifiable name'); }\n  if (merged.location_check === 'location unknown' || merged.location_check === 'location unclear') reasons.push('location not confirmed');\n  else if (merged.location_check === 'same country, different city') reasons.push('different city');\n\n  let level;\n  if (score >= 4) level = 'High';\n  else if (score >= 1) level = 'Medium';\n  else level = 'Low';\n  merged.confidence = reasons.length ? (level + ' \\u2014 ' + reasons.join('; ')) : level;\n  merged.confidence_level = level;\n})();\n\nreturn { json: merged };"
    },
    "id": "dbabb3dd-ea1a-4837-b877-406102b84a62",
    "name": "Parse Contact",
@@ -2502,7 +1780,7 @@
   },
   {
    "parameters": {
-    "jsCode": "let pasted = '';\ntry { pasted = String($('On form submission').first().json['Job Description'] || '').trim(); } catch (e) { pasted = ''; }\nlet pdfText = '';\ntry { const j = $json || {}; if (typeof j.text === 'string') pdfText = j.text.trim(); } catch (e) { pdfText = ''; }\nlet fileText = '';\ntry { fileText = String($('Normalize JD Binary').first().json.jd_file_text || '').trim(); } catch (e) { fileText = ''; }\nconst jd = pasted || pdfText || fileText || '';\nlet src = 'none';\nif (pasted) src = 'pasted';\nelse if (pdfText) src = 'pdf';\nelse if (fileText) src = 'file';\nreturn [{ json: { jd_text: jd, jd_source: src, jd_present: jd.length > 0 } }];"
+    "jsCode": "let pasted = '';\ntry { pasted = String($('On form submission').first().json['Job description'] || '').trim(); } catch (e) { pasted = ''; }\nlet pdfText = '';\ntry { const j = $json || {}; if (typeof j.text === 'string') pdfText = j.text.trim(); } catch (e) { pdfText = ''; }\nlet fileText = '';\ntry { fileText = String($('Normalize JD Binary').first().json.jd_file_text || '').trim(); } catch (e) { fileText = ''; }\nconst jd = pasted || pdfText || fileText || '';\nlet src = 'none';\nif (pasted) src = 'pasted';\nelse if (pdfText) src = 'pdf';\nelse if (fileText) src = 'file';\nreturn [{ json: { jd_text: jd, jd_source: src, jd_present: jd.length > 0 } }];"
    },
    "id": "aa11cc22-jd00-4a00-9000-0000000000n3",
    "name": "Prep JD",
@@ -2524,7 +1802,7 @@
     "responses": {
      "values": [
       {
-       "content": "=Natural language hiring request (may be empty):\n\"\"\"\n{{ $('On form submission').first().json['Natural Language Search'] || '' }}\n\"\"\"\n\nJob description (may be empty):\n\"\"\"\n{{ $('Prep JD').first().json.jd_text || '' }}\n\"\"\"\n\nExtract the hiring criteria as a JSON object with EXACTLY these keys (use \"\" or [] when not mentioned):\n- target_role (string)\n- key_skills (string, comma-separated)\n- location (string, city or region)\n- preferred_industry (string)\n- current_employer (string)\n- keywords_exclude (string, comma-separated terms to exclude)\n- education (one of \"Any\",\"Bachelors / Degree\",\"Masters\",\"PhD\",\"MBA\" or \"\")\n- expand_synonyms (\"Yes\",\"No\" or \"\")\n- experience_range (EXACTLY one of \"0-2 years\",\"3-5 years\",\"5-8 years\",\"8+ years\" or \"\"). Map seniority words: intern/junior/entry/graduate => \"0-2 years\"; mid-level => \"3-5 years\"; senior => \"5-8 years\"; lead/principal/staff/head/very senior => \"8+ years\". If a number of years is stated, choose the band containing its lower bound.\n- gender_preference (\"Any\",\"Female\",\"Male\" or \"\")\n- platforms (array, any of \"LinkedIn\",\"Github\",\"X (Twitter)\",\"Stack Overflow\",\"Dribbble\",\"Behance\",\"Wellfound\",\"Hacker News\",\"Reddit\",\"Dev.to\",\"GitLab\",\"Hugging Face\",\"Kaggle\",\"Google / Open Web\")\nIf BOTH inputs are empty, return every value empty."
+       "content": "=Natural language hiring request (may be empty):\n\"\"\"\n{{ $('On form submission').first().json['Brief'] || '' }}\n\"\"\"\n\nJob description (may be empty):\n\"\"\"\n{{ $('Prep JD').first().json.jd_text || '' }}\n\"\"\"\n\nExtract the hiring criteria as a JSON object with EXACTLY these keys (use \"\" or [] when not mentioned):\n- target_role (string)\n- key_skills (string, comma-separated)\n- location (string, city or region)\n- preferred_industry (string)\n- current_employer (string)\n- keywords_exclude (string, comma-separated terms to exclude)\n- education (one of \"Any\",\"Bachelors / Degree\",\"Masters\",\"PhD\",\"MBA\" or \"\")\n- expand_synonyms (\"Yes\",\"No\" or \"\")\n- experience_range (EXACTLY one of \"0-2 years\",\"3-5 years\",\"5-8 years\",\"8+ years\" or \"\"). Map seniority words: intern/junior/entry/graduate => \"0-2 years\"; mid-level => \"3-5 years\"; senior => \"5-8 years\"; lead/principal/staff/head/very senior => \"8+ years\". If a number of years is stated, choose the band containing its lower bound.\n- gender_preference (\"Any\",\"Female\",\"Male\" or \"\")\n- platforms (array, any of \"LinkedIn\",\"Github\",\"X (Twitter)\",\"Stack Overflow\",\"Dribbble\",\"Behance\",\"Wellfound\",\"Hacker News\",\"Reddit\",\"Dev.to\",\"GitLab\",\"Hugging Face\",\"Kaggle\",\"Google / Open Web\")\nIf BOTH inputs are empty, return every value empty."
       },
       {
        "role": "system",
@@ -2553,10 +1831,10 @@
   },
   {
    "parameters": {
-    "jsCode": "const form = $('On form submission').first().json;\nlet p = {};\ntry {\n  const j = $('Parse NL Search').first().json || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) raw = j.output[0].content[0].text;\n  else if (typeof j.text === 'string') raw = j.text;\n  else raw = '{}';\n  p = JSON.parse(raw);\n  if (!p || typeof p !== 'object' || Array.isArray(p)) p = {};\n} catch (e) { p = {}; }\n\nfunction pick(formVal, parsedVal, def) {\n  const f = (formVal === undefined || formVal === null) ? '' : String(formVal).trim();\n  if (f && !/^auto/i.test(f)) return formVal;\n  const pv = (parsedVal === undefined || parsedVal === null) ? '' : String(parsedVal).trim();\n  if (pv) return parsedVal;\n  return def;\n}\nfunction toArr(v){ if (Array.isArray(v)) return v.map(function(s){return String(s).trim();}).filter(Boolean); return v ? String(v).split(',').map(function(s){return s.trim();}).filter(Boolean) : []; }\n\n// --- primary / secondary skills: multiselect dropdown + free-text 'other' ---\nlet primary = toArr(form['2) Primary Skills (must-have)']).concat(toArr(form['2b) Add other primary skills']));\nlet secondary = toArr(form['2c) Secondary Skills (nice-to-have)']).concat(toArr(form['2d) Add other secondary skills']));\nconst useSecRaw = String(form['2e) Use Secondary Skills?'] || '').toLowerCase();\nconst useSecondary = !/^no/.test(useSecRaw); // default = include secondary\nif (!useSecondary) secondary = [];\n// de-dupe case-insensitively, primary keeps precedence over secondary\nconst seen = {};\nprimary = primary.filter(function(s){ const k=s.toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });\nsecondary = secondary.filter(function(s){ const k=s.toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });\n// NL fallback: if the recruiter gave no skills in the form, use the parsed key_skills\nif (!primary.length && !secondary.length) { primary = toArr(p.key_skills); }\nif (!primary.length) {\n  const roleWords = ' ' + String(pick(form['1) Target Role'], p.target_role, '')).toLowerCase() + ' ';\n  const TECH = ['java','python','javascript','typescript','golang','go','rust','c++','c#','.net','ruby','php','kotlin','swift','scala','react','angular','vue','node.js','node','spring boot','spring','django','fastapi','flask','kafka','aws','azure','gcp','kubernetes','docker','sql','salesforce','sap','android','ios','flutter','data','ml','ai'];\n  primary = TECH.filter(function(t){ return roleWords.indexOf(' ' + t + ' ') !== -1; }).map(function(t){ return t === 'go' ? 'Go' : t.replace(/^./, function(c){ return c.toUpperCase(); }); });\n}\nconst combinedSkills = primary.concat(secondary).join(', ');\n\nlet platforms = form['11) Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nif (!platforms.length && Array.isArray(p.platforms)) platforms = p.platforms.filter(Boolean);\nif (!platforms.length) platforms = ['LinkedIn', 'Github'];\n// only the platforms the recruiter ticked (LinkedIn + GitHub when none were ticked)\n\nconst nlUsed = String(form['Natural Language Search'] || '').trim().length > 0;\n\nreturn [{ json: {\n  'Target Role': pick(form['1) Target Role'], p.target_role, ''),\n  'Key Skills & Criteria': combinedSkills,\n  'Primary Skills': primary.join(', '),\n  'Secondary Skills': secondary.join(', '),\n  'Use Secondary Skills': useSecondary,\n  'Location': pick(form['3) Location'], p.location, ''),\n  'Preferred Industry': pick(form['4) Preferred Industry'], p.preferred_industry, ''),\n  'Current Employer': pick(form['5) Current Employer'], p.current_employer, ''),\n  'Keywords to Exclude': pick(form['6) Keywords to Exclude'], p.keywords_exclude, ''),\n  'Education': pick(form['7) Education'], p.education, 'Any'),\n  'Expand Job Title Synonyms': pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'No'),\n  'Experience Range (Years)': pick(form['9) Experience Range (Years)'], p.experience_range, '0-2 years'),\n  'Gender Preference': pick(form['10) Gender Preference'], p.gender_preference, 'Any'),\n  'Target Platforms': platforms,\n  'Search Region': pick(form['12) Search Region (Geography)'], p.search_region, ''),\n  'nl_used': nlUsed\n} }];"
+    "jsCode": "const form = $('On form submission').first().json;\nlet p = {};\ntry {\n  const j = $('Parse NL Search').first().json || {};\n  let raw;\n  if (j.output && j.output[0] && j.output[0].content && j.output[0].content[0]) raw = j.output[0].content[0].text;\n  else if (typeof j.text === 'string') raw = j.text;\n  else raw = '{}';\n  p = JSON.parse(raw);\n  if (!p || typeof p !== 'object' || Array.isArray(p)) p = {};\n} catch (e) { p = {}; }\n\nfunction pick(formVal, parsedVal, def) {\n  const f = (formVal === undefined || formVal === null) ? '' : String(formVal).trim();\n  if (f && !/^auto/i.test(f)) return formVal;\n  const pv = (parsedVal === undefined || parsedVal === null) ? '' : String(parsedVal).trim();\n  if (pv) return parsedVal;\n  return def;\n}\nfunction toArr(v){ if (Array.isArray(v)) return v.map(function(s){return String(s).trim();}).filter(Boolean); return v ? String(v).split(',').map(function(s){return s.trim();}).filter(Boolean) : []; }\n\n// --- primary / secondary skills: multiselect dropdown + free-text 'other' ---\nlet primary = toArr(form['2) Primary Skills (must-have)']).concat(toArr(form['2b) Add other primary skills']));\nlet secondary = toArr(form['2c) Secondary Skills (nice-to-have)']).concat(toArr(form['2d) Add other secondary skills']));\nconst useSecRaw = String(form['2e) Use Secondary Skills?'] || '').toLowerCase();\nconst useSecondary = !/^no/.test(useSecRaw); // default = include secondary\nif (!useSecondary) secondary = [];\n// de-dupe case-insensitively, primary keeps precedence over secondary\nconst seen = {};\nprimary = primary.filter(function(s){ const k=s.toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });\nsecondary = secondary.filter(function(s){ const k=s.toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });\n// NL fallback: if the recruiter gave no skills in the form, use the parsed key_skills\nif (!primary.length && !secondary.length) { primary = toArr(p.key_skills); }\nif (!primary.length) {\n  const roleWords = ' ' + String(pick(form['1) Target Role'], p.target_role, '')).toLowerCase() + ' ';\n  const TECH = ['java','python','javascript','typescript','golang','go','rust','c++','c#','.net','ruby','php','kotlin','swift','scala','react','angular','vue','node.js','node','spring boot','spring','django','fastapi','flask','kafka','aws','azure','gcp','kubernetes','docker','sql','salesforce','sap','android','ios','flutter','data','ml','ai'];\n  primary = TECH.filter(function(t){ return roleWords.indexOf(' ' + t + ' ') !== -1; }).map(function(t){ return t === 'go' ? 'Go' : t.replace(/^./, function(c){ return c.toUpperCase(); }); });\n}\nconst combinedSkills = primary.concat(secondary).join(', ');\n\nlet platforms = form['11) Target Platforms'];\nif (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){return s.trim();}).filter(Boolean) : [];\nif (!platforms.length && Array.isArray(p.platforms)) platforms = p.platforms.filter(Boolean);\nif (!platforms.length) platforms = ['LinkedIn', 'Github'];\n// only the platforms the recruiter ticked (LinkedIn + GitHub when none were ticked)\n\nconst nlUsed = String(form['Brief'] || '').trim().length > 0;\n\nreturn [{ json: {\n  'Target Role': pick(form['1) Target Role'], p.target_role, ''),\n  'Key Skills & Criteria': combinedSkills,\n  'Primary Skills': primary.join(', '),\n  'Secondary Skills': secondary.join(', '),\n  'Use Secondary Skills': useSecondary,\n  'Location': pick(form['3) Location'], p.location, ''),\n  'Preferred Industry': pick(form['4) Preferred Industry'], p.preferred_industry, ''),\n  'Current Employer': pick(form['5) Current Employer'], p.current_employer, ''),\n  'Keywords to Exclude': pick(form['6) Keywords to Exclude'], p.keywords_exclude, ''),\n  'Education': pick(form['7) Education'], p.education, 'Any'),\n  'Expand Job Title Synonyms': pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'Yes'),\n  'Experience Range (Years)': pick(form['9) Experience Range (Years)'], p.experience_range, 'Any'),\n  'Gender Preference': pick(form['10) Gender Preference'], p.gender_preference, 'Any'),\n  'Target Platforms': platforms,\n  'Search Region': pick(form['12) Search Region (Geography)'], p.search_region, ''),\n  'nl_used': nlUsed\n} }];"
    },
-   "id": "bb22dd33-nl00-4a00-9000-0000000000p2",
-   "name": "Search Criteria",
+   "id": "fix-draft-criteria",
+   "name": "Draft Criteria",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
@@ -3795,7 +3073,7 @@
   },
   {
    "parameters": {
-    "jsCode": "\n// One requisition row above each search's results: everything the recruiter\n// asked for, where, and what came back. The details sit in Summary and the\n// cells to its right stay empty so the text reads across the whole row.\nconst items = $input.all();\nif (!items.length) return [];\nconst f = $('Search Criteria').first().json;\nconst role = f['Target Role'] || 'Search';\nconst geo = items[0].json.search_geography || 'Global';\nconst list = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };\nconst platforms = list(f['Target Platforms']);\nlet jd = 'no JD';\ntry { const j = $('Prep JD').first().json; if (j.jd_present) jd = 'JD ' + (j.jd_source === 'pasted' ? 'pasted' : 'uploaded'); } catch (e) {}\nconst fresh = items.filter(function(i){ return i.json.is_new !== false; }).length;\nconst refreshed = items.length - fresh;\nconst lr = function(re){ return items.filter(function(i){ return re.test(String(i.json.location_review || '')); }).length; };\nconst inCity = lr(/^✅/), country = lr(/^🟡/), review = lr(/Review:/);\nconst parts = [];\nparts.push('Must-have: ' + (f['Primary Skills'] || 'from role'));\nif (f['Use Secondary Skills'] !== false && f['Secondary Skills']) parts.push('Nice-to-have: ' + f['Secondary Skills']);\nparts.push('Experience: ' + (f['Experience Range (Years)'] || 'any'));\nif (f['Education'] && !/^any$/i.test(f['Education'])) parts.push('Education: ' + f['Education']);\nif (f['Preferred Industry']) parts.push('Industry: ' + f['Preferred Industry']);\nif (f['Current Employer']) parts.push('Employer: ' + f['Current Employer']);\nif (f['Keywords to Exclude']) parts.push('Excluding: ' + f['Keywords to Exclude']);\nif (f['Gender Preference'] && !/^any$|^auto/i.test(f['Gender Preference'])) parts.push('Gender: ' + f['Gender Preference']);\nparts.push('Platforms: ' + (platforms.join(', ') || 'all'));\nparts.push(jd);\nlet result = items.length + ' candidates';\nif (geo !== 'Global') result += ' (' + inCity + ' in ' + (f['Location'] || geo) + ', ' + country + ' country/unknown, ' + review + ' to review)';\nif (refreshed) result += '; ' + refreshed + ' already listed under an earlier run of this req were refreshed there';\nparts.push(result);\nparts.push('Searched ' + $now.toFormat('dd LLL yyyy, HH:mm'));\nconst header = {\n  rank: 'REQ', candidate_name: role, current_role: '📍 ' + geo, fit_score: '',\n  match_summary: parts.join('  |  '),\n  key_skills: '', current_company: '', verified_title: '', location: '', location_review: '', email: '', phone: '',\n  github_url: '', work_history: '', education: '', verified_linkedin: '', resume_link: '', drive_cv_link: '',\n  date_added: $now.toFormat('yyyy-MM-dd HH:mm'), source_platform: '', resume_source: '', contact_source: '',\n  search_role: role, search_location: f['Location'] || '', search_geography: geo,\n  pipeline_status: 'Requisition', outreach_status: '', send_email: 'FALSE',\n  dedupe_key: 'REQ|' + $execution.id, profile_url: '', confidence: '', experience_evidence: ''\n};\nreturn [{ json: header, pairedItem: { item: 0 } }].concat(items.map(function(it, i){ return { json: it.json, pairedItem: { item: i } }; }));\n"
+    "jsCode": "\n// One requisition row above each search's results: everything the recruiter\n// asked for, where, and what came back. The details sit in Summary and the\n// cells to its right stay empty so the text reads across the whole row.\nconst items = $input.all();\nif (!items.length) return [];\nconst f = $('Search Criteria').first().json;\nconst role = f['Target Role'] || 'Search';\nconst geo = items[0].json.search_geography || 'Global';\nconst list = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };\nconst platforms = list(f['Target Platforms']);\nlet jd = 'no JD';\ntry { const j = $('Prep JD').first().json; if (j.jd_present) jd = 'JD ' + (j.jd_source === 'pasted' ? 'pasted' : 'uploaded'); } catch (e) {}\nconst fresh = items.filter(function(i){ return i.json.is_new !== false; }).length;\nconst refreshed = items.length - fresh;\nconst lr = function(re){ return items.filter(function(i){ return re.test(String(i.json.location_review || '')); }).length; };\nconst inCity = lr(/^✅/), country = lr(/^🟡/), review = lr(/Review:/);\nconst parts = [];\nparts.push('Must-have: ' + (f['Primary Skills'] || 'from role'));\nif (f['Use Secondary Skills'] !== false && f['Secondary Skills']) parts.push('Nice-to-have: ' + f['Secondary Skills']);\nparts.push('Experience: ' + (f['Experience Range (Years)'] || 'any'));\nif (f['Education'] && !/^any$/i.test(f['Education'])) parts.push('Education: ' + f['Education']);\nif (f['Preferred Industry']) parts.push('Industry: ' + f['Preferred Industry']);\nif (f['Current Employer']) parts.push('Employer: ' + f['Current Employer']);\nif (f['Keywords to Exclude']) parts.push('Excluding: ' + f['Keywords to Exclude']);\nif (f['Gender Preference'] && !/^any$|^auto/i.test(f['Gender Preference'])) parts.push('Gender: ' + f['Gender Preference']);\nparts.push('Platforms: ' + (platforms.join(', ') || 'all'));\nparts.push(jd);\nlet result = items.length + ' candidates';\nif (geo !== 'Global') result += ' (' + inCity + ' in ' + (f['Location'] || geo) + ', ' + country + ' country/unknown, ' + review + ' to review)';\nif (refreshed) result += '; ' + refreshed + ' already listed under an earlier run of this req were refreshed there';\nconst bySrc = {};\nitems.forEach(function(i){ const s = i.json.source_platform || 'Other'; bySrc[s] = (bySrc[s] || 0) + 1; });\nconst srcLine = Object.keys(bySrc).sort(function(a, b){ return bySrc[b] - bySrc[a]; }).map(function(k){ return k + ' ' + bySrc[k]; }).join(' · ');\nif (srcLine) result += '; by source: ' + srcLine;\nparts.push(result);\nparts.push('Searched ' + $now.toFormat('dd LLL yyyy, HH:mm'));\nconst header = {\n  rank: 'REQ', candidate_name: role, current_role: '📍 ' + geo, fit_score: '',\n  match_summary: parts.join('  |  '),\n  key_skills: '', current_company: '', verified_title: '', location: '', location_review: '', email: '', phone: '',\n  github_url: '', work_history: '', education: '', verified_linkedin: '', resume_link: '', drive_cv_link: '',\n  date_added: $now.toFormat('yyyy-MM-dd HH:mm'), source_platform: '', resume_source: '', contact_source: '',\n  search_role: role, search_location: f['Location'] || '', search_geography: geo,\n  pipeline_status: 'Requisition', outreach_status: '', send_email: 'FALSE',\n  dedupe_key: 'REQ|' + $execution.id, profile_url: '', confidence: '', experience_evidence: ''\n};\nreturn [{ json: header, pairedItem: { item: 0 } }].concat(items.map(function(it, i){ return { json: it.json, pairedItem: { item: i } }; }));\n"
    },
    "id": "fix-add-req-header",
    "name": "Add Req Header",
@@ -3872,6 +3150,405 @@
    "position": [
     1272,
     -48
+   ]
+  },
+  {
+   "parameters": {
+    "operation": "page",
+    "defineForm": "fields",
+    "formFields": {
+     "values": [
+      {
+       "fieldType": "html",
+       "elementName": "s_role",
+       "html": "<div class=\"tr-sec\">Role</div>"
+      },
+      {
+       "fieldName": "role",
+       "fieldLabel": "Job title",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Target Role'] || '' }}",
+       "placeholder": "e.g. Backend Engineer"
+      },
+      {
+       "fieldName": "similar",
+       "fieldLabel": "Include similar titles",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "Yes"
+         },
+         {
+          "option": "No"
+         }
+        ]
+       },
+       "defaultValue": "={{ /^no$/i.test($json['Expand Job Title Synonyms'] || '') ? 'No' : 'Yes' }}"
+      },
+      {
+       "fieldName": "experience",
+       "fieldLabel": "Experience",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "Any"
+         },
+         {
+          "option": "0-2 years"
+         },
+         {
+          "option": "3-5 years"
+         },
+         {
+          "option": "5-8 years"
+         },
+         {
+          "option": "8+ years"
+         }
+        ]
+       },
+       "defaultValue": "={{ ['0-2 years','3-5 years','5-8 years','8+ years'].includes($json['Experience Range (Years)']) ? $json['Experience Range (Years)'] : 'Any' }}"
+      },
+      {
+       "fieldType": "html",
+       "elementName": "s_skills",
+       "html": "<div class=\"tr-sec\">Skills</div>"
+      },
+      {
+       "fieldName": "must",
+       "fieldLabel": "Must-have skills (comma-separated)",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Primary Skills'] || '' }}",
+       "placeholder": "e.g. Java, Spring Boot, Kafka"
+      },
+      {
+       "fieldName": "nice",
+       "fieldLabel": "Nice-to-have skills (only used for ranking)",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Secondary Skills'] || '' }}",
+       "placeholder": "e.g. AWS, Microservices"
+      },
+      {
+       "fieldType": "html",
+       "elementName": "s_where",
+       "html": "<div class=\"tr-sec\">Where</div>"
+      },
+      {
+       "fieldName": "city",
+       "fieldLabel": "City",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Location'] || '' }}",
+       "placeholder": "e.g. Bangalore"
+      },
+      {
+       "fieldName": "region",
+       "fieldLabel": "Country / region",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "Global (all regions)"
+         },
+         {
+          "option": "India"
+         },
+         {
+          "option": "United States"
+         },
+         {
+          "option": "United Kingdom"
+         },
+         {
+          "option": "Canada"
+         },
+         {
+          "option": "Australia"
+         },
+         {
+          "option": "Germany"
+         },
+         {
+          "option": "France"
+         },
+         {
+          "option": "Netherlands"
+         },
+         {
+          "option": "Singapore"
+         },
+         {
+          "option": "United Arab Emirates"
+         },
+         {
+          "option": "Ireland"
+         }
+        ]
+       },
+       "defaultValue": "={{ [\"Global (all regions)\", \"India\", \"United States\", \"United Kingdom\", \"Canada\", \"Australia\", \"Germany\", \"France\", \"Netherlands\", \"Singapore\", \"United Arab Emirates\", \"Ireland\"].includes($json['Search Region']) ? $json['Search Region'] : ($json['Location'] ? 'India' : 'Global (all regions)') }}"
+      },
+      {
+       "fieldType": "html",
+       "elementName": "s_more",
+       "html": "<div class=\"tr-sec\">More filters (optional)</div>"
+      },
+      {
+       "fieldName": "industry",
+       "fieldLabel": "Industry",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Preferred Industry'] || '' }}",
+       "placeholder": "e.g. Fintech, SaaS"
+      },
+      {
+       "fieldName": "employer",
+       "fieldLabel": "Current employer",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Current Employer'] || '' }}",
+       "placeholder": "Only people at this company"
+      },
+      {
+       "fieldName": "exclude",
+       "fieldLabel": "Exclude words",
+       "fieldType": "text",
+       "defaultValue": "={{ $json['Keywords to Exclude'] || '' }}",
+       "placeholder": "e.g. intern, trainee"
+      },
+      {
+       "fieldName": "education",
+       "fieldLabel": "Education",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "Any"
+         },
+         {
+          "option": "Bachelors / Degree"
+         },
+         {
+          "option": "Masters"
+         },
+         {
+          "option": "PhD"
+         },
+         {
+          "option": "MBA"
+         }
+        ]
+       },
+       "defaultValue": "={{ ['Bachelors / Degree','Masters','PhD','MBA'].includes($json['Education']) ? $json['Education'] : 'Any' }}"
+      },
+      {
+       "fieldName": "gender",
+       "fieldLabel": "Gender preference",
+       "fieldType": "dropdown",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "Any"
+         },
+         {
+          "option": "Female"
+         },
+         {
+          "option": "Male"
+         }
+        ]
+       },
+       "defaultValue": "={{ ['Female','Male'].includes($json['Gender Preference']) ? $json['Gender Preference'] : 'Any' }}"
+      },
+      {
+       "fieldType": "html",
+       "elementName": "s_src",
+       "html": "<div class=\"tr-sec\">Where to look</div>"
+      },
+      {
+       "fieldName": "sources",
+       "fieldLabel": "Sources",
+       "fieldType": "checkbox",
+       "fieldOptions": {
+        "values": [
+         {
+          "option": "LinkedIn"
+         },
+         {
+          "option": "GitHub"
+         },
+         {
+          "option": "Stack Overflow"
+         },
+         {
+          "option": "Google / Open Web"
+         },
+         {
+          "option": "Hacker News"
+         },
+         {
+          "option": "GitLab"
+         },
+         {
+          "option": "Kaggle"
+         },
+         {
+          "option": "Hugging Face"
+         },
+         {
+          "option": "Dev.to"
+         },
+         {
+          "option": "Reddit"
+         },
+         {
+          "option": "X (Twitter)"
+         },
+         {
+          "option": "Dribbble"
+         },
+         {
+          "option": "Behance"
+         }
+        ]
+       },
+       "defaultValue": "={{ ($json['Target Platforms'] || ['LinkedIn','GitHub']).map(function(p){ return /^github$/i.test(p) ? 'GitHub' : p; }).join(',') }}"
+      }
+     ]
+    },
+    "options": {
+     "formTitle": "Here's what we'll search for",
+     "formDescription": "Read from your brief and JD. Change anything, then search.",
+     "buttonLabel": "Search candidates",
+     "customCss": "\n:root { --ink:#161A2E; --muted:#5B6178; --line:#D3D6E2; --soft:#EEF0FD; --accent:#3B4BD6; --accent-dark:#2A37A8; --bg:#F4F5F9; }\nbody { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif; }\n.container { padding: 40px 16px; }\n.card { max-width: 720px; margin: 0 auto; border: 1px solid #E3E5EE; border-radius: 18px; box-shadow: none; padding: 36px 40px; }\n.form-header { text-align: left; margin-bottom: 8px; }\n.form-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-align: left; }\n.form-header p { font-size: 15px; line-height: 1.55; color: var(--muted); text-align: left; }\n.form-group { margin-bottom: 22px; }\n.form-label, label { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }\ninput[type=text], input[type=email], input[type=number], textarea, select {\n  width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;\n  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; }\ninput:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,75,214,.15); outline: none; }\ntextarea { min-height: 110px; line-height: 1.5; resize: vertical; }\n::placeholder { color: #8A8FA5; }\n.tr-tip { margin: 0 0 4px; padding: 12px 14px; border-radius: 10px; background: var(--soft); color: #2A3170; font-size: 13.5px; line-height: 1.55; }\n.tr-tip b { color: var(--accent-dark); }\n.tr-sec { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid #EEF0F5; font-size: 13px; font-weight: 700;\n  letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }\n/* sources as tiles */\n.multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }\n.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px;\n  border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }\n.multiselect-option:has(input:checked) { border: 2px solid var(--accent); background: #F7F8FF; }\n.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }\n.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; }\nbutton[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent); color: #fff;\n  font-size: 16px; font-weight: 700; cursor: pointer; }\nbutton[type=submit]:hover { background: var(--accent-dark); }\n@media (max-width: 640px) {\n  .card { padding: 24px 18px; border-radius: 14px; }\n  .form-header h1 { font-size: 26px; }\n  .multiselect { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n}\n"
+    }
+   },
+   "id": "fix-check-search",
+   "name": "Check Search",
+   "type": "n8n-nodes-base.form",
+   "typeVersion": 2.5,
+   "position": [
+    888,
+    240
+   ],
+   "webhookId": "fix-check-search-page"
+  },
+  {
+   "parameters": {
+    "operation": "completion",
+    "respondWith": "text",
+    "completionTitle": "Search started",
+    "completionMessage": "Results appear in your Google Sheet in 2 to 5 minutes. The Search Log tab shows Processing, then Complete with the candidate count. You can close this page.",
+    "options": {
+     "customCss": "\n:root { --ink:#161A2E; --muted:#5B6178; --line:#D3D6E2; --soft:#EEF0FD; --accent:#3B4BD6; --accent-dark:#2A37A8; --bg:#F4F5F9; }\nbody { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif; }\n.container { padding: 40px 16px; }\n.card { max-width: 720px; margin: 0 auto; border: 1px solid #E3E5EE; border-radius: 18px; box-shadow: none; padding: 36px 40px; }\n.form-header { text-align: left; margin-bottom: 8px; }\n.form-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-align: left; }\n.form-header p { font-size: 15px; line-height: 1.55; color: var(--muted); text-align: left; }\n.form-group { margin-bottom: 22px; }\n.form-label, label { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }\ninput[type=text], input[type=email], input[type=number], textarea, select {\n  width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;\n  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; }\ninput:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,75,214,.15); outline: none; }\ntextarea { min-height: 110px; line-height: 1.5; resize: vertical; }\n::placeholder { color: #8A8FA5; }\n.tr-tip { margin: 0 0 4px; padding: 12px 14px; border-radius: 10px; background: var(--soft); color: #2A3170; font-size: 13.5px; line-height: 1.55; }\n.tr-tip b { color: var(--accent-dark); }\n.tr-sec { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid #EEF0F5; font-size: 13px; font-weight: 700;\n  letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }\n/* sources as tiles */\n.multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }\n.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px;\n  border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }\n.multiselect-option:has(input:checked) { border: 2px solid var(--accent); background: #F7F8FF; }\n.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }\n.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; }\nbutton[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent); color: #fff;\n  font-size: 16px; font-weight: 700; cursor: pointer; }\nbutton[type=submit]:hover { background: var(--accent-dark); }\n@media (max-width: 640px) {\n  .card { padding: 24px 18px; border-radius: 14px; }\n  .form-header h1 { font-size: 26px; }\n  .multiselect { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n}\n"
+    }
+   },
+   "id": "fix-search-started",
+   "name": "Search Started",
+   "type": "n8n-nodes-base.form",
+   "typeVersion": 2.5,
+   "position": [
+    1088,
+    40
+   ],
+   "webhookId": "fix-search-started-page"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// Page 2 of the form (\"Here's what we'll search for\"): what the recruiter\n// confirmed. Same output shape as before, so every later step is unchanged.\nconst f = $input.first().json || {};\nconst d = (function(){ try { return $('Draft Criteria').first().json; } catch (e) { return {}; } })();\nconst val = function(k, label){ const v = f[k] !== undefined ? f[k] : f[label]; return v === undefined || v === null ? '' : v; };\nconst list = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };\nconst seen = {};\nlet primary = list(val('must', 'Must-have skills (comma-separated)')).filter(function(s){ const k = s.toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });\nlet secondary = list(val('nice', 'Nice-to-have skills (only used for ranking)')).filter(function(s){ const k = s.toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });\nif (!primary.length) primary = list(d['Primary Skills']);\nlet platforms = list(val('sources', 'Sources'));\nif (!platforms.length) platforms = ['LinkedIn', 'Github'];\nconst region = String(val('region', 'Country / region') || '');\nreturn [{ json: {\n  'Target Role': String(val('role', 'Job title') || d['Target Role'] || '').trim(),\n  'Key Skills & Criteria': primary.concat(secondary).join(', '),\n  'Primary Skills': primary.join(', '),\n  'Secondary Skills': secondary.join(', '),\n  'Use Secondary Skills': secondary.length > 0,\n  'Location': String(val('city', 'City') || '').trim(),\n  'Preferred Industry': String(val('industry', 'Industry') || '').trim(),\n  'Current Employer': String(val('employer', 'Current employer') || '').trim(),\n  'Keywords to Exclude': String(val('exclude', 'Exclude words') || '').trim(),\n  'Education': val('education', 'Education') || 'Any',\n  'Expand Job Title Synonyms': val('similar', 'Include similar titles') || 'Yes',\n  'Experience Range (Years)': val('experience', 'Experience') || 'Any',\n  'Gender Preference': val('gender', 'Gender preference') || 'Any',\n  'Target Platforms': platforms,\n  'Search Region': /^global/i.test(region) ? '' : region,\n  'nl_used': !!d.nl_used\n} }];\n"
+   },
+   "id": "fix-search-criteria",
+   "name": "Search Criteria",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1088,
+    240
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/responses",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "openAiApi",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', input: [{ role: 'system', content: $json.system }, { role: 'user', content: $json.prompt }] }) }}",
+    "options": {
+     "batching": {
+      "batch": {
+       "batchSize": 8,
+       "batchInterval": 0
+      }
+     },
+     "timeout": 120000
+    }
+   },
+   "id": "fix-parallel-scoring",
+   "name": "Message a model",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1120,
+    -48
+   ],
+   "credentials": {
+    "openAiApi": {
+     "id": "__CRED_OPENAI__",
+     "name": "Sourcing · OpenAI"
+    }
+   },
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 3000
+  },
+  {
+   "parameters": {
+    "url": "={{ (function(j){ var m = String(j.github_url || j.profile_url || '').match(/github\\.com\\/([A-Za-z0-9-]+)\\/?$/i); return (m && !j.email && Number(j.rank) <= 20) ? 'https://api.github.com/search/commits?q=' + encodeURIComponent('author:' + m[1]) + '&sort=author-date&order=desc&per_page=10' : 'https://api.github.com/rate_limit'; })($json) }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "githubApi",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Accept",
+       "value": "application/vnd.github+json"
+      },
+      {
+       "name": "User-Agent",
+       "value": "talentrubric-sourcing"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "fix-commit-email-search",
+   "name": "Commit Email Search",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    2564,
+    112
+   ],
+   "credentials": {
+    "githubApi": {
+     "id": "__CRED_GITHUB__",
+     "name": "Sourcing · GitHub"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// A GitHub developer's public commit email, when their profile shows none.\n// Only addresses that clearly belong to them (no noreply / bot / example).\nconst a = Object.assign({}, $('Attach Resume').item.json);\nconst r = $json || {};\nconst login = (String(a.github_url || a.profile_url || '').match(/github\\.com\\/([A-Za-z0-9-]+)\\/?$/i) || [])[1] || '';\nlet email = '';\nif (login && !a.email && Array.isArray(r.items)) {\n  for (const it of r.items) {\n    const e = String((it && it.commit && it.commit.author && it.commit.author.email) || '').trim();\n    const who = String((it && it.author && it.author.login) || '').toLowerCase();\n    if (who === login.toLowerCase() && /^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$/i.test(e)\n        && !/noreply|no-reply|localhost|\\.local$|example\\.(com|org)|invalid|\\[bot\\]|github\\.com$/i.test(e)) { email = e; break; }\n  }\n}\na.commit_email = email;\nreturn { json: a };\n",
+    "mode": "runOnceForEachItem"
+   },
+   "id": "fix-attach-commit-email",
+   "name": "Attach Commit Email",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    2724,
+    112
    ]
   }
  ],
@@ -3962,7 +3639,7 @@
    "main": [
     [
      {
-      "node": "Download Resume",
+      "node": "Commit Email Search",
       "type": "main",
       "index": 0
      }
@@ -4417,18 +4094,7 @@
    "main": [
     [
      {
-      "node": "Search Criteria",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Search Criteria": {
-   "main": [
-    [
-     {
-      "node": "Guardrail Check",
+      "node": "Draft Criteria",
       "type": "main",
       "index": 0
      }
@@ -5015,6 +4681,66 @@
     [
      {
       "node": "Wait For All Sources",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Draft Criteria": {
+   "main": [
+    [
+     {
+      "node": "Check Search",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Check Search": {
+   "main": [
+    [
+     {
+      "node": "Search Started",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Search Criteria",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Search Criteria": {
+   "main": [
+    [
+     {
+      "node": "Guardrail Check",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Commit Email Search": {
+   "main": [
+    [
+     {
+      "node": "Attach Commit Email",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Attach Commit Email": {
+   "main": [
+    [
+     {
+      "node": "Download Resume",
       "type": "main",
       "index": 0
      }
