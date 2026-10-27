@@ -371,3 +371,31 @@ test('two-word titles are unchanged ("Senior Backend Engineer")', async () => {
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior Backend Engineer' })] });
   assert.match(q.find((x) => x.kind === 'profiles').q, /"backend engineer"/);
 });
+
+// ------------------------------------------------------------ Round 15: Apollo note, GitLab, Hacker News
+test('Apollo off for the month -> the row says so (not "outside top 25")', async () => {
+  const d = { candidate_name: 'A', profile_url: 'https://in.linkedin.com/in/a', rank: 3 };
+  const [over] = await runNode('Combine No Apollo', [d], { 'Budget Gate': [{ PDL_Used: 127 }] });
+  assert.match(over.enrichment_status, /monthly limit/);
+  const [under] = await runNode('Combine No Apollo', [d], { 'Budget Gate': [{ PDL_Used: 10 }] });
+  assert.match(under.enrichment_status, /below top 25/);
+});
+
+test('GitLab is searched through Google (its API only matches usernames)', async () => {
+  assert.deepEqual(await runNode('Build GitLab Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['GitLab'] })] }), []);
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn', 'GitLab'] })] });
+  const g = q.filter((x) => x.kind === 'city-profiles');
+  assert.equal(g.length, 2);
+  assert.match(g[0].q, /site:gitlab\.com/);
+  assert.match(g[0].q, /-inurl:issues/);
+  const noCity = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ Location: '', 'Target Platforms': ['GitLab'] })] });
+  assert.ok(noCity.some((x) => x.kind === 'city-profiles' && /site:gitlab\.com/.test(x.q)), 'GitLab works without a city too');
+});
+
+test('Hacker News: city required, skills optional; candidate links to their HN profile', async () => {
+  const [b] = await runNode('Build HN Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Hacker News'] })] });
+  assert.match(b.hn_url, /query=Java%20Spring%20Boot%20Microservices%20Bangalore/);
+  assert.match(b.hn_url, /optionalWords=Java%20Spring%20Boot%20Microservices/);
+  const [o] = await runNode('HN To Organic', [{ id: 'sagarw', about: 'DevOps', karma: 10 }], { 'HN Split Authors': [{ author: 'sagarw', objectID: '1', comment_text: 'Location: Pune, India. Kubernetes, AWS' }] });
+  assert.equal(o.organic[0].link, 'https://news.ycombinator.com/user?id=sagarw');
+});

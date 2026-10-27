@@ -1324,3 +1324,62 @@ def apply_round14(nodes, conns):
     N = {n["name"]: n for n in nodes}
     N["Add Req Header"]["parameters"]["jsCode"] = REQ_HEADER_V2
     return nodes, conns
+
+
+# ======================================================================
+# Round 15 (recruiter question: "Apollo used but no contacts? no Hacker News
+# or GitLab people?")
+# - The Confidence note said "not Apollo-enriched (outside top 25)" even when
+#   Apollo was off for the month. Say why: monthly limit / not a LinkedIn row.
+# - GitLab's user API only matches usernames ("Kubernetes" finds accounts named
+#   kubernetes-*), so it never produced real people. Search GitLab profiles via
+#   Google instead, like Kaggle / Stack Overflow.
+# - Hacker News: link to the person's HN profile (not one comment), and only
+#   the city is required in the search; skills are optional words, so posts
+#   don't need to mention every skill.
+# ======================================================================
+def apply_round15(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new, field="jsCode"):
+        p = N[name]["parameters"]
+        assert old in p[field], "round15 %s: anchor not found: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, new, 1)
+
+    # 1. honest Apollo note
+    R("Combine No Apollo",
+      "enrichment_status: /linkedin\\.com|apollo\\.io/i.test(url) ? 'skipped - below top 25 (Apollo credits)' : 'skipped - not a LinkedIn/Apollo profile'",
+      "enrichment_status: !/linkedin\\.com|apollo\\.io/i.test(url) ? 'skipped - not a LinkedIn/Apollo profile'\n"
+      "    : ((function(){ try { return Number($('Budget Gate').first().json.PDL_Used || 0) >= %d; } catch (e) { return false; } })()\n"
+      "      ? 'skipped - Apollo monthly limit reached' : 'skipped - below top 25 (Apollo credits)')" % APOLLO_CAP)
+    R("Parse Contact",
+      "  else if (String(merged.enrichment_status||'').indexOf('below top') !== -1) reasons.push('not Apollo-enriched (outside top 25)');",
+      "  else if (String(merged.enrichment_status||'').indexOf('monthly limit') !== -1) reasons.push('Apollo off - monthly limit reached');\n"
+      "  else if (String(merged.enrichment_status||'').indexOf('below top') !== -1) reasons.push('not Apollo-enriched (outside top 25)');")
+
+    # 2. GitLab through Google
+    N["Build GitLab Query"]["parameters"]["jsCode"] = (
+        "// GitLab's user search only matches usernames, so it can't find people by skill.\n"
+        "// GitLab profiles are searched through Google instead (Build Search Query).\n"
+        "return [];\n")
+    R("Build Search Query",
+      "const cityPlatforms = { 'Kaggle': 'site:kaggle.com', 'Stack Overflow': 'site:stackoverflow.com/users', 'Hugging Face': 'site:huggingface.co' };",
+      "const cityPlatforms = { 'Kaggle': 'site:kaggle.com', 'Stack Overflow': 'site:stackoverflow.com/users', 'Hugging Face': 'site:huggingface.co', 'GitLab': 'site:gitlab.com' };")
+    R("Build Search Query",
+      "if (citySites.length && locTerm) {",
+      "// GitLab has no usable people search of its own, so it always goes through Google (with or without a city)\n"
+      "if (citySites.length && (locTerm || citySites.indexOf('site:gitlab.com') !== -1)) {")
+    R("Build Search Query", "-inurl:spaces -inurl:questions';", "-inurl:spaces -inurl:questions -inurl:merge_requests -inurl:issues -inurl:-/';")
+
+    # 3. Hacker News: person link + city-required search
+    R("HN To Organic",
+      "const link = 'https://news.ycombinator.com/item?id=' + (s.objectID || '');",
+      "const link = 'https://news.ycombinator.com/user?id=' + encodeURIComponent(s.author || '');")
+    R("Build HN Query",
+      "const url = 'https://hn.algolia.com/api/v1/search?tags=comment&hitsPerPage=40&query=' + encodeURIComponent(query);",
+      "// the city must match; skills are optional words so a post needn't list every skill\n"
+      "const optional = loc ? terms.filter(function(t){ return t !== loc; }) : [];\n"
+      "const url = 'https://hn.algolia.com/api/v1/search?tags=comment&hitsPerPage=40&query=' + encodeURIComponent(query)\n"
+      "  + (optional.length ? '&optionalWords=' + encodeURIComponent(optional.join(' ')) : '');")
+    R("Format Search Results", "stackoverflow\\.com\\/users\\/|", "stackoverflow\\.com\\/users\\/|news\\.ycombinator\\.com\\/user\\?id=|")
+    return nodes, conns
