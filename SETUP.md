@@ -12,14 +12,14 @@ your execution history. When setup finishes, it switches itself off.
 
 | | Needed? | What it does | Where to get it |
 |---|---|---|---|
-| **n8n** (Cloud paid plan or self-hosted) | Required | Runs everything | [n8n.io](https://n8n.io) · the n8n API isn't available on the Cloud **free trial** |
+| **n8n** (self-hosted, free – or Cloud paid plan) | Required | Runs everything | Free on your own computer: `docker run -it --rm -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8nio/n8n` · the n8n API isn't available on the Cloud **free trial** |
 | **OpenAI** API key | Required | Reads the brief, scores candidates | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | **Serper** API key | Required | Searches the web and professional sites | [serper.dev/api-key](https://serper.dev/api-key) (free credits) |
 | **Google** account | Required | Results sheet, CV folder, approved outreach emails | You sign in during setup |
 | **GitHub** token | Recommended | Real code activity | [github.com/settings/tokens](https://github.com/settings/tokens) (no scopes needed) |
 | **Apollo** API key | Optional | Verified email, title, company | Apollo → Settings → API |
 | **GitLab** token | Optional | More code activity | GitLab → Access tokens (`read_api`) |
-| **Kaggle** username + key | Optional | Data-science proof of work | Kaggle → Settings → API |
+| **Kaggle** username + **legacy** API key | Optional | Data-science proof of work | Kaggle → Settings → API → **Create Legacy API Key** (opens `kaggle.json`; the new `KGAT_` tokens don't work). Use the username shown in Kaggle Settings exactly. |
 | **Slack** | Optional | Alerts when runs finish | You sign in during setup |
 
 Skip any optional source and the pipeline simply doesn't search it.
