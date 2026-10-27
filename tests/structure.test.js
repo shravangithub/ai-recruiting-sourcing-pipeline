@@ -170,12 +170,17 @@ test('sheet: REQ header sits between the CRM merge and the sheet write; new colu
   assert.ok(!/location_check/.test(v.Location), 'review note lives in its own column');
 });
 
-test('setup: new sheets get the colours (REQ band, review highlight, fit-score scale)', () => {
+test('setup: new sheets get light, whole-row colours (requisition, in city, country only, review)', () => {
   const styled = new Function(handler.slice(handler.indexOf('const SHEET_COLUMNS'), handler.indexOf('async function checkKey')) + '; return styleRequests(1);')();
-  const txt = JSON.stringify(styled);
-  assert.match(txt, /=\$A2=\\"REQ\\"/);
-  assert.match(txt, /Review:/);
-  assert.match(txt, /gradientRule/);
-  assert.match(txt, /frozenColumnCount/);
+  const rules = styled.filter((r) => r.addConditionalFormatRule && r.addConditionalFormatRule.rule.ranges[0].sheetId === 0).map((r) => r.addConditionalFormatRule.rule);
+  assert.equal(rules.length, 4);
+  for (const r of rules) {
+    assert.equal(r.ranges[0].startColumnIndex, 0, 'whole row');
+    assert.equal(r.ranges[0].endColumnIndex, SHEET_COLUMNS.length, 'whole row');
+    const bg = r.booleanRule.format.backgroundColor;
+    assert.ok(bg.red > 0.85 && bg.green > 0.85 && bg.blue > 0.8, 'light colour');
+  }
+  assert.match(rules[0].booleanRule.condition.values[0].userEnteredValue, /\$A2="REQ"/);
+  assert.match(JSON.stringify(rules), /Review:/);
   assert.match(handler, /concat\(styleRequests\(LOG_TAB_ID\)\)/);
 });

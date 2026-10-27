@@ -83,6 +83,7 @@ def main():
     src_nodes, src_conns = pipeline_fixes.apply_round11(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round12(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round13(src_nodes, src_conns)
+    src_nodes, src_conns = pipeline_fixes.apply_round14(src_nodes, src_conns)
     nodes = []
     for n in src_nodes:
         n = swap(n)

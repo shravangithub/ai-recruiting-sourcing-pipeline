@@ -292,16 +292,24 @@ test('recruiter rule: city unknown but country known -> kept, sheet shows the co
   assert.equal(out[0].location_review, '🟡 India - city not listed');
 });
 
-test('sheet: each search starts with one REQ row above its results', async () => {
-  const items = [{ candidate_name: 'A', is_new: true, search_geography: 'Bangalore, India' }, { candidate_name: 'B', is_new: false, search_geography: 'Bangalore, India' }];
-  const out = await runNode('Add Req Header', items, { 'Search Criteria': [criteria({ 'Target Role': 'Senior Machine Learning Engineer', 'Target Platforms': ['LinkedIn', 'Kaggle'] })] });
-  assert.equal(out.length, 3);
-  assert.equal(out[0].rank, 'REQ');
-  assert.match(out[0].candidate_name, /Senior Machine Learning Engineer/);
-  assert.equal(out[0].current_role, 'Bangalore, India');
-  assert.match(out[0].match_summary, /LinkedIn, Kaggle\. 1 candidate\(s\) listed below; 1 already in the sheet/);
-  assert.match(out[0].dedupe_key, /^REQ\|/);
-  assert.deepEqual(out.slice(1).map((x) => x.candidate_name), ['A', 'B']);
+test('sheet: each search starts with one requisition row carrying the full req', async () => {
+  const items = [{ candidate_name: 'A', is_new: true, search_geography: 'Hyderabad, India', location_review: '✅ In Hyderabad' },
+    { candidate_name: 'B', is_new: true, search_geography: 'Hyderabad, India', location_review: "⚠️ Review: Kaggle can't filter by location - check profile" },
+    { candidate_name: 'C', is_new: false, search_geography: 'Hyderabad, India', location_review: '🟡 India - city not listed' }];
+  const out = await runNode('Add Req Header', items, {
+    'Search Criteria': [criteria({ 'Target Role': 'NLP Engineer', Location: 'Hyderabad', 'Primary Skills': 'Python, PyTorch', 'Experience Range (Years)': '5-8 years',
+      'Keywords to Exclude': 'intern', 'Education': 'Masters', 'Target Platforms': ['LinkedIn', 'Kaggle'] })],
+    'Prep JD': [{ jd_present: true, jd_source: 'pasted' }] });
+  assert.equal(out.length, 4);
+  const h = out[0];
+  assert.equal(h.rank, 'REQ');
+  assert.equal(h.candidate_name, 'NLP Engineer');
+  assert.equal(h.current_role, '📍 Hyderabad, India');
+  for (const want of ['Must-have: Python, PyTorch', 'Experience: 5-8 years', 'Education: Masters', 'Excluding: intern', 'Platforms: LinkedIn, Kaggle',
+    'JD pasted', '3 candidates (1 in Hyderabad, 1 country/unknown, 1 to review)', '1 already listed under an earlier run', 'Searched ']) assert.ok(h.match_summary.includes(want), want);
+  assert.equal(h.key_skills, '', 'cells right of Summary stay empty so the req text reads across the row');
+  assert.match(h.dedupe_key, /^REQ\|/);
+  assert.deepEqual(out.slice(1).map((x) => x.candidate_name), ['A', 'B', 'C']);
   assert.deepEqual(await runNode('Add Req Header', [], { 'Search Criteria': [criteria()] }), []);
 });
 

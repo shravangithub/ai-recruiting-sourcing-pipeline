@@ -1265,3 +1265,62 @@ def apply_round13(nodes, conns):
     body["requests"][0]["setDataValidation"]["range"].update({"startColumnIndex": idx, "endColumnIndex": idx + 1})
     tb["jsonBody"] = json.dumps(body)
     return nodes, conns
+
+
+# ======================================================================
+# Round 14 (recruiter feedback): the REQ row must carry the full requisition -
+# what was asked for, where, and what came back - readable in one line.
+# The details go in Summary with the cells to its right left empty, so the
+# text flows across the row in Google Sheets.
+# ======================================================================
+REQ_HEADER_V2 = r"""
+// One requisition row above each search's results: everything the recruiter
+// asked for, where, and what came back. The details sit in Summary and the
+// cells to its right stay empty so the text reads across the whole row.
+const items = $input.all();
+if (!items.length) return [];
+const f = $('Search Criteria').first().json;
+const role = f['Target Role'] || 'Search';
+const geo = items[0].json.search_geography || 'Global';
+const list = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };
+const platforms = list(f['Target Platforms']);
+let jd = 'no JD';
+try { const j = $('Prep JD').first().json; if (j.jd_present) jd = 'JD ' + (j.jd_source === 'pasted' ? 'pasted' : 'uploaded'); } catch (e) {}
+const fresh = items.filter(function(i){ return i.json.is_new !== false; }).length;
+const refreshed = items.length - fresh;
+const lr = function(re){ return items.filter(function(i){ return re.test(String(i.json.location_review || '')); }).length; };
+const inCity = lr(/^✅/), country = lr(/^🟡/), review = lr(/Review:/);
+const parts = [];
+parts.push('Must-have: ' + (f['Primary Skills'] || 'from role'));
+if (f['Use Secondary Skills'] !== false && f['Secondary Skills']) parts.push('Nice-to-have: ' + f['Secondary Skills']);
+parts.push('Experience: ' + (f['Experience Range (Years)'] || 'any'));
+if (f['Education'] && !/^any$/i.test(f['Education'])) parts.push('Education: ' + f['Education']);
+if (f['Preferred Industry']) parts.push('Industry: ' + f['Preferred Industry']);
+if (f['Current Employer']) parts.push('Employer: ' + f['Current Employer']);
+if (f['Keywords to Exclude']) parts.push('Excluding: ' + f['Keywords to Exclude']);
+if (f['Gender Preference'] && !/^any$|^auto/i.test(f['Gender Preference'])) parts.push('Gender: ' + f['Gender Preference']);
+parts.push('Platforms: ' + (platforms.join(', ') || 'all'));
+parts.push(jd);
+let result = items.length + ' candidates';
+if (geo !== 'Global') result += ' (' + inCity + ' in ' + (f['Location'] || geo) + ', ' + country + ' country/unknown, ' + review + ' to review)';
+if (refreshed) result += '; ' + refreshed + ' already listed under an earlier run of this req were refreshed there';
+parts.push(result);
+parts.push('Searched ' + $now.toFormat('dd LLL yyyy, HH:mm'));
+const header = {
+  rank: 'REQ', candidate_name: role, current_role: '📍 ' + geo, fit_score: '',
+  match_summary: parts.join('  |  '),
+  key_skills: '', current_company: '', verified_title: '', location: '', location_review: '', email: '', phone: '',
+  github_url: '', work_history: '', education: '', verified_linkedin: '', resume_link: '', drive_cv_link: '',
+  date_added: $now.toFormat('yyyy-MM-dd HH:mm'), source_platform: '', resume_source: '', contact_source: '',
+  search_role: role, search_location: f['Location'] || '', search_geography: geo,
+  pipeline_status: 'Requisition', outreach_status: '', send_email: 'FALSE',
+  dedupe_key: 'REQ|' + $execution.id, profile_url: '', confidence: '', experience_evidence: ''
+};
+return [{ json: header, pairedItem: { item: 0 } }].concat(items.map(function(it, i){ return { json: it.json, pairedItem: { item: i } }; }));
+"""
+
+
+def apply_round14(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    N["Add Req Header"]["parameters"]["jsCode"] = REQ_HEADER_V2
+    return nodes, conns
