@@ -67,6 +67,15 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **Brief-first search form** – page 1: describe the person (and add a JD). Page 2: *"Here's what
+  we'll search for"* – every field pre-filled from the brief, editable, with sources as tiles
+  pre-ticked for the role. Only the ticked sources are searched.
+- **About a minute per search** – AI scoring runs all batches at the same time.
+- **Every Google query fits Google's 32-word limit** – exclusions are trimmed first; job ads and
+  job boards are dropped after the search instead.
+- **More contacts** – GitHub developers who hide their profile email get their public commit email
+  (noreply addresses ignored).
+- **Per-source counts** – the requisition row says how many people each source found.
 - **One-click setup** – paste your keys into a setup page and your own n8n configures itself
   (connections, results sheet, CV folder, pipeline). See [`SETUP.md`](SETUP.md).
 - **Runs free on your own computer** – self-hosted n8n in Docker includes everything the setup needs;
@@ -85,7 +94,7 @@ outreach end to end.
   "Paused" instead of failing silently.
 - **Sturdier runs** – empty Google pages are retried, resumes must carry the person's name, only real
   CV files are downloaded, and a search with no results always closes its Search Log row.
-- **69 automated tests** covering wiring, sheet columns and every step with realistic recruiter inputs.
+- **Automated tests** covering wiring, sheet columns and every step with realistic recruiter inputs.
 
 ---
 
@@ -119,10 +128,11 @@ flowchart TD
 
 ## What it does (in one pass)
 
-1. **Intake** — a recruiter submits a form: role, skills, location, seniority, exclusions, target
-   platforms, geography, and (optionally) a full job description pasted or uploaded as PDF/Word.
-2. **Natural-language understanding** — an LLM parses the free-text brief/JD into structured search
-   criteria; explicit form fields always override the AI.
+1. **Intake** — a recruiter describes the person in plain English and (optionally) pastes or uploads
+   a job description (PDF/Word).
+2. **Natural-language understanding** — an LLM parses the brief/JD into structured criteria, shown
+   back on a second form page (role, skills, experience, city, region, filters, sources) for the
+   recruiter to confirm or change before anything is searched.
 3. **Query construction** — a Boolean "X-ray" search string is built per target platform
    (LinkedIn, GitHub, Stack Overflow, etc.), with synonym expansion, exclusions, education filters,
    and a job-post noise filter so the search returns *people*, not job ads.
@@ -137,7 +147,7 @@ flowchart TD
 8. **Confidence scoring** — every candidate gets a High/Medium/Low confidence label with reasons,
    so a recruiter knows which rows to trust.
 9. **CRM write** — candidates are written to a Google Sheet (30+ fields) under a requisition row for
-   the search; a person found again for the same requisition is updated in place, keeping the
+   the search (with candidates per source); a person found again for the same requisition is updated in place, keeping the
    recruiter's ticks. Slack cards are optional.
 10. **Approved outreach** — the recruiter ticks "Send Email?" on chosen rows; a scheduler sends a
     personalized outreach email, marks the row "Contacted", and a mail trigger auto-flags "Replied".

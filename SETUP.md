@@ -40,8 +40,10 @@ Skip any optional source and the pipeline simply doesn't search it.
    - **Sign in** – click **Create connections**, then for Google Sheets, Google Drive, Gmail
      (and Slack) click **Open & sign in**, press **Sign in** on the page that opens, and come back.
    - **Launch** – click **Configure my pipeline**.
-6. **Start sourcing.** Open your **search form** link. Your ranked shortlist lands in the
-   results sheet; tick **Send Email?** on the rows you approve.
+6. **Start sourcing.** Open your **search form** link and describe who you're hiring. On the next
+   page, check what was understood (change anything, pick sources) and press **Search candidates**.
+   Your ranked shortlist lands in the results sheet in about a minute or two; tick **Send Email?**
+   on the rows you approve.
 
 Running setup again is safe: it updates the existing connections and pipeline instead of
 creating duplicates. To run it again, switch the setup workflow back on.
