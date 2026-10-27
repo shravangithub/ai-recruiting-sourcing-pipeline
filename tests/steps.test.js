@@ -474,7 +474,7 @@ test('R18: ticking one platform searches only that platform; none ticked -> Link
   const [none] = await runNode('Draft Criteria', [{}], {
     'On form submission': [Object.assign({}, formBase, { '1) Target Role': 'Backend Engineer', '3) Location': 'Pune' })],
     'Parse NL Search': [nl({})] });
-  assert.deepEqual(none['Target Platforms'], ['LinkedIn', 'Github']);
+  assert.deepEqual(none['Target Platforms'], ['LinkedIn', 'Github', 'Stack Overflow'], 'engineers get the developer sources');
 });
 
 test('R18: X/Reddit and Kaggle-type sites get title and skill variants, all within 32 words', async () => {
@@ -537,4 +537,12 @@ test('R19: a GitHub commit email is used only when it is clearly theirs', async 
   assert.equal(a.commit_email, 'asha@example-mail.in');
   const [b] = await runNode('Attach Commit Email', [{ rate: {} }], { 'Attach Resume': [cand] });
   assert.equal(b.commit_email, '');
+});
+
+test('R19: with no sources in the brief, page 2 suggests sources that fit the role', async () => {
+  const run = async (role) => (await runNode('Draft Criteria', [{}], { 'On form submission': [Object.assign({}, formBase, { 'Brief': role })], 'Parse NL Search': [nl({ target_role: role })] }))[0]['Target Platforms'];
+  assert.deepEqual(await run('Product Designer'), ['LinkedIn', 'Dribbble', 'Behance']);
+  assert.deepEqual(await run('Machine Learning Engineer'), ['LinkedIn', 'Github', 'Kaggle', 'Hugging Face']);
+  assert.deepEqual(await run('Backend Engineer'), ['LinkedIn', 'Github', 'Stack Overflow']);
+  assert.deepEqual(await run('HR Business Partner'), ['LinkedIn', 'Google / Open Web']);
 });

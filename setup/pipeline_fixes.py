@@ -1705,11 +1705,13 @@ textarea { min-height: 110px; line-height: 1.5; resize: vertical; }
 .form-group.html { margin-bottom: 10px; }
 /* sources as tiles */
 .multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.multiselect-option { display: flex; align-items: center; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 10px 12px; margin: 0;
+.multiselect-option { display: flex; align-items: stretch; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 0 0 0 12px; margin: 0;
   border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; min-width: 0; }
 .multiselect-option:has(input:checked) { border: 2px solid var(--accent); background: #F7F8FF; }
-.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
-.multiselect-option label { margin: 0; font-weight: 500; cursor: pointer; color: var(--ink); overflow-wrap: anywhere; }
+.multiselect-option input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; align-self: center; }
+.multiselect-option label { flex: 1; display: flex; align-items: center; margin: 0; padding: 12px 12px 12px 0; font-weight: 500; cursor: pointer; color: var(--ink); overflow-wrap: anywhere; }
+.header h1 { font-size: 28px !important; font-weight: 800; text-align: left; color: var(--ink); }
+.header p { font-size: 15px !important; line-height: 1.55; text-align: left; color: var(--muted); }
 button, button[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--accent) !important; color: #fff;
   font-size: 16px; font-weight: 700; cursor: pointer; }
 button:hover { background: var(--accent-dark) !important; }
@@ -1880,6 +1882,15 @@ def apply_round19(nodes, conns):
       "pick(form['9) Experience Range (Years)'], p.experience_range, 'Any')")
     R("Draft Criteria", "pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'No')",
       "pick(form['8) Expand Job Title Synonyms'], p.expand_synonyms, 'Yes')")
+    # sensible default sources for the role when the brief names none
+    R("Draft Criteria", "if (!platforms.length) platforms = ['LinkedIn', 'Github'];",
+      "if (!platforms.length) {\n"
+      "  const r = String(pick(form['1) Target Role'], p.target_role, '')).toLowerCase();\n"
+      "  if (/design|ux|ui\\b/.test(r)) platforms = ['LinkedIn', 'Dribbble', 'Behance'];\n"
+      "  else if (/machine learning|\\bml\\b|\\bai\\b|data scien|nlp|computer vision|deep learning/.test(r)) platforms = ['LinkedIn', 'Github', 'Kaggle', 'Hugging Face'];\n"
+      "  else if (/engineer|developer|devops|sre|architect|programmer/.test(r)) platforms = ['LinkedIn', 'Github', 'Stack Overflow'];\n"
+      "  else platforms = ['LinkedIn', 'Google / Open Web'];\n"
+      "}")
     x, y = sc["position"]
     page2 = _node("Check Search", "n8n-nodes-base.form", 2.5, [x + 200, y], {
         "operation": "page", "defineForm": "fields",
@@ -1890,7 +1901,7 @@ def apply_round19(nodes, conns):
     page2["webhookId"] = "fix-check-search-page"
     done = _node("Search Started", "n8n-nodes-base.form", 2.5, [x + 400, y - 200], {
         "operation": "completion", "respondWith": "text", "completionTitle": "Search started",
-        "completionMessage": "Results appear in your Google Sheet in 2 to 5 minutes. The Search Log tab shows Processing, then Complete with the candidate count. You can close this page.",
+        "completionMessage": "Results appear in your Google Sheet in about a minute or two. The Search Log tab shows Processing, then Complete with the candidate count. You can close this page.",
         "options": {"customCss": FORM_CSS}})
     done["webhookId"] = "fix-search-started-page"
     final = _node("Search Criteria", "n8n-nodes-base.code", 2, [x + 400, y], {"jsCode": FINAL_CRITERIA})
