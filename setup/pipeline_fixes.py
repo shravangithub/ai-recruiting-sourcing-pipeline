@@ -2233,3 +2233,111 @@ def apply_round22(nodes, conns):
         assert "customCss" in o, name
         o["customCss"] = o["customCss"] + COLOR_CSS
     return nodes, conns
+
+
+# ======================================================================
+# Round 23: Talent Rubric brand colours (charcoal #3A3A3C, red #BF1E2D,
+# white) and the logo at the top right of every form page. Fields: Gender
+# preference removed (sourcing on gender is a legal and fairness risk, and
+# the AI is told to ignore protected attributes); "Current employer" becomes
+# "Target companies" (up to three, OR-ed in the search); "Exclude words"
+# also takes companies.
+# ======================================================================
+import base64 as _b64
+from pathlib import Path as _Path
+_LOGO = _b64.b64encode((_Path(__file__).parent / "src" / "logo-form.png").read_bytes()).decode()
+
+BRAND_CSS = r"""
+:root { --ink:#2B2B2E; --muted:#5F5F66; --line:#D6D6DB; --char:#3A3A3C; --char-2:#2E2E30; --red:#BF1E2D; --red-dark:#9C1724; --red-soft:#FBEBED; }
+body { background: var(--char) !important; color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+body::after { content: ""; position: fixed; top: 26px; right: 32px; width: 230px; height: 25px;
+  background: url(data:image/png;base64,__LOGO__) no-repeat right center / contain; pointer-events: none; }
+.container { max-width: 760px !important; width: 100% !important; box-sizing: border-box; margin: 0 auto; padding: 40px 16px; }
+.card { position: relative; overflow: hidden; width: 100%; box-sizing: border-box; border: 0; border-radius: 16px; padding: 36px 40px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35); background: #fff; }
+.card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--red); }
+.form-header, .header { text-align: left; margin-bottom: 8px; }
+.form-header h1, .header h1, h1 { font-size: 32px !important; font-weight: 800; letter-spacing: -0.5px; color: var(--char) !important; text-align: left; }
+.form-header h1::after { content: ""; display: block; width: 56px; height: 4px; margin-top: 10px; background: var(--red); }
+.form-header p, .header p { font-size: 15px !important; line-height: 1.55; color: var(--muted); text-align: left; }
+.form-group { margin-bottom: 22px; }
+.form-label, label { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }
+input[type=text], input[type=email], input[type=number], textarea, select {
+  width: 100%; box-sizing: border-box; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; font-size: 15px; color: var(--ink); background: #fff; font-family: inherit !important; }
+input:focus, textarea:focus, select:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(191,30,45,.15); outline: none; }
+textarea { min-height: 110px; line-height: 1.5; resize: vertical; }
+::placeholder { color: #8E8E96; font-family: inherit; }
+/* tip box (html block with bold text) */
+.form-group.html { margin-bottom: 10px; }
+.form-group.html div:has(b) { padding: 12px 14px; border-radius: 10px; background: #F4F4F5; border-left: 4px solid var(--red);
+  color: var(--ink); font-size: 13.5px; line-height: 1.55; }
+.form-group.html div:has(b) b { color: var(--red); }
+/* section headings: charcoal and red badges, alternating */
+.form-group.html div:not(:has(b)) { display: inline-block; margin-top: 18px; padding: 6px 12px; border-radius: 6px;
+  font-size: 12px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; background: var(--char); color: #fff; }
+.form-group.html:nth-child(even of .html) div:not(:has(b)) { background: var(--red); }
+/* source tiles */
+.multiselect { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.multiselect-option { display: flex; align-items: stretch; gap: 10px; min-height: 48px; box-sizing: border-box; padding: 0 0 0 12px; margin: 0;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; min-width: 0; }
+.multiselect-option:has(input:checked) { border: 2px solid var(--red); background: var(--red-soft); }
+.multiselect-option input { accent-color: var(--red); width: 16px; height: 16px; margin: 0; flex: none; align-self: center; }
+.multiselect-option label { flex: 1; display: flex; align-items: center; margin: 0; padding: 12px 12px 12px 0; font-size: 14px; font-weight: 500;
+  cursor: pointer; color: var(--ink); overflow-wrap: anywhere; }
+button, button[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--red) !important; color: #fff;
+  font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 24px rgba(191,30,45,.3); }
+button:hover { background: var(--red-dark) !important; }
+.header h1::before { content: "✓"; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  margin-right: 12px; border-radius: 50%; background: var(--red); color: #fff; font-size: 18px; vertical-align: 4px; }
+.n8n-link { display: none !important; }
+/* below desktop width the logo sits above the card instead of beside it */
+@media (max-width: 1240px) {
+  body::after { position: absolute; top: 18px; right: auto; left: 50%; transform: translateX(-50%); width: 200px; height: 22px; background-position: center; }
+  .container { padding-top: 64px; }
+}
+@media (max-width: 640px) {
+  .card { padding: 24px 18px; border-radius: 14px; }
+  .form-header h1, .header h1, h1 { font-size: 26px !important; }
+  .multiselect { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+""".replace("__LOGO__", _LOGO)
+
+
+def apply_round23(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round23 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    for name in ["On form submission", "Check Search", "Search Started"]:
+        N[name]["parameters"]["options"]["customCss"] = BRAND_CSS
+
+    page2 = N["Check Search"]["parameters"]["formFields"]["values"]
+    page2[:] = [f for f in page2 if f.get("fieldName") != "gender"]
+    for f in page2:
+        if f.get("fieldName") == "employer":
+            f["fieldLabel"] = "Target companies (optional – up to 3, comma-separated)"
+            f["placeholder"] = "e.g. people now at Acme Payments, Globex Labs"
+        if f.get("fieldName") == "exclude":
+            f["fieldLabel"] = "Exclude words or companies"
+            f["placeholder"] = "e.g. intern, trainee, a client you can't hire from"
+    R("Search Criteria", "val('employer', 'Current employer')", "val('employer', 'Target companies (optional – up to 3, comma-separated)')")
+    R("Search Criteria", "val('exclude', 'Exclude words')", "val('exclude', 'Exclude words or companies')")
+    R("Search Criteria", "'Gender Preference': val('gender', 'Gender preference') || 'Any',", "'Gender Preference': 'Any',")
+
+    # several target companies: OR-ed in the Google query, first one for Apollo
+    R("Build Search Query", "const employerOpts = employer ? [q(employer), ''] : [''];",
+      "const employerList = employer.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 3).map(q);\n"
+      "const employerOpts = employerList.length ? shrink(employerList).concat(['']) : [''];")
+    R("Build Apollo Query", "body.organization_names = [employer];",
+      "body.organization_names = employer.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 3);")
+
+    # the AI never weighs gender or other protected attributes
+    R("Format Search Results", "Gender Preference: ${ S('Search Criteria')['Gender Preference'] }\n", "")
+    R("Format Search Results",
+      "Also factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.",
+      "Never consider gender, age, religion, caste, ethnicity or any other protected attribute; rank purely on evidence of skills and experience.")
+    return nodes, conns

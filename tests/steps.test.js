@@ -606,3 +606,20 @@ test('R21: Wellfound profiles are searched; Wellfound job and company pages are 
   const [m] = await runNode('Merge Pages', [{ organic: [{ link: 'https://wellfound.com/role/l/backend-engineer/bengaluru' }, { link: 'https://wellfound.com/u/asha-nair' }] }]);
   assert.deepEqual(m.organic.map((o) => o.link), ['https://wellfound.com/u/asha-nair']);
 });
+
+// ------------------------------------------------------------ Round 23: brand form, target companies, no gender
+test('R23: up to three target companies are OR-ed into the LinkedIn query', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Current Employer': 'Acme Payments, Globex Labs', 'Target Platforms': ['LinkedIn'] })] });
+  assert.match(q[0].q, /\("Acme Payments" OR "Globex Labs"\)/);
+  assert.ok(q[0].q.split(/\s+/).length <= 32);
+});
+
+test('R23: gender is not asked for and never reaches the AI', async () => {
+  const { NODES } = require('./harness');
+  assert.ok(!NODES['Check Search'].parameters.formFields.values.some((f) => f.fieldName === 'gender'));
+  const [c] = await runNode('Search Criteria', [{ role: 'QA', gender: 'Female' }], { 'Draft Criteria': [{}] });
+  assert.equal(c['Gender Preference'], 'Any');
+  const b = await runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria()] });
+  assert.ok(!/Gender Preference/.test(b[0].prompt));
+  assert.match(b[0].prompt, /Never consider gender/);
+});
