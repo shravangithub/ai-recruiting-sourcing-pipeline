@@ -4787,6 +4787,11 @@
       "node": "Mark Contacted",
       "type": "main",
       "index": 0
+     },
+     {
+      "node": "Ensure Sequence Table",
+      "type": "main",
+      "index": 0
      }
     ]
    ]
@@ -5598,17 +5603,6 @@
     [
      {
       "node": "Results Email",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Mark Contacted": {
-   "main": [
-    [
-     {
-      "node": "Ensure Sequence Table",
       "type": "main",
       "index": 0
      }

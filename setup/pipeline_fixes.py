@@ -2570,7 +2570,8 @@ def apply_round24(nodes, conns):
             "columns": _automap(), "options": {}}, onError="continueRegularOutput"),
         status_node("Show Sequence Status", [x0 + 880, y0]),
     ]
-    link("Mark Contacted", "Ensure Sequence Table")
+    # start from the sent email itself: the sheet update returns nothing when it can't match a row
+    link("Send Outreach Email", "Ensure Sequence Table")
     link("Ensure Sequence Table", "Start Sequence")
     link("Start Sequence", "Save New Sequence")
     link("Start Sequence", "Show Sequence Status")

@@ -195,3 +195,9 @@ test('Serper results and retries both reach the source merge', () => {
   assert.deepEqual(WF.connections['Serper Pages'].main[0], [{ node: 'Wait For All Sources', type: 'main', index: 0 }]);
   assert.equal(NODES['Pause Before Retry'].parameters.unit, 'seconds');
 });
+
+test('R24: a sequence starts from the sent email, not from the sheet update', () => {
+  const next = (WF.connections['Send Outreach Email'].main[0] || []).map((c) => c.node);
+  assert.ok(next.includes('Ensure Sequence Table'));
+  assert.ok(!((WF.connections['Mark Contacted'] || { main: [[]] }).main[0] || []).some((c) => c.node === 'Ensure Sequence Table'));
+});
