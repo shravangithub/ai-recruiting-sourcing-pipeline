@@ -2283,6 +2283,7 @@ textarea { min-height: 110px; line-height: 1.5; resize: vertical; }
   border: 1px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; min-width: 0; }
 .multiselect-option:has(input:checked) { border: 2px solid var(--red); background: var(--red-soft); }
 .multiselect-option input { accent-color: var(--red); width: 16px; height: 16px; margin: 0; flex: none; align-self: center; }
+.multiselect-checkbox:checked { background-color: var(--red) !important; border-color: var(--red) !important; }
 .multiselect-option label { flex: 1; display: flex; align-items: center; margin: 0; padding: 12px 12px 12px 0; font-size: 14px; font-weight: 500;
   cursor: pointer; color: var(--ink); overflow-wrap: anywhere; }
 button, button[type=submit] { width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--red) !important; color: #fff;
