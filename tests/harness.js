@@ -25,17 +25,17 @@ async function runNode(name, input = [], refs = {}, opts = {}) {
   };
   const ctx = { helpers: {} };
   const mode = node.parameters.mode || 'runOnceForAllItems';
-  const f = new AsyncFunction('$input', '$', '$json', '$now', '$execution', '$workflow', '$runIndex', code);
+  const f = new AsyncFunction('$input', '$', '$json', '$now', '$execution', '$workflow', '$runIndex', 'DateTime', code);
   if (mode === 'runOnceForEachItem') {
     const out = [];
     for (let i = 0; i < inItems.length; i++) {
       const $i = (n) => ({ first: () => refItems[n][0], all: () => refItems[n], item: (refItems[n] || [])[i] || (refItems[n] || [])[0] });
-      const r = await f.call(ctx, { all: () => inItems, first: () => inItems[0], item: inItems[i] }, $i, inItems[i].json, now, { id: '999' }, { id: 'wf' }, 0);
+      const r = await f.call(ctx, { all: () => inItems, first: () => inItems[0], item: inItems[i] }, $i, inItems[i].json, now, { id: '999' }, { id: 'wf' }, 0, DateTime);
       out.push(r);
     }
     return out.map((r) => (r && r.json ? r.json : r));
   }
-  const r = await f.call(ctx, { all: () => inItems, first: () => inItems[0] }, $, inItems[0] && inItems[0].json, now, { id: '999' }, { id: 'wf' }, 0);
+  const r = await f.call(ctx, { all: () => inItems, first: () => inItems[0] }, $, inItems[0] && inItems[0].json, now, { id: '999' }, { id: 'wf' }, 0, DateTime);
   return (r || []).map((x) => (x && x.json ? x.json : x));
 }
 

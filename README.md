@@ -67,6 +67,14 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **Outreach sequences** – after the first email, each person gets up to four follow-ups as
+  replies in the same Gmail thread, **2, 4, 5 and 7 days** later. Every follow-up first checks the
+  thread: a reply (or a bounce) stops the sequence at once. Weekdays 9:30–18:30 IST only, at most
+  50 a day. Fixed templates, no AI, so no token cost. State lives in an n8n Data Table
+  (`outreach_sequence`); the wording lives in `outreach_templates` (edit it in n8n → Data tables;
+  placeholders `{first_name}` `{role}` `{in_location}` `{at_company}`). The sheet's
+  **Outreach Status** shows where each person is, e.g. *"Follow-up 2 of 4 sent · next 3 Nov"*.
+  To stop someone by hand, set their row's `status` to `stopped` in the Data Table.
 - **Brief-first search form** – page 1: describe the person (and add a JD). Page 2: *"Here's what
   we'll search for"* – every field pre-filled from the brief, editable, with sources as tiles
   pre-ticked for the role. Only the ticked sources are searched.
@@ -150,7 +158,8 @@ flowchart TD
    the search (with candidates per source); a person found again for the same requisition is updated in place, keeping the
    recruiter's ticks. Slack cards are optional.
 10. **Approved outreach** — the recruiter ticks "Send Email?" on chosen rows; a scheduler sends a
-    personalized outreach email, marks the row "Contacted", and a mail trigger auto-flags "Replied".
+    personalized outreach email, marks the row "Contacted", then follows up on days 2, 4, 5 and 7
+    in the same thread until the person replies; a mail trigger auto-flags "Replied".
 11. **Governance** — monthly API-credit budget tracking with auto-reset and an 80% near-cap alert.
     Running out of Apollo lookups never stops a search; running out of Google searches pauses it and
     says so in the Search Log.

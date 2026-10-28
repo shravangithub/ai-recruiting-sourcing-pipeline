@@ -623,3 +623,75 @@ test('R23: gender is not asked for and never reaches the AI', async () => {
   assert.ok(!/Gender Preference/.test(b[0].prompt));
   assert.match(b[0].prompt, /Never consider gender/);
 });
+
+// ------------------------------------------------------------ Round 24: outreach sequences
+const { Settings, DateTime: LDT } = require('luxon');
+const at = (iso) => { const ms = LDT.fromISO(iso, { zone: 'Asia/Kolkata' }).toMillis(); Settings.now = () => ms; };
+const seqRow = (over = {}) => Object.assign({ contact_key: 'k1', email: 'asha@example.com', first_name: 'Asha', role: 'Backend Engineer',
+  location: 'Pune', company: 'Acme Payments', message_id: 'm1', thread_id: 't1', step: 1, status: 'active',
+  started_at: '2026-10-26T10:00:00.000+05:30', last_sent_at: '2026-10-26T10:00:00.000+05:30',
+  next_due_at: '2026-10-28T10:00:00.000+05:30', sent_count: 1 }, over);
+
+test('R24: a sent first email opens a sequence due 2 days later', async () => {
+  at('2026-10-26T10:00:00');
+  const out = await runNode('Start Sequence', [{}], {
+    'Send Outreach Email': [{ id: 'm1', threadId: 't1' }, { error: 'bad address' }],
+    'Filter Outreach Queue': [{ 'Dedupe Key': 'k1', Email: 'Asha@Example.com ', Name: 'Asha Nair', 'Search Role': 'Backend Engineer', 'Search Location': 'Pune' },
+      { 'Dedupe Key': 'k2', Email: 'x@y.z', Name: 'B' }] });
+  assert.equal(out.length, 1, 'failed sends do not start a sequence');
+  assert.equal(out[0].email, 'asha@example.com');
+  assert.equal(out[0].first_name, 'Asha');
+  assert.equal(out[0].step, 1);
+  assert.equal(out[0].next_due_at.slice(0, 10), '2026-10-28');
+  assert.match(out[0].status_text, /follow-up 1 of 4 on 28 Oct/);
+});
+
+test('R24: follow-ups only go out on weekdays in the 9:30-18:30 IST window', async () => {
+  const refs = { 'Load Sequences': [seqRow()], 'Load Templates': [{}] };
+  at('2026-10-28T08:00:00'); assert.equal((await runNode('Due Follow-ups', [{}], refs)).length, 0, 'before 9:30');
+  at('2026-10-31T11:00:00'); assert.equal((await runNode('Due Follow-ups', [{}], refs)).length, 0, 'Saturday');
+  at('2026-10-27T11:00:00'); assert.equal((await runNode('Due Follow-ups', [{}], refs)).length, 0, 'not due yet');
+  at('2026-10-28T11:00:00');
+  const [d] = await runNode('Due Follow-ups', [{}], refs);
+  assert.equal(d.next_step, 2);
+  assert.match(d.html, /Hi Asha,/);
+  assert.match(d.html, /Backend Engineer role in Pune/);
+  assert.match(d.html, /no thanks/);
+});
+
+test('R24: edited templates win, stopped rows are skipped, 50 a day at most', async () => {
+  at('2026-10-28T11:00:00');
+  const [d] = await runNode('Due Follow-ups', [{}], { 'Load Sequences': [seqRow()], 'Load Templates': [{ step: 2, day: 2, body: '<p>Hey {first_name} from {company}</p>' }] });
+  assert.match(d.html, /Hey Asha from Acme Payments/);
+  assert.equal((await runNode('Due Follow-ups', [{}], { 'Load Sequences': [seqRow({ status: 'replied' })], 'Load Templates': [{}] })).length, 0);
+  const many = Array.from({ length: 80 }, (_, i) => seqRow({ contact_key: 'k' + i }));
+  const sentToday = Array.from({ length: 10 }, (_, i) => seqRow({ contact_key: 's' + i, step: 2, last_sent_at: '2026-10-28T10:00:00.000+05:30', next_due_at: '2026-10-30T10:00:00.000+05:30' }));
+  assert.equal((await runNode('Due Follow-ups', [{}], { 'Load Sequences': many.concat(sentToday), 'Load Templates': [{}] })).length, 40);
+});
+
+test('R24: a reply or a bounce in the thread stops the sequence', async () => {
+  const due = [seqRow(), seqRow({ contact_key: 'k2' }), seqRow({ contact_key: 'k3' })];
+  const me = { labelIds: ['SENT'], payload: { headers: [{ name: 'From', value: 'Recruiter <me@co.in>' }] } };
+  const them = { labelIds: ['INBOX', 'UNREAD'], payload: { headers: [{ name: 'From', value: 'Asha <asha@example.com>' }] } };
+  const bounce = { labelIds: ['INBOX'], payload: { headers: [{ name: 'From', value: 'Mail Delivery Subsystem <mailer-daemon@googlemail.com>' }] } };
+  const out = await runNode('Decide Follow-up', [{ messages: [me] }, { messages: [me, them] }, { messages: [me, bounce] }], { 'Due Follow-ups': due });
+  assert.deepEqual(out.map((o) => o.action), ['send', 'replied', 'bounced']);
+});
+
+test('R24: follow-ups land 2, 4, 5 and 7 days after the first email, then stop', async () => {
+  const step = async (r, sent, iso) => { at(iso); return (await runNode('Advance Sequence', [sent], { 'Decide Follow-up': [Object.assign(seqRow(), r)] }))[0]; };
+  let o = await step({ action: 'send', next_step: 2 }, { id: 'r2' }, '2026-10-28T11:00:00');
+  assert.equal(o.step, 2); assert.equal(o.next_due_at.slice(0, 10), '2026-10-30'); assert.match(o.status_text, /Follow-up 1 of 4 sent · next 30 Oct/);
+  o = await step({ action: 'send', next_step: 3 }, { id: 'r3' }, '2026-10-30T11:00:00');
+  assert.equal(o.next_due_at.slice(0, 10), '2026-10-31');
+  o = await step({ action: 'send', next_step: 4 }, { id: 'r4' }, '2026-11-02T11:00:00');
+  assert.equal(o.next_due_at.slice(0, 10), '2026-11-02', 'day 7 already passed after the weekend: send within the hour');
+  o = await step({ action: 'send', next_step: 5 }, { id: 'r5' }, '2026-11-02T13:00:00');
+  assert.equal(o.status, 'completed');
+  o = await step({ action: 'replied', next_step: 3 }, {}, '2026-10-30T11:00:00');
+  assert.deepEqual([o.status, o.status_text], ['replied', 'Replied']);
+  o = await step({ action: 'send', next_step: 3 }, { error: { message: 'quota' } }, '2026-10-30T11:00:00');
+  assert.equal(o.status, undefined, 'a failed send stays active and retries');
+  assert.match(o.last_error, /quota/);
+  Settings.now = () => Date.now();
+});

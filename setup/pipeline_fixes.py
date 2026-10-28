@@ -2342,3 +2342,307 @@ def apply_round23(nodes, conns):
       "Also factor in the Gender Preference: if a specific gender is requested (Female or Male), prioritize candidates matching it; if 'Any' is selected, ignore gender entirely and rank purely on merit.",
       "Never consider gender, age, religion, caste, ethnicity or any other protected attribute; rank purely on evidence of skills and experience.")
     return nodes, conns
+
+
+# ======================================================================
+# Round 24: outreach sequences.
+# The first email goes out when "Send Email?" is ticked (unchanged). Each
+# person then gets up to 4 follow-ups, sent as replies in the same Gmail
+# thread, 2, 4, 5 and 7 days after the first email. A sequence stops the
+# moment the person replies (checked in the Gmail thread itself before every
+# send, plus the existing reply watcher) or an email bounces.
+# Follow-ups go out on weekdays, 9:30-18:30 IST, at most 50 a day.
+# State lives in an n8n Data Table ("outreach_sequence"); wording lives in a
+# second table ("outreach_templates") that the recruiter can edit in n8n.
+# The Google Sheet's Outreach Status shows where each person is.
+# Fixed templates: no AI calls, so no token cost.
+# ======================================================================
+SEQ_TABLE = "outreach_sequence"
+TPL_TABLE = "outreach_templates"
+SEQ_COLUMNS = [("contact_key", "string"), ("email", "string"), ("first_name", "string"), ("role", "string"),
+               ("location", "string"), ("company", "string"), ("message_id", "string"), ("thread_id", "string"),
+               ("step", "number"), ("status", "string"), ("status_text", "string"), ("started_at", "date"),
+               ("last_sent_at", "date"), ("next_due_at", "date"), ("sent_count", "number"), ("last_error", "string")]
+TPL_COLUMNS = [("step", "number"), ("day", "number"), ("body", "string")]
+
+SEQ_SETTINGS = r"""
+// ---- sequence settings (edit here) ----
+const OFFSETS = [2, 4, 5, 7];        // follow-ups: days after the first email
+const DAILY_CAP = 50;                // most follow-ups sent in one day
+const START = '09:30', END = '18:30';// sending window, Mon-Fri, India time
+const ZONE = 'Asia/Kolkata';
+const SIGNATURE = String.raw`Best regards,<br/>TalentRubric Growth Advisors</p>`;
+// ----------------------------------------
+"""
+
+START_SEQUENCE = SEQ_SETTINGS + r"""
+// one sequence row per first email that went out
+const sent = $('Send Outreach Email').all();
+const rows = $('Filter Outreach Queue').all();
+const nice = function(d){ return d.setZone(ZONE).toFormat('d LLL'); };
+const out = [];
+sent.forEach(function(s, i){
+  const r = (rows[i] || {}).json || {};
+  const m = s.json || {};
+  if (!m.id || m.error || !r['Dedupe Key']) return;
+  const now = DateTime.now();
+  const name = String(r.Name || '');
+  const due = now.plus({ days: OFFSETS[0] });
+  out.push({ json: {
+    contact_key: String(r['Dedupe Key']),
+    email: String(r.Email || '').toLowerCase().trim(),
+    first_name: name && !/candidate from/i.test(name) ? name.split(' ')[0] : 'there',
+    role: String(r['Search Role'] || ''),
+    location: String(r['Search Location'] || ''),
+    company: String(r['Current Company'] || ''),
+    message_id: String(m.id),
+    thread_id: String(m.threadId || ''),
+    step: 1,
+    status: 'active',
+    status_text: 'Contacted · follow-up 1 of ' + OFFSETS.length + ' on ' + nice(due),
+    started_at: now.toISO(),
+    last_sent_at: now.toISO(),
+    next_due_at: due.toISO(),
+    sent_count: 1,
+    last_error: ''
+  }});
+});
+return out;
+"""
+
+DEFAULT_TEMPLATES = r"""
+// the wording of each follow-up. Placeholders: {first_name} {role} {location} {company}
+// After the first run these live in the "outreach_templates" Data Table - edit them there.
+const DEFAULTS = [
+  { step: 2, day: 2, body: '<p>Hi {first_name},</p><p>Just bumping this up in case it got buried. Would a quick 15-minute chat about the {role} role{in_location} work for you this week?</p>' },
+  { step: 3, day: 4, body: '<p>Hi {first_name},</p><p>A little more context: from your work{at_company}, I think the {role} role could be a strong fit. Happy to send the full job description - just reply and I will share it.</p>' },
+  { step: 4, day: 5, body: '<p>Hi {first_name},</p><p>I know inboxes get busy. If it is easier, reply with a time that suits you - or just "maybe later" and I will check back in a few months.</p>' },
+  { step: 5, day: 7, body: '<p>Hi {first_name},</p><p>This will be my last note about the {role} role. If the timing is not right, no problem at all - I would still be glad to stay in touch for future roles.</p>' }
+];
+"""
+
+SEED_TEMPLATES = DEFAULT_TEMPLATES + r"""
+// first run only: fill the templates table so the recruiter can edit it
+const have = $('Load Templates').all().filter(function(i){ return i.json && i.json.body; });
+if (have.length) return [];
+return DEFAULTS.map(function(t){ return { json: t }; });
+"""
+
+DUE_FOLLOWUPS = SEQ_SETTINGS + DEFAULT_TEMPLATES + r"""
+// pick the follow-ups that are due now, inside the sending window and the daily cap
+const now = DateTime.now().setZone(ZONE);
+const hm = now.toFormat('HH:mm');
+if (now.weekday > 5 || hm < START || hm >= END) return [];
+const all = $('Load Sequences').all().map(function(i){ return i.json; }).filter(function(r){ return r && r.contact_key; });
+const today = now.toFormat('yyyy-LL-dd');
+const day = function(v){ if (!v) return ''; const d = DateTime.fromISO(String(v)); return d.isValid ? d.setZone(ZONE).toFormat('yyyy-LL-dd') : String(v).slice(0, 10); };
+const sentToday = all.filter(function(r){ return Number(r.step) > 1 && day(r.last_sent_at) === today; }).length;
+let room = Math.max(0, DAILY_CAP - sentToday);
+const tpl = {};
+DEFAULTS.forEach(function(t){ tpl[t.step] = t.body; });
+$('Load Templates').all().forEach(function(i){ const t = i.json || {}; if (t.step && t.body) tpl[Number(t.step)] = String(t.body); });
+const fill = function(s, r){
+  return String(s)
+    .replace(/\{first_name\}/g, r.first_name || 'there')
+    .replace(/\{role\}/g, r.role || 'open')
+    .replace(/\{location\}/g, r.location || '')
+    .replace(/\{in_location\}/g, r.location ? ' in ' + r.location : '')
+    .replace(/\{company\}/g, r.company || '')
+    .replace(/\{at_company\}/g, r.company ? ' at ' + r.company : '');
+};
+const optOut = '<p style="color:#777;font-size:12px">Not interested? Just reply "no thanks" and I won\'t follow up again.</p>';
+const due = all.filter(function(r){
+  if (r.status !== 'active' || !r.message_id || !r.next_due_at) return false;
+  if (Number(r.step) > OFFSETS.length) return false;
+  const d = DateTime.fromISO(String(r.next_due_at));
+  return d.isValid && d <= now;
+}).sort(function(a, b){ return String(a.next_due_at).localeCompare(String(b.next_due_at)); });
+return due.slice(0, room).map(function(r){
+  const next = Number(r.step) + 1;
+  return { json: Object.assign({}, r, {
+    next_step: next,
+    html: fill(tpl[next] || DEFAULTS[next - 2].body, r) + optOut + '<p>' + SIGNATURE
+  })};
+});
+"""
+
+THREAD_URL = ("={{ 'https://gmail.googleapis.com/gmail/v1/users/me/threads/' + $json.thread_id + "
+              "'?format=metadata&metadataHeaders=From' }}")
+
+DECIDE_FOLLOWUP = r"""
+// before each follow-up: did the person reply, or did the first email bounce?
+const due = $('Due Follow-ups').all();
+return $input.all().map(function(t, i){
+  const r = Object.assign({}, (due[i] || {}).json || {});
+  const msgs = (t.json && t.json.messages) || [];
+  const from = function(m){ const h = ((m.payload || {}).headers || []).find(function(x){ return String(x.name).toLowerCase() === 'from'; }); return h ? String(h.value).toLowerCase() : ''; };
+  const bounced = msgs.some(function(m){ return /mailer-daemon|postmaster/.test(from(m)); });
+  const replied = msgs.some(function(m){ return (m.labelIds || []).indexOf('SENT') === -1 && !/mailer-daemon|postmaster/.test(from(m)); });
+  r.action = bounced ? 'bounced' : (replied ? 'replied' : 'send');
+  return { json: r };
+});
+"""
+
+ADVANCE_SEQUENCE = SEQ_SETTINGS + r"""
+// after a follow-up (or a stop): the row's new state, for the table and the sheet
+const nice = function(d){ return d.setZone(ZONE).toFormat('d LLL'); };
+const r = $('Decide Follow-up').item.json;
+const res = $json || {};
+const base = { contact_key: r.contact_key };
+if (r.action === 'replied') return { json: Object.assign(base, { status: 'replied', status_text: 'Replied' }) };
+if (r.action === 'bounced') return { json: Object.assign(base, { status: 'stopped', status_text: 'Bounced · sequence stopped' }) };
+if (res.error || !res.id) {
+  return { json: Object.assign(base, { last_error: String((res.error && (res.error.message || res.error)) || 'send failed').slice(0, 300),
+                                       status_text: 'Follow-up ' + (r.next_step - 1) + ' failed · will retry' }) };
+}
+const step = Number(r.next_step);
+const n = step - 1, total = OFFSETS.length;
+const now = DateTime.now();
+const started = DateTime.fromISO(String(r.started_at));
+const out = Object.assign(base, { step: step, last_sent_at: now.toISO(), sent_count: Number(r.sent_count || 1) + 1, last_error: '' });
+if (n >= total) {
+  out.status = 'completed';
+  out.status_text = 'Sequence complete · ' + total + ' follow-ups, no reply yet';
+} else {
+  let due = (started.isValid ? started : now).plus({ days: OFFSETS[n] });
+  if (due < now) due = now.plus({ hours: 1 });
+  out.next_due_at = due.toISO();
+  out.status_text = 'Follow-up ' + n + ' of ' + total + ' sent · next ' + nice(due);
+}
+return { json: out };
+"""
+
+STOP_FIELDS = r"""
+// a reply came in: stop that person's sequence
+const e = String($json.sender_email || '').toLowerCase();
+if (!e) return [];
+return { json: { email: e, status: 'replied', status_text: 'Replied' } };
+"""
+
+
+def _dt_ref(name):
+    return {"__rl": True, "value": name, "mode": "name"}
+
+
+def _dt_ensure(name, table, cols, pos):
+    n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, {
+        "resource": "table", "operation": "create", "tableName": table,
+        "columns": {"column": [{"name": c, "type": t} for c, t in cols]},
+        "options": {"createIfNotExists": True}})
+    n["executeOnce"] = True
+    return n
+
+
+def _dt_cond(key, value):
+    return {"conditions": [{"keyName": key, "condition": "eq", "keyValue": value}]}
+
+
+def _automap():
+    return {"mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [],
+            "attemptToConvertTypes": False, "convertFieldsToString": False}
+
+
+def apply_round24(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    gm, mc = N["Send Outreach Email"], N["Mark Contacted"]
+    gcred = json.loads(json.dumps(gm["credentials"]))
+    x0, y0 = mc["position"]
+
+    def link(a, b):
+        conns.setdefault(a, {"main": [[]]})["main"][0].append({"node": b, "type": "main", "index": 0})
+
+    def status_node(name, pos):
+        n = json.loads(json.dumps(mc))
+        n["name"], n["id"], n["position"] = name, "fix-" + name.lower().replace(" ", "-"), pos
+        n["parameters"]["columns"]["value"] = {"Dedupe Key": "={{ $json.contact_key }}",
+                                               "Outreach Status": "={{ $json.status_text }}"}
+        n["onError"] = "continueRegularOutput"
+        n.pop("webhookId", None)
+        return n
+
+    # --- 1. first email sent -> open a sequence ---
+    new = [
+        _dt_ensure("Ensure Sequence Table", SEQ_TABLE, SEQ_COLUMNS, [x0 + 220, y0]),
+        _node("Start Sequence", "n8n-nodes-base.code", 2, [x0 + 440, y0], {"jsCode": START_SEQUENCE}),
+        _node("Save New Sequence", "n8n-nodes-base.dataTable", 1.1, [x0 + 660, y0], {
+            "resource": "row", "operation": "upsert", "dataTableId": _dt_ref(SEQ_TABLE),
+            "matchType": "allConditions", "filters": _dt_cond("contact_key", "={{ $json.contact_key }}"),
+            "columns": _automap(), "options": {}}, onError="continueRegularOutput"),
+        status_node("Show Sequence Status", [x0 + 880, y0]),
+    ]
+    link("Mark Contacted", "Ensure Sequence Table")
+    link("Ensure Sequence Table", "Start Sequence")
+    link("Start Sequence", "Save New Sequence")
+    link("Start Sequence", "Show Sequence Status")
+
+    # --- 2. the follow-up runner ---
+    y1 = y0 + 260
+    sched = _node("Follow-up Schedule", "n8n-nodes-base.scheduleTrigger", 1.3, [0, y1],
+                  {"rule": {"interval": [{"field": "minutes", "minutesInterval": 15}]}})
+    ens1 = _dt_ensure("Ensure Sequences", SEQ_TABLE, SEQ_COLUMNS, [220, y1])
+    ens2 = _dt_ensure("Ensure Templates", TPL_TABLE, TPL_COLUMNS, [440, y1])
+    loadt = _node("Load Templates", "n8n-nodes-base.dataTable", 1.1, [660, y1], {
+        "resource": "row", "operation": "get", "dataTableId": _dt_ref(TPL_TABLE), "returnAll": True},
+        alwaysOutputData=True, onError="continueRegularOutput")
+    seed = _node("Seed Templates", "n8n-nodes-base.code", 2, [880, y1 - 160], {"jsCode": SEED_TEMPLATES})
+    seed["executeOnce"] = True
+    ins = _node("Save Templates", "n8n-nodes-base.dataTable", 1.1, [1100, y1 - 160], {
+        "resource": "row", "operation": "insert", "dataTableId": _dt_ref(TPL_TABLE),
+        "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    loads = _node("Load Sequences", "n8n-nodes-base.dataTable", 1.1, [880, y1], {
+        "resource": "row", "operation": "get", "dataTableId": _dt_ref(SEQ_TABLE),
+        "matchType": "allConditions", "filters": _dt_cond("status", "active"), "returnAll": True},
+        alwaysOutputData=True)
+    loads["executeOnce"] = True
+    due = _node("Due Follow-ups", "n8n-nodes-base.code", 2, [1100, y1], {"jsCode": DUE_FOLLOWUPS})
+    thread = _node("Check Thread", "n8n-nodes-base.httpRequest", 4.2, [1320, y1], {
+        "url": THREAD_URL, "authentication": "predefinedCredentialType", "nodeCredentialType": "gmailOAuth2",
+        "options": {}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    decide = _node("Decide Follow-up", "n8n-nodes-base.code", 2, [1540, y1], {"jsCode": DECIDE_FOLLOWUP})
+    gate = _node("Still No Reply?", "n8n-nodes-base.if", 2.3, [1760, y1], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 3},
+                       "conditions": [{"id": "seq-send", "leftValue": "={{ $json.action }}", "rightValue": "send",
+                                       "operator": {"type": "string", "operation": "equals"}}],
+                       "combinator": "and"}, "options": {}})
+    send = _node("Send Follow-up", "n8n-nodes-base.gmail", gm["typeVersion"], [1980, y1 - 100], {
+        "resource": "message", "operation": "reply", "messageId": "={{ $json.message_id }}",
+        "emailType": "html", "message": "={{ $json.html }}",
+        "options": {"appendAttribution": False, "replyToSenderOnly": False}},
+        credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    adv = _node("Advance Sequence", "n8n-nodes-base.code", 2, [2200, y1], {"jsCode": ADVANCE_SEQUENCE, "mode": "runOnceForEachItem"})
+    save = _node("Save Progress", "n8n-nodes-base.dataTable", 1.1, [2420, y1 - 100], {
+        "resource": "row", "operation": "update", "dataTableId": _dt_ref(SEQ_TABLE),
+        "matchType": "allConditions", "filters": _dt_cond("contact_key", "={{ $json.contact_key }}"),
+        "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    show = status_node("Show Follow-up Status", [2420, y1 + 100])
+    new += [sched, ens1, ens2, loadt, seed, ins, loads, due, thread, decide, gate, send, adv, save, show]
+    link("Follow-up Schedule", "Ensure Sequences")
+    link("Ensure Sequences", "Ensure Templates")
+    link("Ensure Templates", "Load Templates")
+    link("Load Templates", "Seed Templates")
+    link("Seed Templates", "Save Templates")
+    link("Load Templates", "Load Sequences")
+    link("Load Sequences", "Due Follow-ups")
+    link("Due Follow-ups", "Check Thread")
+    link("Check Thread", "Decide Follow-up")
+    link("Decide Follow-up", "Still No Reply?")
+    conns["Still No Reply?"] = {"main": [[{"node": "Send Follow-up", "type": "main", "index": 0}],
+                                         [{"node": "Advance Sequence", "type": "main", "index": 0}]]}
+    link("Send Follow-up", "Advance Sequence")
+    link("Advance Sequence", "Save Progress")
+    link("Advance Sequence", "Show Follow-up Status")
+
+    # --- 3. reply watcher also stops the sequence ---
+    ex = N["Extract Sender"]
+    stop = _node("Stop Fields", "n8n-nodes-base.code", 2, [ex["position"][0] + 220, ex["position"][1] - 160],
+                 {"jsCode": STOP_FIELDS, "mode": "runOnceForEachItem"})
+    stopu = _node("Stop Sequence", "n8n-nodes-base.dataTable", 1.1, [ex["position"][0] + 440, ex["position"][1] - 160], {
+        "resource": "row", "operation": "update", "dataTableId": _dt_ref(SEQ_TABLE),
+        "matchType": "allConditions", "filters": _dt_cond("email", "={{ $json.email }}"),
+        "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    new += [stop, stopu]
+    link("Extract Sender", "Stop Fields")
+    link("Stop Fields", "Stop Sequence")
+
+    nodes.extend(new)
+    return nodes, conns

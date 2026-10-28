@@ -3616,6 +3616,760 @@
     }
    },
    "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "resource": "table",
+    "operation": "create",
+    "tableName": "outreach_sequence",
+    "columns": {
+     "column": [
+      {
+       "name": "contact_key",
+       "type": "string"
+      },
+      {
+       "name": "email",
+       "type": "string"
+      },
+      {
+       "name": "first_name",
+       "type": "string"
+      },
+      {
+       "name": "role",
+       "type": "string"
+      },
+      {
+       "name": "location",
+       "type": "string"
+      },
+      {
+       "name": "company",
+       "type": "string"
+      },
+      {
+       "name": "message_id",
+       "type": "string"
+      },
+      {
+       "name": "thread_id",
+       "type": "string"
+      },
+      {
+       "name": "step",
+       "type": "number"
+      },
+      {
+       "name": "status",
+       "type": "string"
+      },
+      {
+       "name": "status_text",
+       "type": "string"
+      },
+      {
+       "name": "started_at",
+       "type": "date"
+      },
+      {
+       "name": "last_sent_at",
+       "type": "date"
+      },
+      {
+       "name": "next_due_at",
+       "type": "date"
+      },
+      {
+       "name": "sent_count",
+       "type": "number"
+      },
+      {
+       "name": "last_error",
+       "type": "string"
+      }
+     ]
+    },
+    "options": {
+     "createIfNotExists": true
+    }
+   },
+   "id": "fix-ensure-sequence-table",
+   "name": "Ensure Sequence Table",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1100,
+    624
+   ],
+   "executeOnce": true
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// ---- sequence settings (edit here) ----\nconst OFFSETS = [2, 4, 5, 7];        // follow-ups: days after the first email\nconst DAILY_CAP = 50;                // most follow-ups sent in one day\nconst START = '09:30', END = '18:30';// sending window, Mon-Fri, India time\nconst ZONE = 'Asia/Kolkata';\nconst SIGNATURE = String.raw`Best regards,<br/>__SIGNATURE__</p>`;\n// ----------------------------------------\n\n// one sequence row per first email that went out\nconst sent = $('Send Outreach Email').all();\nconst rows = $('Filter Outreach Queue').all();\nconst nice = function(d){ return d.setZone(ZONE).toFormat('d LLL'); };\nconst out = [];\nsent.forEach(function(s, i){\n  const r = (rows[i] || {}).json || {};\n  const m = s.json || {};\n  if (!m.id || m.error || !r['Dedupe Key']) return;\n  const now = DateTime.now();\n  const name = String(r.Name || '');\n  const due = now.plus({ days: OFFSETS[0] });\n  out.push({ json: {\n    contact_key: String(r['Dedupe Key']),\n    email: String(r.Email || '').toLowerCase().trim(),\n    first_name: name && !/candidate from/i.test(name) ? name.split(' ')[0] : 'there',\n    role: String(r['Search Role'] || ''),\n    location: String(r['Search Location'] || ''),\n    company: String(r['Current Company'] || ''),\n    message_id: String(m.id),\n    thread_id: String(m.threadId || ''),\n    step: 1,\n    status: 'active',\n    status_text: 'Contacted · follow-up 1 of ' + OFFSETS.length + ' on ' + nice(due),\n    started_at: now.toISO(),\n    last_sent_at: now.toISO(),\n    next_due_at: due.toISO(),\n    sent_count: 1,\n    last_error: ''\n  }});\n});\nreturn out;\n"
+   },
+   "id": "fix-start-sequence",
+   "name": "Start Sequence",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1320,
+    624
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "upsert",
+    "dataTableId": {
+     "__rl": true,
+     "value": "outreach_sequence",
+     "mode": "name"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "contact_key",
+       "condition": "eq",
+       "keyValue": "={{ $json.contact_key }}"
+      }
+     ]
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": [],
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false
+    },
+    "options": {}
+   },
+   "id": "fix-save-new-sequence",
+   "name": "Save New Sequence",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1540,
+    624
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "operation": "update",
+    "documentId": {
+     "__rl": true,
+     "value": "__SHEET_ID__",
+     "mode": "list",
+     "cachedResultName": "n8n",
+     "cachedResultUrl": "https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit?usp=drivesdk"
+    },
+    "sheetName": {
+     "__rl": true,
+     "value": "gid=0",
+     "mode": "list",
+     "cachedResultName": "Sheet1",
+     "cachedResultUrl": "https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit#gid=0"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "Dedupe Key": "={{ $json.contact_key }}",
+      "Outreach Status": "={{ $json.status_text }}"
+     },
+     "matchingColumns": [
+      "Dedupe Key"
+     ],
+     "schema": [
+      {
+       "id": "Dedupe Key",
+       "displayName": "Dedupe Key",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": true,
+       "removed": false
+      },
+      {
+       "id": "Outreach Status",
+       "displayName": "Outreach Status",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false,
+       "removed": false
+      },
+      {
+       "id": "Pipeline Status",
+       "displayName": "Pipeline Status",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false,
+       "removed": false
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "fix-show-sequence-status",
+   "name": "Show Sequence Status",
+   "type": "n8n-nodes-base.googleSheets",
+   "typeVersion": 4.7,
+   "position": [
+    1760,
+    624
+   ],
+   "credentials": {
+    "googleSheetsOAuth2Api": {
+     "id": "__CRED_SHEETS__",
+     "name": "Sourcing · Google Sheets"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 5,
+   "waitBetweenTries": 5000
+  },
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "minutes",
+       "minutesInterval": 15
+      }
+     ]
+    }
+   },
+   "id": "fix-follow-up-schedule",
+   "name": "Follow-up Schedule",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.3,
+   "position": [
+    0,
+    884
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "table",
+    "operation": "create",
+    "tableName": "outreach_sequence",
+    "columns": {
+     "column": [
+      {
+       "name": "contact_key",
+       "type": "string"
+      },
+      {
+       "name": "email",
+       "type": "string"
+      },
+      {
+       "name": "first_name",
+       "type": "string"
+      },
+      {
+       "name": "role",
+       "type": "string"
+      },
+      {
+       "name": "location",
+       "type": "string"
+      },
+      {
+       "name": "company",
+       "type": "string"
+      },
+      {
+       "name": "message_id",
+       "type": "string"
+      },
+      {
+       "name": "thread_id",
+       "type": "string"
+      },
+      {
+       "name": "step",
+       "type": "number"
+      },
+      {
+       "name": "status",
+       "type": "string"
+      },
+      {
+       "name": "status_text",
+       "type": "string"
+      },
+      {
+       "name": "started_at",
+       "type": "date"
+      },
+      {
+       "name": "last_sent_at",
+       "type": "date"
+      },
+      {
+       "name": "next_due_at",
+       "type": "date"
+      },
+      {
+       "name": "sent_count",
+       "type": "number"
+      },
+      {
+       "name": "last_error",
+       "type": "string"
+      }
+     ]
+    },
+    "options": {
+     "createIfNotExists": true
+    }
+   },
+   "id": "fix-ensure-sequences",
+   "name": "Ensure Sequences",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    220,
+    884
+   ],
+   "executeOnce": true
+  },
+  {
+   "parameters": {
+    "resource": "table",
+    "operation": "create",
+    "tableName": "outreach_templates",
+    "columns": {
+     "column": [
+      {
+       "name": "step",
+       "type": "number"
+      },
+      {
+       "name": "day",
+       "type": "number"
+      },
+      {
+       "name": "body",
+       "type": "string"
+      }
+     ]
+    },
+    "options": {
+     "createIfNotExists": true
+    }
+   },
+   "id": "fix-ensure-templates",
+   "name": "Ensure Templates",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    440,
+    884
+   ],
+   "executeOnce": true
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "get",
+    "dataTableId": {
+     "__rl": true,
+     "value": "outreach_templates",
+     "mode": "name"
+    },
+    "returnAll": true
+   },
+   "id": "fix-load-templates",
+   "name": "Load Templates",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    660,
+    884
+   ],
+   "alwaysOutputData": true,
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// the wording of each follow-up. Placeholders: {first_name} {role} {location} {company}\n// After the first run these live in the \"outreach_templates\" Data Table - edit them there.\nconst DEFAULTS = [\n  { step: 2, day: 2, body: '<p>Hi {first_name},</p><p>Just bumping this up in case it got buried. Would a quick 15-minute chat about the {role} role{in_location} work for you this week?</p>' },\n  { step: 3, day: 4, body: '<p>Hi {first_name},</p><p>A little more context: from your work{at_company}, I think the {role} role could be a strong fit. Happy to send the full job description - just reply and I will share it.</p>' },\n  { step: 4, day: 5, body: '<p>Hi {first_name},</p><p>I know inboxes get busy. If it is easier, reply with a time that suits you - or just \"maybe later\" and I will check back in a few months.</p>' },\n  { step: 5, day: 7, body: '<p>Hi {first_name},</p><p>This will be my last note about the {role} role. If the timing is not right, no problem at all - I would still be glad to stay in touch for future roles.</p>' }\n];\n\n// first run only: fill the templates table so the recruiter can edit it\nconst have = $('Load Templates').all().filter(function(i){ return i.json && i.json.body; });\nif (have.length) return [];\nreturn DEFAULTS.map(function(t){ return { json: t }; });\n"
+   },
+   "id": "fix-seed-templates",
+   "name": "Seed Templates",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    880,
+    724
+   ],
+   "executeOnce": true
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "insert",
+    "dataTableId": {
+     "__rl": true,
+     "value": "outreach_templates",
+     "mode": "name"
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": [],
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false
+    },
+    "options": {}
+   },
+   "id": "fix-save-templates",
+   "name": "Save Templates",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1100,
+    724
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "get",
+    "dataTableId": {
+     "__rl": true,
+     "value": "outreach_sequence",
+     "mode": "name"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "status",
+       "condition": "eq",
+       "keyValue": "active"
+      }
+     ]
+    },
+    "returnAll": true
+   },
+   "id": "fix-load-sequences",
+   "name": "Load Sequences",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    880,
+    884
+   ],
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// ---- sequence settings (edit here) ----\nconst OFFSETS = [2, 4, 5, 7];        // follow-ups: days after the first email\nconst DAILY_CAP = 50;                // most follow-ups sent in one day\nconst START = '09:30', END = '18:30';// sending window, Mon-Fri, India time\nconst ZONE = 'Asia/Kolkata';\nconst SIGNATURE = String.raw`Best regards,<br/>__SIGNATURE__</p>`;\n// ----------------------------------------\n\n// the wording of each follow-up. Placeholders: {first_name} {role} {location} {company}\n// After the first run these live in the \"outreach_templates\" Data Table - edit them there.\nconst DEFAULTS = [\n  { step: 2, day: 2, body: '<p>Hi {first_name},</p><p>Just bumping this up in case it got buried. Would a quick 15-minute chat about the {role} role{in_location} work for you this week?</p>' },\n  { step: 3, day: 4, body: '<p>Hi {first_name},</p><p>A little more context: from your work{at_company}, I think the {role} role could be a strong fit. Happy to send the full job description - just reply and I will share it.</p>' },\n  { step: 4, day: 5, body: '<p>Hi {first_name},</p><p>I know inboxes get busy. If it is easier, reply with a time that suits you - or just \"maybe later\" and I will check back in a few months.</p>' },\n  { step: 5, day: 7, body: '<p>Hi {first_name},</p><p>This will be my last note about the {role} role. If the timing is not right, no problem at all - I would still be glad to stay in touch for future roles.</p>' }\n];\n\n// pick the follow-ups that are due now, inside the sending window and the daily cap\nconst now = DateTime.now().setZone(ZONE);\nconst hm = now.toFormat('HH:mm');\nif (now.weekday > 5 || hm < START || hm >= END) return [];\nconst all = $('Load Sequences').all().map(function(i){ return i.json; }).filter(function(r){ return r && r.contact_key; });\nconst today = now.toFormat('yyyy-LL-dd');\nconst day = function(v){ if (!v) return ''; const d = DateTime.fromISO(String(v)); return d.isValid ? d.setZone(ZONE).toFormat('yyyy-LL-dd') : String(v).slice(0, 10); };\nconst sentToday = all.filter(function(r){ return Number(r.step) > 1 && day(r.last_sent_at) === today; }).length;\nlet room = Math.max(0, DAILY_CAP - sentToday);\nconst tpl = {};\nDEFAULTS.forEach(function(t){ tpl[t.step] = t.body; });\n$('Load Templates').all().forEach(function(i){ const t = i.json || {}; if (t.step && t.body) tpl[Number(t.step)] = String(t.body); });\nconst fill = function(s, r){\n  return String(s)\n    .replace(/\\{first_name\\}/g, r.first_name || 'there')\n    .replace(/\\{role\\}/g, r.role || 'open')\n    .replace(/\\{location\\}/g, r.location || '')\n    .replace(/\\{in_location\\}/g, r.location ? ' in ' + r.location : '')\n    .replace(/\\{company\\}/g, r.company || '')\n    .replace(/\\{at_company\\}/g, r.company ? ' at ' + r.company : '');\n};\nconst optOut = '<p style=\"color:#777;font-size:12px\">Not interested? Just reply \"no thanks\" and I won\\'t follow up again.</p>';\nconst due = all.filter(function(r){\n  if (r.status !== 'active' || !r.message_id || !r.next_due_at) return false;\n  if (Number(r.step) > OFFSETS.length) return false;\n  const d = DateTime.fromISO(String(r.next_due_at));\n  return d.isValid && d <= now;\n}).sort(function(a, b){ return String(a.next_due_at).localeCompare(String(b.next_due_at)); });\nreturn due.slice(0, room).map(function(r){\n  const next = Number(r.step) + 1;\n  return { json: Object.assign({}, r, {\n    next_step: next,\n    html: fill(tpl[next] || DEFAULTS[next - 2].body, r) + optOut + '<p>' + SIGNATURE\n  })};\n});\n"
+   },
+   "id": "fix-due-follow-ups",
+   "name": "Due Follow-ups",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1100,
+    884
+   ]
+  },
+  {
+   "parameters": {
+    "url": "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/threads/' + $json.thread_id + '?format=metadata&metadataHeaders=From' }}",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "gmailOAuth2",
+    "options": {}
+   },
+   "id": "fix-check-thread",
+   "name": "Check Thread",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1320,
+    884
+   ],
+   "credentials": {
+    "gmailOAuth2": {
+     "id": "__CRED_GMAIL__",
+     "name": "Sourcing · Gmail"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// before each follow-up: did the person reply, or did the first email bounce?\nconst due = $('Due Follow-ups').all();\nreturn $input.all().map(function(t, i){\n  const r = Object.assign({}, (due[i] || {}).json || {});\n  const msgs = (t.json && t.json.messages) || [];\n  const from = function(m){ const h = ((m.payload || {}).headers || []).find(function(x){ return String(x.name).toLowerCase() === 'from'; }); return h ? String(h.value).toLowerCase() : ''; };\n  const bounced = msgs.some(function(m){ return /mailer-daemon|postmaster/.test(from(m)); });\n  const replied = msgs.some(function(m){ return (m.labelIds || []).indexOf('SENT') === -1 && !/mailer-daemon|postmaster/.test(from(m)); });\n  r.action = bounced ? 'bounced' : (replied ? 'replied' : 'send');\n  return { json: r };\n});\n"
+   },
+   "id": "fix-decide-follow-up",
+   "name": "Decide Follow-up",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1540,
+    884
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "seq-send",
+       "leftValue": "={{ $json.action }}",
+       "rightValue": "send",
+       "operator": {
+        "type": "string",
+        "operation": "equals"
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "fix-still-no-reply?",
+   "name": "Still No Reply?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    1760,
+    884
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "message",
+    "operation": "reply",
+    "messageId": "={{ $json.message_id }}",
+    "emailType": "html",
+    "message": "={{ $json.html }}",
+    "options": {
+     "appendAttribution": false,
+     "replyToSenderOnly": false
+    }
+   },
+   "id": "fix-send-follow-up",
+   "name": "Send Follow-up",
+   "type": "n8n-nodes-base.gmail",
+   "typeVersion": 2.2,
+   "position": [
+    1980,
+    784
+   ],
+   "credentials": {
+    "gmailOAuth2": {
+     "id": "__CRED_GMAIL__",
+     "name": "Sourcing · Gmail"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// ---- sequence settings (edit here) ----\nconst OFFSETS = [2, 4, 5, 7];        // follow-ups: days after the first email\nconst DAILY_CAP = 50;                // most follow-ups sent in one day\nconst START = '09:30', END = '18:30';// sending window, Mon-Fri, India time\nconst ZONE = 'Asia/Kolkata';\nconst SIGNATURE = String.raw`Best regards,<br/>__SIGNATURE__</p>`;\n// ----------------------------------------\n\n// after a follow-up (or a stop): the row's new state, for the table and the sheet\nconst nice = function(d){ return d.setZone(ZONE).toFormat('d LLL'); };\nconst r = $('Decide Follow-up').item.json;\nconst res = $json || {};\nconst base = { contact_key: r.contact_key };\nif (r.action === 'replied') return { json: Object.assign(base, { status: 'replied', status_text: 'Replied' }) };\nif (r.action === 'bounced') return { json: Object.assign(base, { status: 'stopped', status_text: 'Bounced · sequence stopped' }) };\nif (res.error || !res.id) {\n  return { json: Object.assign(base, { last_error: String((res.error && (res.error.message || res.error)) || 'send failed').slice(0, 300),\n                                       status_text: 'Follow-up ' + (r.next_step - 1) + ' failed · will retry' }) };\n}\nconst step = Number(r.next_step);\nconst n = step - 1, total = OFFSETS.length;\nconst now = DateTime.now();\nconst started = DateTime.fromISO(String(r.started_at));\nconst out = Object.assign(base, { step: step, last_sent_at: now.toISO(), sent_count: Number(r.sent_count || 1) + 1, last_error: '' });\nif (n >= total) {\n  out.status = 'completed';\n  out.status_text = 'Sequence complete · ' + total + ' follow-ups, no reply yet';\n} else {\n  let due = (started.isValid ? started : now).plus({ days: OFFSETS[n] });\n  if (due < now) due = now.plus({ hours: 1 });\n  out.next_due_at = due.toISO();\n  out.status_text = 'Follow-up ' + n + ' of ' + total + ' sent · next ' + nice(due);\n}\nreturn { json: out };\n",
+    "mode": "runOnceForEachItem"
+   },
+   "id": "fix-advance-sequence",
+   "name": "Advance Sequence",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    2200,
+    884
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "update",
+    "dataTableId": {
+     "__rl": true,
+     "value": "outreach_sequence",
+     "mode": "name"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "contact_key",
+       "condition": "eq",
+       "keyValue": "={{ $json.contact_key }}"
+      }
+     ]
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": [],
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false
+    },
+    "options": {}
+   },
+   "id": "fix-save-progress",
+   "name": "Save Progress",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    2420,
+    784
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "operation": "update",
+    "documentId": {
+     "__rl": true,
+     "value": "__SHEET_ID__",
+     "mode": "list",
+     "cachedResultName": "n8n",
+     "cachedResultUrl": "https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit?usp=drivesdk"
+    },
+    "sheetName": {
+     "__rl": true,
+     "value": "gid=0",
+     "mode": "list",
+     "cachedResultName": "Sheet1",
+     "cachedResultUrl": "https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit#gid=0"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "Dedupe Key": "={{ $json.contact_key }}",
+      "Outreach Status": "={{ $json.status_text }}"
+     },
+     "matchingColumns": [
+      "Dedupe Key"
+     ],
+     "schema": [
+      {
+       "id": "Dedupe Key",
+       "displayName": "Dedupe Key",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": true,
+       "removed": false
+      },
+      {
+       "id": "Outreach Status",
+       "displayName": "Outreach Status",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false,
+       "removed": false
+      },
+      {
+       "id": "Pipeline Status",
+       "displayName": "Pipeline Status",
+       "required": false,
+       "defaultMatch": false,
+       "display": true,
+       "type": "string",
+       "canBeUsedToMatch": false,
+       "removed": false
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "fix-show-follow-up-status",
+   "name": "Show Follow-up Status",
+   "type": "n8n-nodes-base.googleSheets",
+   "typeVersion": 4.7,
+   "position": [
+    2420,
+    984
+   ],
+   "credentials": {
+    "googleSheetsOAuth2Api": {
+     "id": "__CRED_SHEETS__",
+     "name": "Sourcing · Google Sheets"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 5,
+   "waitBetweenTries": 5000
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// a reply came in: stop that person's sequence\nconst e = String($json.sender_email || '').toLowerCase();\nif (!e) return [];\nreturn { json: { email: e, status: 'replied', status_text: 'Replied' } };\n",
+    "mode": "runOnceForEachItem"
+   },
+   "id": "fix-stop-fields",
+   "name": "Stop Fields",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    444,
+    240
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "update",
+    "dataTableId": {
+     "__rl": true,
+     "value": "outreach_sequence",
+     "mode": "name"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "email",
+       "condition": "eq",
+       "keyValue": "={{ $json.email }}"
+      }
+     ]
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": [],
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false
+    },
+    "options": {}
+   },
+   "id": "fix-stop-sequence",
+   "name": "Stop Sequence",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    664,
+    240
+   ],
+   "onError": "continueRegularOutput"
   }
  ],
  "connections": {
@@ -3910,6 +4664,11 @@
     [
      {
       "node": "Find Candidate Row",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Stop Fields",
       "type": "main",
       "index": 0
      }
@@ -4839,6 +5598,204 @@
     [
      {
       "node": "Results Email",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Mark Contacted": {
+   "main": [
+    [
+     {
+      "node": "Ensure Sequence Table",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Ensure Sequence Table": {
+   "main": [
+    [
+     {
+      "node": "Start Sequence",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Start Sequence": {
+   "main": [
+    [
+     {
+      "node": "Save New Sequence",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Show Sequence Status",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Follow-up Schedule": {
+   "main": [
+    [
+     {
+      "node": "Ensure Sequences",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Ensure Sequences": {
+   "main": [
+    [
+     {
+      "node": "Ensure Templates",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Ensure Templates": {
+   "main": [
+    [
+     {
+      "node": "Load Templates",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load Templates": {
+   "main": [
+    [
+     {
+      "node": "Seed Templates",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Load Sequences",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Seed Templates": {
+   "main": [
+    [
+     {
+      "node": "Save Templates",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load Sequences": {
+   "main": [
+    [
+     {
+      "node": "Due Follow-ups",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Due Follow-ups": {
+   "main": [
+    [
+     {
+      "node": "Check Thread",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Check Thread": {
+   "main": [
+    [
+     {
+      "node": "Decide Follow-up",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Decide Follow-up": {
+   "main": [
+    [
+     {
+      "node": "Still No Reply?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Still No Reply?": {
+   "main": [
+    [
+     {
+      "node": "Send Follow-up",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Advance Sequence",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Follow-up": {
+   "main": [
+    [
+     {
+      "node": "Advance Sequence",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Advance Sequence": {
+   "main": [
+    [
+     {
+      "node": "Save Progress",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Show Follow-up Status",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Stop Fields": {
+   "main": [
+    [
+     {
+      "node": "Stop Sequence",
       "type": "main",
       "index": 0
      }
