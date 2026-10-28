@@ -2167,3 +2167,69 @@ def apply_round21(nodes, conns):
     # indexed. The query code stays (harmless) but Wellfound is NOT offered on
     # the form, so recruiters don't tick a source that can't return anyone.
     return nodes, conns
+
+
+# ======================================================================
+# Round 22: a more colourful form. Same layout and fields; colour only:
+# soft gradient page, gradient band on the card, a colour per section,
+# brand-tinted source tiles, gradient button. Text keeps 4.5:1 contrast and
+# colour never carries meaning on its own (every tile and section is labelled).
+# ======================================================================
+COLOR_CSS = r"""
+/* ---- colour layer ---- */
+body { background: linear-gradient(160deg, #EEF0FF 0%, #F7F3FF 45%, #FFF1EE 100%) fixed !important; }
+.card { position: relative; overflow: hidden; border: 0; box-shadow: 0 18px 50px rgba(59,75,214,.12), 0 2px 6px rgba(22,26,46,.06); }
+.card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px;
+  background: linear-gradient(90deg, #3B4BD6, #7C3AED 35%, #DB2777 70%, #F97316); }
+.form-header h1, .header h1 { color: #1E2A8A !important; }
+.form-header h1::after { content: ""; display: block; width: 64px; height: 4px; margin-top: 10px; border-radius: 2px;
+  background: linear-gradient(90deg, #E03A3E, #F97316); }
+/* tip box */
+.form-group.html div:has(b) { background: linear-gradient(135deg, #EEF0FF, #FCE7F3); border: 1px solid #DCDDFE; color: #2A2F6B; }
+.form-group.html div:has(b) b { color: #C0264D; }
+/* section headings: one colour each */
+.form-group.html div:not(:has(b)) { display: inline-block; border-top: 0; margin-top: 18px; padding: 6px 12px; border-radius: 999px;
+  font-size: 12px; letter-spacing: .8px; }
+.form-group.html:nth-child(1 of .html) div:not(:has(b)) { background: #E0E7FF; color: #3730A3; }
+.form-group.html:nth-child(2 of .html) div:not(:has(b)) { background: #CCFBF1; color: #0F766E; }
+.form-group.html:nth-child(3 of .html) div:not(:has(b)) { background: #FEF3C7; color: #92400E; }
+.form-group.html:nth-child(4 of .html) div:not(:has(b)) { background: #EDE9FE; color: #5B21B6; }
+.form-group.html:nth-child(5 of .html) div:not(:has(b)) { background: #FFE4E6; color: #BE123C; }
+.form-group.html:nth-child(6 of .html) div:not(:has(b)) { background: #DCFCE7; color: #166534; }
+/* inputs */
+input[type=text], input[type=email], textarea, select { background: #FCFCFF; border-color: #D9DBEE; }
+input:focus, textarea:focus, select:focus { border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,.18); }
+/* source tiles: each tinted in its platform's colour */
+.multiselect-option { --c: #3B4BD6; --t: #F4F5FF; border-left: 4px solid var(--c); }
+.multiselect-option:has(input:checked) { border: 2px solid var(--c); border-left-width: 6px; background: var(--t); }
+.multiselect-option input { accent-color: var(--c); }
+.multiselect-option:nth-child(1)  { --c: #0A66C2; --t: #EAF3FC; } /* LinkedIn */
+.multiselect-option:nth-child(2)  { --c: #24292F; --t: #F2F3F5; } /* GitHub */
+.multiselect-option:nth-child(3)  { --c: #E8590C; --t: #FFF1E8; } /* Stack Overflow */
+.multiselect-option:nth-child(4)  { --c: #0D9488; --t: #E9FBF8; } /* Open Web */
+.multiselect-option:nth-child(5)  { --c: #EA580C; --t: #FFF2EA; } /* Hacker News */
+.multiselect-option:nth-child(6)  { --c: #C2410C; --t: #FFF0E8; } /* GitLab */
+.multiselect-option:nth-child(7)  { --c: #0891B2; --t: #E8F8FC; } /* Kaggle */
+.multiselect-option:nth-child(8)  { --c: #CA8A04; --t: #FFF9E6; } /* Hugging Face */
+.multiselect-option:nth-child(9)  { --c: #334155; --t: #F1F5F9; } /* Dev.to */
+.multiselect-option:nth-child(10) { --c: #E0480F; --t: #FFF0EA; } /* Reddit */
+.multiselect-option:nth-child(11) { --c: #111827; --t: #F3F4F6; } /* X */
+.multiselect-option:nth-child(12) { --c: #DB2777; --t: #FDECF4; } /* Dribbble */
+.multiselect-option:nth-child(13) { --c: #1D4ED8; --t: #EAF0FD; } /* Behance */
+/* button */
+button, button[type=submit] { background: linear-gradient(90deg, #3B4BD6, #7C3AED 55%, #DB2777) !important;
+  box-shadow: 0 10px 24px rgba(124,58,237,.28); }
+button:hover { filter: brightness(.94); }
+/* end page */
+.header h1::before { content: "✓"; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+  margin-right: 12px; border-radius: 50%; background: #16A34A; color: #fff; font-size: 20px; vertical-align: 4px; }
+"""
+
+
+def apply_round22(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    for name in ["On form submission", "Check Search", "Search Started"]:
+        o = N[name]["parameters"]["options"]
+        assert "customCss" in o, name
+        o["customCss"] = o["customCss"] + COLOR_CSS
+    return nodes, conns
