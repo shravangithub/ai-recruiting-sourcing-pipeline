@@ -443,11 +443,17 @@ document.addEventListener('click', function(e){ var a=e.target.closest('[data-ru
 // ---------- shortlist ----------
 // Match % = the AI's score, adjusted by what the checks actually found, so a
 // "10/10" with too few years or unconfirmed must-haves can't show as 100%.
+// A skill counts only where the profile shows it: its skills list, its title, or a
+// summary sentence that doesn't say it's missing ("No mention of Django" is not Django).
+function seen(c, skill){
+  var k = String(skill).toLowerCase();
+  if ((String(c.key_skills||'') + ' ' + String(c.title||'')).toLowerCase().indexOf(k) !== -1) return true;
+  return String(c.summary||'').split(/(?<=[.;!?])\s+/).some(function(sn){ var t = sn.toLowerCase(); return t.indexOf(k) !== -1 && !/\b(no|not|without|lacks?|missing|unclear|absent)\b/.test(t); });
+}
 function pct(c){
   if (c._pct !== undefined) return c._pct;
   var p = (+c.fit_score || 0) * 10;
-  var hay = (String(c.key_skills||'') + ' ' + String(c.summary||'') + ' ' + String(c.title||'')).toLowerCase();
-  (S.listMust||[]).slice(0,5).forEach(function(s){ if (hay.indexOf(String(s).toLowerCase()) === -1) p -= 8; });
+  (S.listMust||[]).slice(0,5).forEach(function(s){ if (!seen(c, s)) p -= 8; });
   var x = String(c.experience_check||'');
   if (/^⚠️/.test(x)) p -= 20; else if (/^🟡/.test(x)) p -= 6;
   var l = String(c.location_review||'');
@@ -457,8 +463,7 @@ function pct(c){
 }
 function initials(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(s){ return s[0]; }).join('').toUpperCase(); }
 function checks(c){
-  var hay = (String(c.key_skills||'') + ' ' + String(c.summary||'') + ' ' + String(c.title||'')).toLowerCase();
-  var out = (S.listMust||[]).slice(0,4).map(function(s){ return hay.indexOf(String(s).toLowerCase()) !== -1 ? '<span class="cy">'+esc(s)+'</span>' : '<span class="cq">'+esc(s)+'?</span>'; });
+  var out = (S.listMust||[]).slice(0,4).map(function(s){ return seen(c, s) ? '<span class="cy">'+esc(s)+'</span>' : '<span class="cq">'+esc(s)+'?</span>'; });
   var x = String(c.experience_check||'');
   if (x) out.push('<span class="'+(/^✅/.test(x)?'cy':(/^⚠️/.test(x)?'cn':'cq'))+'">'+esc(x.replace(/^[^\w]+\s*/,'').slice(0,26))+'</span>');
   var l = String(c.location_review||'');
