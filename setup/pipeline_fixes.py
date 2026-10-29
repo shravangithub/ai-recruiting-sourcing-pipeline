@@ -2758,6 +2758,17 @@ const criteria = {
   companies: Array.isArray(c.companies) ? c.companies.join(', ') : String(c.companies || '').slice(0, 120),
   exclude: arr(c.exclude, 6)
 };
+// Hard rule on top of the AI: what the brief calls "a plus" is never a must-have.
+let brief = '';
+try { brief = String(($('App Gate').first().json.body || {}).brief || ''); } catch (e) {}
+const soft = [];
+brief.split(/[,.;\n]|\band\b/i).forEach(function(part){
+  if (/\b(a plus|a bonus|nice[- ]to[- ]have|preferred|an advantage|good to have)\b/i.test(part)) soft.push(part.toLowerCase());
+});
+const isSoft = function(skill){ const k = String(skill).toLowerCase(); return soft.some(function(p){ return p.indexOf(k) !== -1; }); };
+const moved = criteria.must.filter(isSoft);
+criteria.must = criteria.must.filter(function(s){ return !isSoft(s); });
+moved.forEach(function(s){ if (criteria.nice.indexOf(s) === -1) criteria.nice.unshift(s); });
 const PROTECTED = /gender|female|male|\bage\b|religio|caste|ethnic|marital|married|pregnan|disab/i;
 const questions = (Array.isArray(p.questions) ? p.questions : []).filter(function(q){ return q && q.text && !PROTECTED.test(q.text); })
   .slice(0, 2).map(function(q){ return { text: String(q.text).slice(0, 160), options: arr(q.options, 4) }; }).filter(function(q){ return q.options.length >= 2; });

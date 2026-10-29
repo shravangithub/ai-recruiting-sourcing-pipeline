@@ -722,6 +722,9 @@ test('R25: intake agent output is cleaned: bands, regions, sources, no protected
   assert.deepEqual(x.sources, ['LinkedIn', 'GitHub', 'Stack Overflow'], 'unknown sources dropped, GitHub spelled right');
   assert.deepEqual(x.questions.map((q) => q.text), ['Is Kafka a must-have?'], 'never asks about gender');
   assert.deepEqual(x.rubric.map((q) => q.criterion), ['Python + Django in production'], 'no age in the rubric');
+  const [k] = await runNode('Intake Result', [aiOutput(JSON.stringify({ criteria: { role: 'Backend Engineer', must: ['Python', 'Django', 'Kafka'], nice: [] } }))],
+    { 'App Gate': [{ body: { brief: 'Backend engineer in Pune, 3-5 years of Python and Django, Kafka a plus. No interns.' } }] });
+  assert.deepEqual(k.response.criteria.must, ['Python', 'Django']); assert.deepEqual(k.response.criteria.nice, ['Kafka'], '"a plus" is never a must-have');
   const [bad] = await runNode('Intake Result', [aiOutput('not json')]);
   assert.equal(bad.response.ok, false);
 });
