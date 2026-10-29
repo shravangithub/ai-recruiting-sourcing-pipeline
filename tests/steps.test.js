@@ -73,7 +73,7 @@ test('multi-word city is quoted; excludes and employer applied', async () => {
 
 test('non-tech role (HR Business Partner, Mumbai) builds a sensible query', async () => {
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'HR Business Partner', 'Primary Skills': 'Employee Relations, HRBP', 'Key Skills & Criteria': 'Employee Relations, HRBP', Location: 'Mumbai' })] });
-  assert.match(q[0].q, /"business partner" hr/);
+  assert.match(q[0].q, /\("hr business partner" OR "hrbp" OR "people partner"\)/);
   assert.match(q[0].q, /\(mumbai OR bombay/);
 });
 
@@ -832,4 +832,52 @@ test('R27: new sources show their name in the sheet', async () => {
 test('R27: a search that finds nobody still sends the model a valid request', async () => {
   const out = await runNode('Format Search Results', [{ organic: [] }], { 'Search Criteria': [criteria({})] });
   assert.equal(out.length, 1); assert.equal(out[0].pool_size, 0); assert.ok(out[0].prompt && out[0].system);
+});
+
+// ------------------------------------------------------------ Round 28: non-tech roles and the follow-up editor
+test('R28: non-tech titles search their real-world variants', async () => {
+  const t = async (role) => (await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': role, 'Primary Skills': '', 'Key Skills & Criteria': '' })] }))[0].q;
+  assert.match(await t('Area Sales Manager'), /\("area sales manager" OR "sales manager" OR "territory sales manager"\)/);
+  assert.match(await t('Digital Marketing Manager'), /"performance marketing manager"/);
+  assert.match(await t('Financial Analyst'), /"fp&a analyst"/);
+  assert.match(await t('Customer Success Manager'), /"client success manager"/);
+});
+
+test('R28: colleges narrow the LinkedIn search, and drop out first when the query is long', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager', Colleges: 'IIM Ahmedabad, ISB' })] });
+  assert.match(q[0].q, /\("IIM Ahmedabad" OR ISB\)/);
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
+  const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager' })] });
+  assert.ok(!/ISB/.test(none[0].q));
+});
+
+test('R28: non-tech roles are scored on scope and outcomes, not code', async () => {
+  const run = (role) => runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria({ 'Target Role': role })] });
+  assert.match((await run('HR Business Partner'))[0].prompt, /NON-TECHNICAL ROLE/);
+  assert.match((await run('Area Sales Manager'))[0].prompt, /measurable outcomes/);
+  assert.ok(!/NON-TECHNICAL ROLE/.test((await run('Java backend developer'))[0].prompt));
+  assert.ok(!/NON-TECHNICAL ROLE/.test((await run('Product Engineer'))[0].prompt), 'engineers stay technical');
+});
+
+test('R28: the app reads the follow-ups as plain text and saves them safely', async () => {
+  const [r] = await runNode('Templates Reply', [{}], { 'App Load Templates': [{ step: 3, day: 4, body: '<p>Hi {first_name},</p><p>Line one<br/>line two &amp; more</p>' }] });
+  const s = r.response.steps;
+  assert.deepEqual(s.map((x) => [x.step, x.day]), [[2, 2], [3, 4], [4, 5], [5, 7]]);
+  assert.equal(s[1].body, 'Hi {first_name},\n\nLine one\nline two & more'); assert.equal(s[1].custom, true);
+  assert.match(s[0].body, /^Hi \{first_name\},\n\nJust bumping/); assert.equal(s[0].custom, false);
+  const rows = await runNode('Template Rows', [{}], { 'App Gate': [{ body: { steps: [{ step: 2, body: 'Hi {first_name},\n\nQuick bump <script>x</script>\nthanks' }] } }] });
+  assert.equal(rows[0].step, 2); assert.equal(rows[0].day, 2);
+  assert.equal(rows[0].body, '<p>Hi {first_name},</p><p>Quick bump &lt;script&gt;x&lt;/script&gt;<br/>thanks</p>');
+});
+
+test('R28: saving follow-ups is checked at the gate', async () => {
+  const gate = (body) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': [{ key: 'access_code', value: 'team-123456' }] });
+  const [bad] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'hi' }] });
+  assert.equal(bad.route, 'reply'); assert.match(bad.response.error, /10 to 4000/);
+  const [badStep] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 9, body: 'a long enough body' }] });
+  assert.equal(badStep.route, 'reply');
+  const [ok] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'a long enough body' }] });
+  assert.equal(ok.route, 'save_templates');
+  const [t] = await gate({ action: 'templates', code: 'team-123456' });
+  assert.equal(t.route, 'templates');
 });

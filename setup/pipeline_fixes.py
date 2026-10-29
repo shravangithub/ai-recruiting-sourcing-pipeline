@@ -3327,3 +3327,183 @@ def apply_round27(nodes, conns):
     R("Format Search Results", "if (!out.length) out.push({ json: { page_text: '', lines: [], batch: 1, pool_size: 0 } });",
       "if (!out.length) out.push({ json: { page_text: '', lines: [], batch: 1, pool_size: 0, system: 'You return JSON only.', prompt: 'There are no profiles to score. Return [].' } });")
     return nodes, conns
+
+
+# ======================================================================
+# Round 28: non-tech roles, pedigree filters, and the follow-up editor.
+# - Title variants for product, program, sales, marketing, HR, finance,
+#   operations and customer-success roles, so "HR Business Partner" also
+#   finds "HRBP" and "People Partner".
+# - Colleges: an optional pedigree filter next to target companies
+#   (e.g. "IIM Ahmedabad, ISB"), used in the LinkedIn search.
+# - Non-tech scoring: judge scope, outcomes, team size and domain, not code.
+# - The app can read and edit the follow-up emails (outreach_templates).
+# ======================================================================
+NONTECH_SYNONYMS = r"""  'program manager': ['program manager','technical program manager','project manager'],
+  'project manager': ['project manager','program manager','delivery manager'],
+  'sales manager': ['sales manager','area sales manager','regional sales manager'],
+  'area sales manager': ['area sales manager','sales manager','territory sales manager'],
+  'account executive': ['account executive','enterprise account executive','account manager'],
+  'account manager': ['account manager','key account manager','client relationship manager'],
+  'key account manager': ['key account manager','account manager','client relationship manager'],
+  'business development manager': ['business development manager','bdm','sales manager'],
+  'inside sales': ['inside sales','sales development representative','business development representative'],
+  'marketing manager': ['marketing manager','digital marketing manager','growth marketing manager'],
+  'digital marketing manager': ['digital marketing manager','performance marketing manager','growth marketing manager'],
+  'performance marketing manager': ['performance marketing manager','digital marketing manager','growth marketing manager'],
+  'product marketing manager': ['product marketing manager','pmm','marketing manager'],
+  'brand manager': ['brand manager','brand marketing manager','category manager'],
+  'content writer': ['content writer','content strategist','copywriter'],
+  'hr manager': ['hr manager','hr business partner','people partner'],
+  'hr business partner': ['hr business partner','hrbp','people partner'],
+  'talent acquisition': ['talent acquisition','recruiter','talent partner'],
+  'financial analyst': ['financial analyst','fp&a analyst','finance analyst'],
+  'finance manager': ['finance manager','fp&a manager','financial controller'],
+  'chartered accountant': ['chartered accountant','accountant','finance manager'],
+  'operations manager': ['operations manager','business operations manager','ops manager'],
+  'customer success manager': ['customer success manager','client success manager','account manager'],
+  'supply chain manager': ['supply chain manager','procurement manager','logistics manager'],
+  'business analyst': ['business analyst','product analyst','data analyst'],
+"""
+
+COLLEGES_JS = r"""
+// Colleges (optional pedigree filter, e.g. "IIM Ahmedabad, ISB"): LinkedIn search only.
+const colleges = String(form['Colleges'] || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 3).map(q);
+const collegeOpts = colleges.length ? shrink(colleges).concat(['']) : [''];
+"""
+
+NONTECH_SCORING = ("${ /(product|program|project|sales|account|business development|marketing|brand|content|hr\\b|human resources|people|talent|recruit|finance|financial|accountant|fp&a|operations|customer success|supply chain|procurement|business analyst|consultant)/i.test(S('Search Criteria')['Target Role'] || '') "
+                   "&& !/(engineer|developer|scientist|architect|devops|sre)/i.test(S('Search Criteria')['Target Role'] || '') ? "
+                   "'NON-TECHNICAL ROLE: do not look for code, repositories or programming languages. Judge on scope (team size, budget, revenue, region or number of accounts owned), "
+                   "measurable outcomes (targets hit, growth, savings, launches), seniority of title and reporting line, domain or industry match, and companies worked at. "
+                   "A profile that states numbers (\"grew revenue 3x\", \"managed a team of 12\") is stronger evidence than one that lists duties.\\n' : '' }")
+
+TEMPLATES_REPLY = r"""
+// The follow-up emails as plain text for the app's editor.
+""" + DEFAULT_TEMPLATES + r"""
+const OFFSETS = [2, 4, 5, 7];
+const rows = $('App Load Templates').all().map(function(i){ return i.json || {}; }).filter(function(r){ return r.step && r.body; });
+const by = {};
+DEFAULTS.forEach(function(t){ by[t.step] = t.body; });
+rows.forEach(function(r){ by[Number(r.step)] = String(r.body); });
+const text = function(h){
+  return String(h).replace(/<\/p>\s*<p[^>]*>/gi, '\n\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').trim();
+};
+return [{ json: { response: { ok: true, steps: [2, 3, 4, 5].map(function(s, i){
+  return { step: s, day: OFFSETS[i], body: text(by[s]), custom: rows.some(function(r){ return Number(r.step) === s; }) };
+}) } } }];
+"""
+
+TEMPLATE_ROWS = r"""
+// Save the edited follow-ups: plain text from the app becomes simple HTML
+// paragraphs (anything that looks like HTML is shown as text, not run).
+const OFFSETS = [2, 4, 5, 7];
+const b = $('App Gate').first().json.body || {};
+const esc = function(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+return (b.steps || []).map(function(s){
+  const n = Number(s.step);
+  const body = String(s.body || '').replace(/\r/g, '').trim().slice(0, 4000);
+  const html = body.split(/\n\s*\n/).map(function(p){ return '<p>' + esc(p.trim()).replace(/\n/g, '<br/>') + '</p>'; }).join('');
+  return { json: { step: n, day: OFFSETS[n - 2], body: html } };
+});
+"""
+
+APP_GATE_28 = r"""const ROUTES = ['intake', 'search', 'status', 'results', 'runs', 'approve', 'feedback', 'outreach', 'templates', 'save_templates'];
+if (ROUTES.indexOf(action) === -1) return reply({ ok: false, error: 'Unknown action.' });
+if (action === 'save_templates') {
+  const st = Array.isArray(body.steps) ? body.steps : [];
+  const okSteps = st.length && st.every(function(s){ return [2, 3, 4, 5].indexOf(Number(s && s.step)) !== -1 && String(s.body || '').trim().length >= 10 && String(s.body || '').length <= 4000; });
+  if (!okSteps) return reply({ ok: false, error: 'Each follow-up needs some text (10 to 4000 characters).' });
+}"""
+
+COLLEGE_FIELD = {"fieldName": "colleges", "fieldLabel": "Colleges (optional – up to 3, comma-separated)", "fieldType": "text",
+                 "defaultValue": "={{ $json['Colleges'] || '' }}", "placeholder": "e.g. IIM Ahmedabad, ISB, IIT Bombay"}
+
+APP_ROUTES_28 = APP_ROUTES + ["templates", "save_templates"]
+
+
+def apply_round28(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round28 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    # 1. non-tech title variants
+    R("Build Search Query", "  'hr': ['hr','human resources','talent acquisition','hrbp','people operations']\n};",
+      "  'hr': ['hr','human resources','talent acquisition','hrbp','people operations'],\n" + NONTECH_SYNONYMS.rstrip().rstrip(",") + "\n};")
+    R("Build Search Query", "|computer vision)$/;",
+      "|computer vision|digital marketing|performance marketing|growth marketing|hr business|key account|area sales|supply chain|inside sales|financial planning)$/;")
+    # 2. colleges (pedigree) in the LinkedIn search
+    R("Build Search Query", "const employerOpts = ", COLLEGES_JS.lstrip() + "const employerOpts = ")
+    R("Build Search Query", "    employerOpts, eduOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });",
+      "    employerOpts, collegeOpts, eduOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });")
+    R("Search Criteria", "  'Keywords to Exclude':", "  'Colleges': String(val('colleges', 'Colleges') || '').trim(),\n  'Keywords to Exclude':")
+    # the form's page 2 gets the same field, after target companies
+    fields = None
+    def find(x):
+        nonlocal fields
+        if isinstance(x, list):
+            if any(isinstance(f, dict) and f.get("fieldName") == "employer" for f in x):
+                fields = x
+            for y in x:
+                find(y)
+        elif isinstance(x, dict):
+            for y in x.values():
+                find(y)
+    find(N["Check Search"]["parameters"])
+    assert fields is not None, "round28: Check Search employer field not found"
+    i = [f.get("fieldName") for f in fields].index("employer")
+    fields.insert(i + 1, COLLEGE_FIELD)
+    R("App Criteria", "  employer: String(c.employer || ''),", "  employer: String(c.employer || ''),\n  colleges: String(c.colleges || '').slice(0, 200),")
+    # 3. intake: colleges + non-tech must-haves and rubric
+    R("Intake Prompt", """  '  "companies": target companies or industry as a short comma list or "", "exclude": words or companies to exclude (array) },',""",
+      """  '  "companies": target companies or industry as a short comma list or "", "colleges": colleges or institutes the brief asks for (e.g. "IIM, ISB") or "", "exclude": words or companies to exclude (array) },',""")
+    R("Intake Prompt", "  'Use only what the brief states or clearly implies. Do not invent requirements.'",
+      "  'NON-TECHNICAL ROLES (product, sales, marketing, HR, finance, operations): \"must\" is the domain, function or tools a profile would name (e.g. \"B2B SaaS\", \"Salesforce\", \"FP&A\", \"performance marketing\"), and the rubric judges scope, measurable outcomes, team size and domain, never code.',\n"
+      "  'Use only what the brief states or clearly implies. Do not invent requirements.'")
+    R("Intake Result", "  exclude: arr(c.exclude, 6)\n};",
+      "  colleges: Array.isArray(c.colleges) ? c.colleges.join(', ') : String(c.colleges || '').slice(0, 120),\n  exclude: arr(c.exclude, 6)\n};")
+    # 4. non-tech scoring
+    R("Format Search Results", "--- INSTRUCTIONS ---\n", "--- INSTRUCTIONS ---\n" + NONTECH_SCORING + "\n")
+    # 5. app: read and save the follow-up emails
+    R("App Gate", "const ROUTES = ['intake', 'search', 'status', 'results', 'runs', 'approve', 'feedback', 'outreach'];\nif (ROUTES.indexOf(action) === -1) return reply({ ok: false, error: 'Unknown action.' });", APP_GATE_28)
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(APP_ROUTES_28)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(APP_ROUTES_28)
+    while len(conns["App Route"]["main"]) < len(APP_ROUTES_28):
+        conns["App Route"]["main"].append([])
+    ri = {r: i for i, r in enumerate(APP_ROUTES_28)}
+    lo = N["Load Outreach Rows"]; bx, yy = lo["position"]
+    y1, y2 = yy + 180, yy + 340
+    e = _dt_ensure("App Ensure Templates", TPL_TABLE, TPL_COLUMNS, [bx, y1])
+    lt = _node("App Load Templates", "n8n-nodes-base.dataTable", 1.1, [bx + 220, y1], {
+        "resource": "row", "operation": "get", "dataTableId": _dt_ref(TPL_TABLE), "returnAll": True},
+        alwaysOutputData=True, onError="continueRegularOutput")
+    lt["executeOnce"] = True
+    tr = _node("Templates Reply", "n8n-nodes-base.code", 2, [bx + 440, y1], {"jsCode": TEMPLATES_REPLY})
+    tr["executeOnce"] = True
+    e2 = _dt_ensure("App Ensure Templates 2", TPL_TABLE, TPL_COLUMNS, [bx, y2])
+    rows = _node("Template Rows", "n8n-nodes-base.code", 2, [bx + 220, y2], {"jsCode": TEMPLATE_ROWS})
+    rows["executeOnce"] = True
+    save = _node("Save Template", "n8n-nodes-base.dataTable", 1.1, [bx + 440, y2], {
+        "resource": "row", "operation": "upsert", "dataTableId": _dt_ref(TPL_TABLE), "matchType": "allConditions",
+        "filters": {"conditions": [{"keyName": "step", "condition": "eq", "keyValue": "={{ $json.step }}"}]},
+        "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    done = _node("Save Templates Reply", "n8n-nodes-base.code", 2, [bx + 660, y2],
+                 {"jsCode": "return [{ json: { response: { ok: true, saved: $('Template Rows').all().length } } }];"})
+    done["executeOnce"] = True
+    nodes.extend([e, lt, tr, e2, rows, save, done])
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+    link("App Route", "App Ensure Templates", ri["templates"])
+    link("App Ensure Templates", "App Load Templates"); link("App Load Templates", "Templates Reply"); link("Templates Reply", "App Reply")
+    link("App Route", "App Ensure Templates 2", ri["save_templates"])
+    link("App Ensure Templates 2", "Template Rows"); link("Template Rows", "Save Template"); link("Save Template", "Save Templates Reply"); link("Save Templates Reply", "App Reply")
+    return nodes, conns
