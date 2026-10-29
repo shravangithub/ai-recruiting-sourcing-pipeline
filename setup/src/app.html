@@ -406,7 +406,7 @@ function pollRun(){
     el('runBar').style.width = (done ? 100 : Math.min(92, 8 + stage*20 + Math.min(14, secs/6))) + '%';
     if (r.status === 'stopped') el('runMsg').textContent = r.note || 'This search stopped: the monthly search budget is used up.';
     else if (done) el('runMsg').innerHTML = '<b>' + esc(r.count || 0) + '</b> people ' + (r.by_source ? '(' + esc(r.by_source) + ')' : '') + '. ' + esc(r.note || '');
-    else el('runMsg').textContent = r.count ? r.count + ' people found so far, scoring and checking them now.' : 'Searching the sources you picked…';
+    else el('runMsg').textContent = stage >= 3 ? (r.count || 'All') + ' people scored. Checking location, experience and emails…' : (stage === 2 ? 'Sources searched. The AI is reading and scoring every profile…' : 'Searching the sources you picked…');
     el('runOpen').classList.toggle('hide', !done || r.status==='stopped');
     el('runOpen').onclick = function(){ openList(S.runId); };
     if (done && r.status==='done' && !el('v-run').classList.contains('hide')) { setTimeout(function(){ if (!el('v-run').classList.contains('hide')) openList(S.runId); }, 1500); return; }
@@ -427,7 +427,20 @@ function loadRuns(){
 document.addEventListener('click', function(e){ var a=e.target.closest('[data-run]'); if(!a) return; e.preventDefault(); S.runId=a.dataset.run; if (a.dataset.status==='done') openList(S.runId); else { history.replaceState(null,'','#run='+S.runId); go('run'); } });
 
 // ---------- shortlist ----------
-function pct(c){ return Math.max(0, Math.min(100, Math.round((+c.fit_score||0) * 10))); }
+// Match % = the AI's score, adjusted by what the checks actually found, so a
+// "10/10" with too few years or unconfirmed must-haves can't show as 100%.
+function pct(c){
+  if (c._pct !== undefined) return c._pct;
+  var p = (+c.fit_score || 0) * 10;
+  var hay = (String(c.key_skills||'') + ' ' + String(c.summary||'') + ' ' + String(c.title||'')).toLowerCase();
+  (S.listMust||[]).slice(0,5).forEach(function(s){ if (hay.indexOf(String(s).toLowerCase()) === -1) p -= 8; });
+  var x = String(c.experience_check||'');
+  if (/^⚠️/.test(x)) p -= 20; else if (/^🟡/.test(x)) p -= 6;
+  var l = String(c.location_review||'');
+  if (S.listCity && l && !/^✅/.test(l)) p -= 10;
+  c._pct = Math.max(5, Math.min(98, Math.round(p)));
+  return c._pct;
+}
 function initials(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(s){ return s[0]; }).join('').toUpperCase(); }
 function checks(c){
   var hay = (String(c.key_skills||'') + ' ' + String(c.summary||'') + ' ' + String(c.title||'')).toLowerCase();
@@ -516,6 +529,7 @@ function openList(id){
     el('lSub').textContent = [r.started_at ? new Date(r.started_at).toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '', r.must, r.sources].filter(Boolean).join(' · ');
     el('lSheet').href = SHEET_URL; el('lSheet').classList.toggle('hide', !/^https?:/.test(SHEET_URL));
     S.listMust = String(r.must||'').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+    S.listCity = !!String(r.location||'').trim();
     S.list = (j.candidates || []).sort(function(a,b){ return pct(b)-pct(a); });
     S.byKey = {}; S.list.forEach(function(c){ S.byKey[c.dedupe_key] = c; });
     if (!S.list.filter(function(c){ return pct(c)>=80; }).length) S.filter='all';
