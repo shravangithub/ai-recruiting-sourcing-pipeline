@@ -295,8 +295,8 @@ el('logout').onclick = function(){ store.del('tr_code'); CODE=''; showGate(false
 function start(){
   el('v-gate').classList.add('hide'); el('app').classList.remove('hide'); el('nav').classList.remove('hide'); el('logout').classList.remove('hide');
   var h = location.hash || '';
-  var m = h.match(/^#run=(\w+)/);
-  if (m) { S.runId = m[1]; go('run'); } else go('search');
+  var m = h.match(/^#run=(\w+)/), l = h.match(/^#list=(\w+)/);
+  if (m) { S.runId = m[1]; go('run'); } else if (l) openList(l[1]); else go('search');
   loadRuns();
 }
 
@@ -579,7 +579,6 @@ renderSources(); updateGo();
 call('ping').then(function(j){
   if (!j.ok) { showGate(false); return; }
   start();
-  var m = (location.hash||'').match(/^#list=(\w+)/); if (m) openList(m[1]);
 }).catch(function(e){ if (e.message!=='locked') { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(e.message)+'</p>'); } });
 })();
 </script>
