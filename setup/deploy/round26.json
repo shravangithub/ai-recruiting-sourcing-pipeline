@@ -1,0 +1,74 @@
+{
+ "round": 26,
+ "new_nodes": [
+  "CF Handles",
+  "Any Codeforces?",
+  "CF Users",
+  "CF Annotate"
+ ],
+ "rewire": {
+  "remove": [
+   [
+    "Merge Pages",
+    "Format Search Results"
+   ]
+  ],
+  "add": [
+   [
+    "Merge Pages",
+    "CF Handles"
+   ],
+   [
+    "CF Annotate",
+    "Format Search Results"
+   ]
+  ]
+ },
+ "code_ops": [
+  {
+   "node": "Build Search Query",
+   "old": "const out = [];\nfor (const qq of queries) {",
+   "new": "// Hackathon and competitive-programming profiles\nconst COMPETE = { 'Devfolio': 'site:devfolio.co', 'Unstop': 'site:unstop.com/u', 'Devpost': 'site:devpost.com', 'HackerEarth': 'site:hackerearth.com' };\nconst CONTEST = { 'LeetCode': 'site:leetcode.com', 'CodeChef': 'site:codechef.com/users', 'Codeforces': 'site:codeforces.com/profile' };\nconst hackSites = platforms.filter(function(pl){ return COMPETE[pl]; }).map(function(pl){ return COMPETE[pl]; });\nconst contestSites = platforms.filter(function(pl){ return CONTEST[pl]; }).map(function(pl){ return CONTEST[pl]; });\n// builders list their stack: search by skills, then by role\nif (hackSites.length) {\n  queries.push({ kind: 'hackathon-profiles', pages: 2, q: fit([[orOf(hackSites)], locOpts, skillsDrop, exclOpts]) });\n  if (roleOpts.length) queries.push({ kind: 'hackathon-profiles', pages: 1, q: fit([[orOf(hackSites)], locOpts, roleOpts, exclOpts]) });\n}\n// contest profiles show a place and languages, rarely a job title\nif (contestSites.length) {\n  queries.push({ kind: 'contest-profiles', pages: 2, q: fit([[orOf(contestSites)], locOpts, exclOpts]) });\n  if (skillArr.length || skillRawBool) queries.push({ kind: 'contest-profiles', pages: 1, q: fit([[orOf(contestSites)], locOpts, skillOpts, exclOpts]) });\n}\nconst out = [];\nfor (const qq of queries) {"
+  },
+  {
+   "node": "Merge Pages",
+   "old": "const items = $input.all();",
+   "new": "// Hackathon and contest sites: keep only people's profile pages.\nconst PROFILE_ONLY = [\n  [/devfolio\\.co/i, /devfolio\\.co\\/@[\\w.-]+\\/?$/i],\n  [/unstop\\.com/i, /unstop\\.com\\/u\\/[\\w.-]+\\/?$/i],\n  [/devpost\\.com/i, /devpost\\.com\\/(?!software|hackathons|c\\/|settings|about|help|portfolio\\/redirect)[\\w.-]+\\/?$/i],\n  [/hackerearth\\.com/i, /hackerearth\\.com\\/@[\\w.-]+\\/?$/i],\n  [/leetcode\\.com/i, /leetcode\\.com\\/(u\\/[\\w.-]+|(?!problems|problemset|discuss|contest|explore|company|tag|studyplan|accounts|subscribe|assessment|interview|store|list|playground)[\\w.-]+)\\/?$/i],\n  [/codechef\\.com/i, /codechef\\.com\\/users\\/[\\w.-]+\\/?$/i],\n  [/codeforces\\.com/i, /codeforces\\.com\\/profile\\/[\\w.-]+\\/?$/i]\n];\nconst notProfile = function(link){ const l = String(link || ''); const r = PROFILE_ONLY.find(function(p){ return p[0].test(l); }); return r ? !r[1].test(l) : false; };\nconst items = $input.all();"
+  },
+  {
+   "node": "Merge Pages",
+   "old": "    if (o && o.link && JOB_AD.test(String(o.link))) { seen[key] = true; continue; }",
+   "new": "    if (o && o.link && (JOB_AD.test(String(o.link)) || notProfile(o.link))) { seen[key] = true; continue; }"
+  },
+  {
+   "node": "Format Search Results",
+   "old": "linkedin\\.com\\/in\\/)/i;",
+   "new": "linkedin\\.com\\/in\\/|devfolio\\.co\\/@|unstop\\.com\\/u\\/|hackerearth\\.com\\/@|codechef\\.com\\/users\\/|codeforces\\.com\\/profile\\/|leetcode\\.com\\/u\\/)/i;"
+  },
+  {
+   "node": "Parse Contact",
+   "old": "  if (u.indexOf('apollo.io') !== -1) return 'Apollo';",
+   "new": "  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n  if (u.indexOf('devfolio.co') !== -1) return 'Devfolio';\n  if (u.indexOf('unstop.com') !== -1) return 'Unstop';\n  if (u.indexOf('devpost.com') !== -1) return 'Devpost';\n  if (u.indexOf('hackerearth.com') !== -1) return 'HackerEarth';\n  if (u.indexOf('leetcode.com') !== -1) return 'LeetCode';\n  if (u.indexOf('codechef.com') !== -1) return 'CodeChef';\n  if (u.indexOf('codeforces.com') !== -1) return 'Codeforces';"
+  },
+  {
+   "node": "Location Check & Rank",
+   "old": "['behance.net','Behance'],['wellfound.com','Wellfound']]",
+   "new": "['behance.net','Behance'],['wellfound.com','Wellfound'],['devfolio.co','Devfolio'],['unstop.com','Unstop'],['devpost.com','Devpost'],['hackerearth.com','HackerEarth'],['leetcode.com','LeetCode'],['codechef.com','CodeChef'],['codeforces.com','Codeforces']]"
+  }
+ ],
+ "form_sources_add": [
+  "Devfolio",
+  "Unstop",
+  "Devpost",
+  "HackerEarth",
+  "LeetCode",
+  "CodeChef",
+  "Codeforces"
+ ],
+ "refresh_code": [
+  "Intake Prompt",
+  "Intake Result",
+  "App Criteria",
+  "Build App Page"
+ ]
+}

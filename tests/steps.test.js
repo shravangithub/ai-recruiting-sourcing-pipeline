@@ -73,7 +73,7 @@ test('multi-word city is quoted; excludes and employer applied', async () => {
 
 test('non-tech role (HR Business Partner, Mumbai) builds a sensible query', async () => {
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'HR Business Partner', 'Primary Skills': 'Employee Relations, HRBP', 'Key Skills & Criteria': 'Employee Relations, HRBP', Location: 'Mumbai' })] });
-  assert.match(q[0].q, /"business partner" hr/);
+  assert.match(q[0].q, /\("hr business partner" OR "hrbp" OR "people partner"\)/);
   assert.match(q[0].q, /\(mumbai OR bombay/);
 });
 
@@ -694,4 +694,202 @@ test('R24: follow-ups land 2, 4, 5 and 7 days after the first email, then stop',
   assert.equal(o.status, undefined, 'a failed send stays active and retries');
   assert.match(o.last_error, /quota/);
   Settings.now = () => Date.now();
+});
+
+// ------------------------------------------------------------ Round 25: the sourcing app
+test('R25: the access code is chosen once, then required on every call', async () => {
+  const gate = (body, saved) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': saved ? [{ key: 'access_code', value: saved }] : [{}] });
+  assert.deepEqual((await gate({ action: 'ping' }))[0].response, { ok: false, auth: 'need_code', claim: true });
+  assert.equal((await gate({ action: 'claim', code: 'abc' }))[0].route, 'reply', 'too short to claim');
+  assert.equal((await gate({ action: 'claim', code: 'team-2026' }))[0].route, 'claim');
+  assert.deepEqual((await gate({ action: 'search', code: 'wrong' }, 'team-2026'))[0].response, { ok: false, auth: 'need_code', claim: false });
+  assert.deepEqual((await gate({ action: 'claim', code: 'hijack-123' }, 'team-2026'))[0].response.ok, false, 'a second claim cannot replace the code');
+  const ok = (await gate({ action: 'results', code: 'team-2026', run_id: '9' }, 'team-2026'))[0];
+  assert.equal(ok.route, 'results'); assert.equal(ok.body.run_id, '9');
+});
+
+test('R25: intake agent output is cleaned: bands, regions, sources, no protected-attribute questions', async () => {
+  const ai = { criteria: { role: 'Senior Backend Engineer', similar_titles: ['Backend Developer'], must: ['Python', 'Django'], nice: 'Kafka', experience: '3-5 years', city: 'Pune', region: 'India', companies: ['Acme Payments'], exclude: ['intern'] },
+    sources: ['LinkedIn', 'Github', 'Stack Overflow', 'Wellfound'],
+    questions: [{ text: 'Is Kafka a must-have?', options: ['Must-have', 'Nice to have'] }, { text: 'Preferred gender?', options: ['Female', 'Any'] }],
+    rubric: [{ criterion: 'Python + Django in production', weight: 3, how: 'Named in current role' }, { criterion: 'Age under 30', weight: 2, how: 'x' }] };
+  const [r] = await runNode('Intake Result', [aiOutput(JSON.stringify(ai))]);
+  const x = r.response;
+  assert.equal(x.ok, true);
+  assert.equal(x.criteria.experience, '3-5 years');
+  assert.deepEqual(x.criteria.nice, ['Kafka']);
+  assert.equal(x.criteria.companies, 'Acme Payments');
+  assert.deepEqual(x.sources, ['LinkedIn', 'GitHub', 'Stack Overflow'], 'unknown sources dropped, GitHub spelled right');
+  assert.deepEqual(x.questions.map((q) => q.text), ['Is Kafka a must-have?'], 'never asks about gender');
+  assert.deepEqual(x.rubric.map((q) => q.criterion), ['Python + Django in production'], 'no age in the rubric');
+  const [k] = await runNode('Intake Result', [aiOutput(JSON.stringify({ criteria: { role: 'Backend Engineer', must: ['Python', 'Django', 'Kafka'], nice: [] } }))],
+    { 'App Gate': [{ body: { brief: 'Backend engineer in Pune, 3-5 years of Python and Django, Kafka a plus. No interns.' } }] });
+  assert.deepEqual(k.response.criteria.must, ['Python', 'Django']); assert.deepEqual(k.response.criteria.nice, ['Kafka'], '"a plus" is never a must-have');
+  const [bad] = await runNode('Intake Result', [aiOutput('not json')]);
+  assert.equal(bad.response.ok, false);
+});
+
+test('R25: "Find candidates" sends exactly what page 2 of the form sends, plus rubric and JD', async () => {
+  const [c] = await runNode('App Criteria', [{ body: { criteria: { role: 'Backend Engineer', must: ['Python', 'Django'], nice: 'Kafka', city: 'Pune', region: 'India', experience: '3-5 years', sources: ['LinkedIn', 'Wellfound', 'GitHub'], rubric: '- Python (weight 3)', jd_text: 'Full JD' } } }]);
+  assert.equal(c.__app, true); assert.equal(c.must, 'Python, Django'); assert.deepEqual(c.sources, ['LinkedIn', 'GitHub']);
+  assert.equal(c.response.ok, true); assert.equal(c.response.run_id, '999');
+  const [sc] = await runNode('Search Criteria', [c], { 'Draft Criteria': [{}] });
+  assert.equal(sc['Target Role'], 'Backend Engineer'); assert.equal(sc['Primary Skills'], 'Python, Django'); assert.equal(sc['Location'], 'Pune');
+  assert.equal(sc['Search Region'], 'India'); assert.deepEqual(sc['Target Platforms'], ['LinkedIn', 'GitHub']);
+  assert.equal(sc['Rubric'], '- Python (weight 3)'); assert.equal(sc['JD Text'], 'Full JD'); assert.equal(sc['From App'], true);
+  const [none] = await runNode('App Criteria', [{ body: { criteria: { role: '' } } }]);
+  assert.equal(none.bad, true);
+});
+
+test('R25: the scoring prompt carries the rubric and a pasted JD', async () => {
+  const b = await runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria({ Rubric: '- Django in production (weight 3): named in current role', 'JD Text': 'We build payment rails.' })] });
+  assert.match(b[0].prompt, /Recruiter rubric/); assert.match(b[0].prompt, /Django in production/); assert.match(b[0].prompt, /We build payment rails/);
+  const plain = await runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria()] });
+  assert.ok(!/Recruiter rubric/.test(plain[0].prompt));
+});
+
+test('R25: shortlist = people written to the sheet in this run, with live outreach status', async () => {
+  const rows = [{ Name: 'REQ header', 'Dedupe Key': 'req-1', 'Fit Score': '' },
+    { Name: 'Neha Kulkarni', 'Dedupe Key': 'k1', 'Fit Score': '9', Role: 'Backend Engineer', 'Current Company': 'Acme Payments', Email: 'n@acme.in', 'Source Platform': 'LinkedIn + GitHub' },
+    { Name: 'Rohan Iyer', 'Dedupe Key': 'k2', 'Fit Score': '8.5' }];
+  const people = await runNode('Run People', rows);
+  assert.deepEqual(people.map((p) => p.dedupe_key), ['k1', 'k2']);
+  assert.equal(people[0].run_id, '999'); assert.equal(people[0].fit_score, 9); assert.equal(people[0].approved, false);
+  const [r] = await runNode('Results Reply', [{}], { 'Load Run Info': [{ run_id: '999', role: 'Backend Engineer' }],
+    'Load Run People': people.concat([people[0]]), 'Load Sequence Status': [{ contact_key: 'k1', status_text: 'Follow-up 1 of 4 sent' }] });
+  assert.equal(r.response.candidates.length, 2, 'duplicates removed');
+  assert.equal(r.response.candidates[0].outreach_status, 'Follow-up 1 of 4 sent');
+});
+
+test('R25: approve keeps at most 50 people and marks each one', async () => {
+  const out = await runNode('Approve Rows', [{ body: { run_id: '7', keys: Array.from({ length: 60 }, (_, i) => 'k' + i) } }]);
+  assert.equal(out.length, 50); assert.deepEqual(out[0], { run_id: '7', dedupe_key: 'k0', approved: true });
+});
+
+// ------------------------------------------------------------ Round 26: hackathon and contest channels
+test('R26: hackathon and contest sites get their own queries, each within 32 words', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Devfolio', 'Devpost', 'Unstop', 'LeetCode', 'Codeforces', 'CodeChef'] })] });
+  const sites = q.filter((x) => x.page === 1).map((x) => x.q.split(' ')[0]);
+  assert.deepEqual(sites.sort(), ['site:codechef.com/users', 'site:codeforces.com/profile', 'site:devfolio.co/@', 'site:devpost.com', 'site:leetcode.com/u', 'site:unstop.com/u'], 'one query per site');
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
+  const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
+  assert.ok(!none.some((x) => /devfolio|codeforces/.test(x.q)), 'not searched unless ticked');
+});
+
+test('R26: only profile pages survive from hackathon and contest sites', async () => {
+  const links = ['https://devfolio.co/@asha', 'https://devfolio.co/projects/payments-bot', 'https://devpost.com/asha-n', 'https://devpost.com/software/split-it',
+    'https://leetcode.com/u/asha_n/', 'https://leetcode.com/problems/two-sum/', 'https://www.codechef.com/users/asha_n', 'https://www.codechef.com/START100',
+    'https://codeforces.com/profile/asha_n', 'https://codeforces.com/contest/1900', 'https://unstop.com/u/asha', 'https://unstop.com/hackathons/xyz', 'https://www.hackerearth.com/@asha', 'https://www.hackerearth.com/challenges/'];
+  const [m] = await runNode('Merge Pages', [{ organic: links.map((link) => ({ link })) }]);
+  assert.deepEqual(m.organic.map((o) => o.link), ['https://devfolio.co/@asha', 'https://devpost.com/asha-n', 'https://leetcode.com/u/asha_n/',
+    'https://www.codechef.com/users/asha_n', 'https://codeforces.com/profile/asha_n', 'https://unstop.com/u/asha', 'https://www.hackerearth.com/@asha']);
+});
+
+test('R26: Codeforces profiles are enriched from the public API (rating, city, organisation)', async () => {
+  const organic = [{ link: 'https://codeforces.com/profile/asha_n', title: 'asha_n - Codeforces', snippet: 'Profile' }, { link: 'https://devfolio.co/@asha', title: 'Asha', snippet: 'x' }];
+  const [h] = await runNode('CF Handles', [{ organic }]);
+  assert.equal(h.cf_url, 'https://codeforces.com/api/user.info?handles=asha_n');
+  const [a] = await runNode('CF Annotate', [{}], { 'CF Handles': [h], 'CF Users': [{ status: 'OK', result: [{ handle: 'asha_n', firstName: 'Asha', lastName: 'Nair', city: 'Pune', country: 'India', organization: 'COEP', rating: 1912, rank: 'expert', maxRating: 2010 }] }] });
+  assert.equal(a.organic[0].title, 'Asha Nair (asha_n) - Codeforces');
+  assert.match(a.organic[0].snippet, /rating 1912 \(expert\), best 2010; location: Pune, India; organisation: COEP/);
+  assert.equal(a.organic[1].title, 'Asha'); assert.equal(a.cf_url, undefined);
+  const [none] = await runNode('CF Handles', [{ organic: [organic[1]] }]);
+  assert.equal(none.cf_url, '');
+  const [still] = await runNode('CF Annotate', [{}], { 'CF Handles': [h] });
+  assert.equal(still.organic.length, 2, 'API down: results still flow on');
+});
+
+test('R26: new sources show their name in the sheet', async () => {
+  const code = require('./harness').NODES['Parse Contact'].parameters.jsCode;
+  const fn = new Function(code.slice(code.indexOf('function platformOf'), code.indexOf('function domainOf')) + 'return platformOf;')();
+  assert.equal(fn('https://devfolio.co/@asha'), 'Devfolio'); assert.equal(fn('https://codeforces.com/profile/x'), 'Codeforces'); assert.equal(fn('https://leetcode.com/u/x'), 'LeetCode');
+});
+
+// ------------------------------------------------------------ Round 27: product and non-tech channels
+test('R27: product and non-tech sites are searched by job title and place, one query each', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Topmate', 'ADPList', 'Medium'] })] });
+  const people = q.filter((x) => x.kind === 'people-profiles' && x.page === 1);
+  assert.deepEqual(people.map((x) => x.q.split(' ')[0]).sort(), ['site:adplist.org/mentors', 'site:medium.com/@', 'site:topmate.io']);
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
+  const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
+  assert.ok(!none.some((x) => /topmate|adplist|medium/.test(x.q)), 'not searched unless ticked');
+});
+
+test('R27: only profile pages survive from product and non-tech sites', async () => {
+  const links = ['https://topmate.io/asha_pm', 'https://topmate.io/blog/how-to', 'https://adplist.org/mentors/asha-nair', 'https://adplist.org/mentors/expertise/product-management/bangalore',
+    'https://medium.com/@asha', 'https://medium.com/@asha/why-roadmaps-fail-1234'];
+  const [m] = await runNode('Merge Pages', [{ organic: links.map((link) => ({ link })) }]);
+  assert.deepEqual(m.organic.map((o) => o.link), ['https://topmate.io/asha_pm', 'https://adplist.org/mentors/asha-nair', 'https://medium.com/@asha']);
+});
+
+test('R27: new sources show their name in the sheet', async () => {
+  const code = require('./harness').NODES['Parse Contact'].parameters.jsCode;
+  const fn = new Function(code.slice(code.indexOf('function platformOf'), code.indexOf('function domainOf')) + 'return platformOf;')();
+  assert.equal(fn('https://topmate.io/asha'), 'Topmate'); assert.equal(fn('https://adplist.org/mentors/asha'), 'ADPList');
+  assert.equal(fn('https://medium.com/@asha'), 'Medium');
+});
+
+test('R27: a search that finds nobody still sends the model a valid request', async () => {
+  const out = await runNode('Format Search Results', [{ organic: [] }], { 'Search Criteria': [criteria({})] });
+  assert.equal(out.length, 1); assert.equal(out[0].pool_size, 0); assert.ok(out[0].prompt && out[0].system);
+});
+
+// ------------------------------------------------------------ Round 28: non-tech roles and the follow-up editor
+test('R28: non-tech titles search their real-world variants', async () => {
+  const t = async (role) => (await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': role, 'Primary Skills': '', 'Key Skills & Criteria': '' })] }))[0].q;
+  assert.match(await t('Area Sales Manager'), /\("area sales manager" OR "sales manager" OR "territory sales manager"\)/);
+  assert.match(await t('Digital Marketing Manager'), /"performance marketing manager"/);
+  assert.match(await t('Financial Analyst'), /"fp&a analyst"/);
+  assert.match(await t('Customer Success Manager'), /"client success manager"/);
+});
+
+test('R28: colleges narrow the LinkedIn search, and drop out first when the query is long', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager', Colleges: 'IIM Ahmedabad, ISB' })] });
+  assert.match(q[0].q, /\("IIM Ahmedabad" OR ISB\)/);
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
+  const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager' })] });
+  assert.ok(!/ISB/.test(none[0].q));
+});
+
+test('R28: non-tech roles are scored on scope and outcomes, not code', async () => {
+  const run = (role) => runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria({ 'Target Role': role })] });
+  assert.match((await run('HR Business Partner'))[0].prompt, /NON-TECHNICAL ROLE/);
+  assert.match((await run('Area Sales Manager'))[0].prompt, /measurable outcomes/);
+  assert.ok(!/NON-TECHNICAL ROLE/.test((await run('Java backend developer'))[0].prompt));
+  assert.ok(!/NON-TECHNICAL ROLE/.test((await run('Product Engineer'))[0].prompt), 'engineers stay technical');
+});
+
+test('R28: the app reads the follow-ups as plain text and saves them safely', async () => {
+  const [r] = await runNode('Templates Reply', [{}], { 'App Load Templates': [{ step: 3, day: 4, body: '<p>Hi {first_name},</p><p>Line one<br/>line two &amp; more</p>' }] });
+  const s = r.response.steps;
+  assert.deepEqual(s.map((x) => [x.step, x.day]), [[2, 2], [3, 4], [4, 5], [5, 7]]);
+  assert.equal(s[1].body, 'Hi {first_name},\n\nLine one\nline two & more'); assert.equal(s[1].custom, true);
+  assert.match(s[0].body, /^Hi \{first_name\},\n\nJust bumping/); assert.equal(s[0].custom, false);
+  const rows = await runNode('Template Rows', [{}], { 'App Gate': [{ body: { steps: [{ step: 2, body: 'Hi {first_name},\n\nQuick bump <script>x</script>\nthanks' }] } }] });
+  assert.equal(rows[0].step, 2); assert.equal(rows[0].day, 2);
+  assert.equal(rows[0].body, '<p>Hi {first_name},</p><p>Quick bump &lt;script&gt;x&lt;/script&gt;<br/>thanks</p>');
+});
+
+test('R28: saving follow-ups is checked at the gate', async () => {
+  const gate = (body) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': [{ key: 'access_code', value: 'team-123456' }] });
+  const [bad] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'hi' }] });
+  assert.equal(bad.route, 'reply'); assert.match(bad.response.error, /10 to 4000/);
+  const [badStep] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 9, body: 'a long enough body' }] });
+  assert.equal(badStep.route, 'reply');
+  const [ok] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'a long enough body' }] });
+  assert.equal(ok.route, 'save_templates');
+  const [t] = await gate({ action: 'templates', code: 'team-123456' });
+  assert.equal(t.route, 'templates');
+});
+
+test('R28: intake keeps "ideally IIM" as a preference and duties out of the search words', async () => {
+  const brief = 'Area Sales Manager in Pune, 5-8 years selling B2B SaaS, owns a team and a quarterly target. Ideally an MBA from IIM or Symbiosis.';
+  const ai = { output: [{ content: [{ text: JSON.stringify({ criteria: { role: 'Area Sales Manager', must: ['B2B SaaS', 'team management', 'quarterly targets'], nice: ['MBA'], experience: '5-8 years', city: 'Pune', region: 'India', colleges: 'IIM, Symbiosis', exclude: [] }, sources: ['LinkedIn'], questions: [], rubric: [] }) }] }] };
+  const [r] = await runNode('Intake Result', [ai], { 'App Gate': [{ body: { brief } }] });
+  const c = r.response.criteria;
+  assert.deepEqual(c.must, ['B2B SaaS']);
+  assert.equal(c.colleges, '');
+  assert.ok(c.nice.includes('IIM or Symbiosis') && c.nice.includes('team management'));
+  const [hard] = await runNode('Intake Result', [ai], { 'App Gate': [{ body: { brief: 'Area Sales Manager in Pune. Must be an MBA from IIM or Symbiosis.' } }] });
+  assert.equal(hard.response.criteria.colleges, 'IIM, Symbiosis');
 });
