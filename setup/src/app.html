@@ -123,8 +123,11 @@ tr.cand:hover td{background:#FAFAFB}
 <section id="v-gate" class="card gate hide">
   <h1 style="font-size:26px">Sign in to sourcing</h1>
   <p id="gateText" class="muted" style="margin:0">Enter your team's access code.</p>
+  <form id="gateForm" style="display:flex;flex-direction:column;gap:10px" onsubmit="return false">
+  <input type="text" name="username" value="sourcing" autocomplete="username" hidden>
   <label class="lbl" for="code">Access code</label>
-  <input id="code" type="password" autocomplete="current-password">
+  <input id="code" name="password" type="password" autocomplete="current-password">
+  </form>
   <div id="gateErr" class="err"></div>
   <button id="gateBtn" class="btn pri" type="button">Continue</button>
 </section>
@@ -325,7 +328,18 @@ function chipList(id, arr, cls, label){
   el2.innerHTML = arr.map(function(s,i){ return '<span class="chip '+cls+'">'+esc(s)+'<button type="button" aria-label="Remove '+esc(s)+'" data-i="'+i+'">×</button></span>'; }).join('') + '<button type="button" class="chip add" data-add="1">+ add</button>';
   el2.onclick = function(e){
     var r=e.target.closest('button[data-i]'); if(r){ arr.splice(+r.dataset.i,1); S.touched[id]=1; chipList(id,arr,cls,label); updateGo(); return; }
-    if(e.target.closest('[data-add]')){ var v = prompt('Add ' + label + ' (comma-separated)'); if(v){ v.split(',').map(function(s){return s.trim();}).filter(Boolean).forEach(function(s){ if(arr.indexOf(s)===-1) arr.push(s); }); S.touched[id]=1; chipList(id,arr,cls,label); updateGo(); } }
+    var addBtn = e.target.closest('[data-add]');
+    if(addBtn){
+      // n8n serves this page sandboxed, so the browser's prompt() box is blocked: add inline.
+      var inp = document.createElement('input'); inp.type='text'; inp.placeholder='Type, then Enter'; inp.setAttribute('aria-label','Add ' + label);
+      inp.style.cssText='width:150px;height:30px;padding:4px 8px;font-size:14px';
+      addBtn.replaceWith(inp); inp.focus();
+      var done = function(save){ if (inp._d) return; inp._d = 1; var v = save ? inp.value : '';
+        String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean).forEach(function(s){ if(arr.indexOf(s)===-1) arr.push(s); });
+        if (v) S.touched[id]=1; chipList(id,arr,cls,label); updateGo(); };
+      inp.addEventListener('keydown', function(ev){ if (ev.key==='Enter') { ev.preventDefault(); done(true); } if (ev.key==='Escape') done(false); });
+      inp.addEventListener('blur', function(){ done(true); });
+    }
   };
 }
 function renderSimilar(){ el('fSimilar').innerHTML = S.similar.map(function(s){ return '<span class="chip">+ '+esc(s)+'</span>'; }).join(''); }
@@ -510,8 +524,12 @@ el('bulkClear').onclick = function(){ S.sel={}; el('selAll').checked=false; rend
 el('bulkGo').onclick = function(){
   var keys = Object.keys(S.sel).filter(function(k){ var c=S.byKey[k]; return c && c.email; });
   if (!keys.length) { toast('None of the selected people has an email yet.'); return; }
-  if (!confirm('Approve ' + keys.length + ' ' + (keys.length===1?'person':'people') + ' for outreach? The first email goes out from your Gmail within 15 minutes.')) return;
-  var b=this; b.disabled=true; b.textContent='Approving…';
+  var b=this;
+  // Two-step confirm on the button itself (confirm() is blocked in n8n's sandboxed pages).
+  if (!b._armed) { b._armed = 1; b.textContent = 'Confirm: email ' + keys.length + ' ' + (keys.length===1?'person':'people');
+    clearTimeout(b._t); b._t = setTimeout(function(){ b._armed = 0; b.textContent = 'Approve for outreach'; }, 6000); return; }
+  b._armed = 0; clearTimeout(b._t);
+  b.disabled=true; b.textContent='Approving…';
   call('approve', { run_id: S.runId, keys: keys }).then(function(j){
     b.disabled=false; b.textContent='Approve for outreach';
     if (!j.ok) { toast(j.error || 'Could not approve.'); return; }
