@@ -3154,17 +3154,18 @@ COMPETE_SITES = r"""
 // Hackathon and competitive-programming profiles: one query per site, aimed at
 // profile pages (one shared query lets the biggest site crowd out the rest).
 const COMPETE = {
-  'Devfolio': { site: 'site:devfolio.co/@', by: 'skills' }, 'Unstop': { site: 'site:unstop.com/u', by: 'skills' },
+  'Devfolio': { site: 'site:devfolio.co/@', by: 'skills' }, 'Unstop': { site: 'site:unstop.com/u', by: 'skills', pages: 1 },
   'Devpost': { site: 'site:devpost.com -inurl:software -inurl:hackathons -inurl:challenges', by: 'skills' },
   'HackerEarth': { site: 'site:hackerearth.com/@', by: 'skills' },
-  'LeetCode': { site: 'site:leetcode.com/u', by: 'place' }, 'CodeChef': { site: 'site:codechef.com/users', by: 'place' },
+  'LeetCode': { site: 'site:leetcode.com/u', by: 'place' }, 'CodeChef': { site: 'site:codechef.com/users', by: 'place', pages: 1 },
   'Codeforces': { site: 'site:codeforces.com/profile', by: 'place' }
 };
 platforms.filter(function(pl){ return COMPETE[pl]; }).forEach(function(pl){
   const c = COMPETE[pl];
   // builders list their stack; contest profiles show a place and languages
   const parts = c.by === 'skills' ? [[c.site], locOpts, skillsDrop, exclOpts] : [[c.site], locOpts, exclOpts];
-  queries.push({ kind: c.by === 'skills' ? 'hackathon-profiles' : 'contest-profiles', pages: 2, q: fit(parts) });
+  // Google indexes few Unstop and CodeChef profiles, so they get one page
+  queries.push({ kind: c.by === 'skills' ? 'hackathon-profiles' : 'contest-profiles', pages: c.pages || 2, q: fit(parts) });
 });
 """
 
