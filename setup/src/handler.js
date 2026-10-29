@@ -26,8 +26,23 @@ const http = async (o) => {
     return { status: 0, body: { message: e.message } };
   }
 };
-const api = (method, path, payload) => http({
-  method, url: BASE + '/api/v1' + path,
+// Where to reach this n8n's own API. Usually the address in the browser; but when Docker maps
+// n8n to another port (e.g. -p 5679:5678) that address doesn't exist inside the container, so fall
+// back to n8n's own port.
+let API_BASE = null;
+const apiLike = (r) => r.status > 0 && r.body && typeof r.body === 'object';
+const apiBase = async () => {
+  if (API_BASE) return API_BASE;
+  const tries = [BASE, 'http://127.0.0.1:5678', 'http://localhost:5678'];
+  for (const b of tries) {
+    const r = await http({ method: 'GET', url: b + '/api/v1/workflows?limit=1', headers: { 'X-N8N-API-KEY': KEY } });
+    if (apiLike(r)) { API_BASE = b; return b; }
+  }
+  API_BASE = BASE;
+  return BASE;
+};
+const api = async (method, path, payload) => http({
+  method, url: (await apiBase()) + '/api/v1' + path,
   headers: { 'X-N8N-API-KEY': KEY, 'Content-Type': 'application/json' },
   body: payload,
 });
@@ -278,7 +293,7 @@ async function createSheetAndFolder(ids, company) {
     if (a.status < 200 || a.status >= 300) return { error: 'Could not prepare your sheet: ' + msg(a) };
     let r;
     for (let i = 0; i < 4; i++) {
-      r = await http({ method: 'POST', url: BASE + '/webhook/' + hook, body: {} });
+      r = await http({ method: 'POST', url: (await apiBase()) + '/webhook/' + hook, body: {} });
       if (r.status !== 404) break;
       await new Promise((ok) => setTimeout(ok, 1500));
     }
@@ -412,13 +427,31 @@ async function install() {
     note,
     formUrl: BASE + '/form/' + formId,
     sheetUrl: 'https://docs.google.com/spreadsheets/d/' + sheetId + '/edit',
-  }, base), { switchOff: true, apiBase: BASE, k: KEY });
+  }, base), { switchOff: true, apiBase: await apiBase(), k: KEY });
+}
+
+// ---------- keys never stay in n8n's execution history ----------
+// n8n's "Import from File" drops a workflow's settings, so the "don't save executions" setting this
+// file ships with can be lost. Put it back, then delete any runs of this setup that were saved.
+async function keepKeysOutOfLogs() {
+  const NO_LOGS = { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
+  try {
+    const me = await api('GET', '/workflows/' + $workflow.id);
+    const s = (me.body && me.body.settings) || {};
+    if (me.status === 200 && Object.keys(NO_LOGS).some((k) => s[k] !== NO_LOGS[k])) {
+      await api('PUT', '/workflows/' + $workflow.id, { name: me.body.name, nodes: me.body.nodes, connections: me.body.connections,
+        settings: Object.assign({ executionOrder: 'v1' }, s, NO_LOGS) });
+    }
+    const ex = await api('GET', '/executions?workflowId=' + $workflow.id + '&limit=250');
+    for (const e of ((ex.body && ex.body.data) || [])) await api('DELETE', '/executions/' + e.id);
+  } catch (e) { /* best effort */ }
 }
 
 // ---------- router ----------
 const action = String(body.action || '');
 const keyError = await checkKey();
 if (keyError) return fail(keyError);
+await keepKeysOutOfLogs();
 
 if (action === 'ping') return done({ ok: true });
 if (action === 'test') {

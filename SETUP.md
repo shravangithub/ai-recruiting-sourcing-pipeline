@@ -28,7 +28,8 @@ Skip any optional source and the pipeline simply doesn't search it.
 
 1. **Create an n8n API key.** In n8n: **Settings → n8n API → Create an API key**. Copy it.
 2. **Import the setup workflow.** In n8n: **Workflows → Import from File** →
-   [`setup/setup.workflow.json`](setup/setup.workflow.json).
+   [`setup/setup.workflow.json`](setup/setup.workflow.json). If n8n asks *"Importing this from
+   an AI tool?"*, click **Skip**.
 3. **Switch it on.** Click **Publish** / **Active** (top right).
 4. **Open the setup page.** Open the **Open setup page** node, copy its **Production URL**
    (it ends in `/webhook/sourcing-setup`) and open it in your browser.
@@ -61,6 +62,10 @@ Paste the client IDs and secrets under **Advanced: your own sign-in apps** on th
 **Your details** screen.
 
 ## Troubleshooting
+
+- **Running n8n in Docker on another port** (e.g. `-p 5679:5678`) works: setup finds n8n's own
+  port by itself. Open n8n as `http://127.0.0.1:<port>` rather than `localhost` if you run two n8n
+  copies side by side, otherwise they keep signing each other out.
 
 - **"Your n8n plan doesn't include the n8n API"** – you're on n8n Cloud's free trial. Upgrade,
   or run n8n yourself.
