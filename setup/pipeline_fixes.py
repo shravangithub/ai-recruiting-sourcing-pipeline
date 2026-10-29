@@ -3460,12 +3460,24 @@ def apply_round28(nodes, conns):
     R("App Criteria", "  employer: String(c.employer || ''),", "  employer: String(c.employer || ''),\n  colleges: String(c.colleges || '').slice(0, 200),")
     # 3. intake: colleges + non-tech must-haves and rubric
     R("Intake Prompt", """  '  "companies": target companies or industry as a short comma list or "", "exclude": words or companies to exclude (array) },',""",
-      """  '  "companies": target companies or industry as a short comma list or "", "colleges": colleges or institutes the brief asks for (e.g. "IIM, ISB") or "", "exclude": words or companies to exclude (array) },',""")
+      """  '  "companies": target companies or industry as a short comma list or "", "colleges": colleges or institutes the brief requires (e.g. "IIM, ISB"), or "" if it only prefers them, "exclude": words or companies to exclude (array) },',""")
     R("Intake Prompt", "  'Use only what the brief states or clearly implies. Do not invent requirements.'",
       "  'NON-TECHNICAL ROLES (product, sales, marketing, HR, finance, operations): \"must\" is the domain, function or tools a profile would name (e.g. \"B2B SaaS\", \"Salesforce\", \"FP&A\", \"performance marketing\"), and the rubric judges scope, measurable outcomes, team size and domain, never code.',\n"
       "  'Use only what the brief states or clearly implies. Do not invent requirements.'")
     R("Intake Result", "  exclude: arr(c.exclude, 6)\n};",
       "  colleges: Array.isArray(c.colleges) ? c.colleges.join(', ') : String(c.colleges || '').slice(0, 120),\n  exclude: arr(c.exclude, 6)\n};")
+    # "ideally IIM" is a preference: rank on it, don't filter the search by it
+    R("Intake Result", "  if (/\\b(a plus|a bonus|nice[- ]to[- ]have|preferred|an advantage|good to have)\\b/i.test(part)) soft.push(part.toLowerCase());",
+      "  if (/\\b(a plus|a bonus|nice[- ]to[- ]have|preferred|an advantage|good to have|ideally)\\b/i.test(part)) soft.push(part.toLowerCase());")
+    R("Intake Result", "moved.forEach(function(s){ if (criteria.nice.indexOf(s) === -1) criteria.nice.unshift(s); });",
+      "moved.forEach(function(s){ if (criteria.nice.indexOf(s) === -1) criteria.nice.unshift(s); });\n"
+      "const colls = criteria.colleges.split(',').map(function(s){ return s.trim(); }).filter(Boolean);\n"
+      "if (colls.length && colls.every(isSoft)) { criteria.nice.push(colls.join(' or ')); criteria.colleges = ''; }\n"
+      "// non-tech: duties are not search words\n"
+      "const DUTY = /^(team (management|leadership|handling)|people management|stakeholder management|communication|leadership|(quarterly |sales |revenue )?targets?|target achievement|quota|negotiation|problem solving|ownership)$/i;\n"
+      "criteria.must.filter(function(s){ return DUTY.test(s); }).forEach(function(s){ if (criteria.nice.indexOf(s) === -1) criteria.nice.push(s); });\n"
+      "criteria.must = criteria.must.filter(function(s){ return !DUTY.test(s); });\n"
+      "criteria.nice = criteria.nice.slice(0, 6);")
     # 4. non-tech scoring
     R("Format Search Results", "--- INSTRUCTIONS ---\n", "--- INSTRUCTIONS ---\n" + NONTECH_SCORING + "\n")
     # 5. app: read and save the follow-up emails

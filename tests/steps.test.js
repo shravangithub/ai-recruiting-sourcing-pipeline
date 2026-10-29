@@ -881,3 +881,15 @@ test('R28: saving follow-ups is checked at the gate', async () => {
   const [t] = await gate({ action: 'templates', code: 'team-123456' });
   assert.equal(t.route, 'templates');
 });
+
+test('R28: intake keeps "ideally IIM" as a preference and duties out of the search words', async () => {
+  const brief = 'Area Sales Manager in Pune, 5-8 years selling B2B SaaS, owns a team and a quarterly target. Ideally an MBA from IIM or Symbiosis.';
+  const ai = { output: [{ content: [{ text: JSON.stringify({ criteria: { role: 'Area Sales Manager', must: ['B2B SaaS', 'team management', 'quarterly targets'], nice: ['MBA'], experience: '5-8 years', city: 'Pune', region: 'India', colleges: 'IIM, Symbiosis', exclude: [] }, sources: ['LinkedIn'], questions: [], rubric: [] }) }] }] };
+  const [r] = await runNode('Intake Result', [ai], { 'App Gate': [{ body: { brief } }] });
+  const c = r.response.criteria;
+  assert.deepEqual(c.must, ['B2B SaaS']);
+  assert.equal(c.colleges, '');
+  assert.ok(c.nice.includes('IIM or Symbiosis') && c.nice.includes('team management'));
+  const [hard] = await runNode('Intake Result', [ai], { 'App Gate': [{ body: { brief: 'Area Sales Manager in Pune. Must be an MBA from IIM or Symbiosis.' } }] });
+  assert.equal(hard.response.criteria.colleges, 'IIM, Symbiosis');
+});
