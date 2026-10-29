@@ -252,8 +252,8 @@ tr.cand:hover td{background:#FAFAFB}
 (function(){
 var API = '__API__';
 var SHEET_URL = '__SHEET_URL__';
-var PLATFORMS = ['LinkedIn','GitHub','Stack Overflow','Google / Open Web','Hacker News','GitLab','Kaggle','Hugging Face','Dev.to','Reddit','X (Twitter)','Dribbble','Behance','Devfolio','Unstop','Devpost','HackerEarth','LeetCode','CodeChef','Codeforces','Topmate','ADPList','Product Hunt','Substack','Medium'];
-var YIELD = {'LinkedIn':'~25','GitHub':'~40','Stack Overflow':'~35','Google / Open Web':'~12','Hacker News':'~14','GitLab':'~11','Kaggle':'~28','Hugging Face':'~27','Dev.to':'~8','Reddit':'~14','X (Twitter)':'~13','Dribbble':'~10','Behance':'~20','Devfolio':'new','Unstop':'new','Devpost':'new','HackerEarth':'new','LeetCode':'new','CodeChef':'new','Codeforces':'new','Topmate':'new','ADPList':'new','Product Hunt':'new','Substack':'new','Medium':'new'};
+var PLATFORMS = ['LinkedIn','GitHub','Stack Overflow','Google / Open Web','Hacker News','GitLab','Kaggle','Hugging Face','Dev.to','Reddit','X (Twitter)','Dribbble','Behance','Devfolio','Unstop','Devpost','HackerEarth','LeetCode','CodeChef','Codeforces','Topmate','ADPList','Medium'];
+var YIELD = {'LinkedIn':'~25','GitHub':'~40','Stack Overflow':'~35','Google / Open Web':'~12','Hacker News':'~14','GitLab':'~11','Kaggle':'~28','Hugging Face':'~27','Dev.to':'~8','Reddit':'~14','X (Twitter)':'~13','Dribbble':'~10','Behance':'~20','Devfolio':'new','Unstop':'new','Devpost':'new','HackerEarth':'new','LeetCode':'new','CodeChef':'new','Codeforces':'new','Topmate':'new','ADPList':'new','Medium':'new'};
 var REGIONS = ['Global (all regions)','India','United States','United Kingdom','Canada','Australia','Germany','France','Netherlands','Singapore','United Arab Emirates','Ireland'];
 var el = function(id){ return document.getElementById(id); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
