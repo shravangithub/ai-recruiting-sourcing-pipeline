@@ -697,17 +697,6 @@ test('R24: follow-ups land 2, 4, 5 and 7 days after the first email, then stop',
 });
 
 // ------------------------------------------------------------ Round 25: the sourcing app
-test('R25: the access code is chosen once, then required on every call', async () => {
-  const gate = (body, saved) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': saved ? [{ key: 'access_code', value: saved }] : [{}] });
-  assert.deepEqual((await gate({ action: 'ping' }))[0].response, { ok: false, auth: 'need_code', claim: true });
-  assert.equal((await gate({ action: 'claim', code: 'abc' }))[0].route, 'reply', 'too short to claim');
-  assert.equal((await gate({ action: 'claim', code: 'team-2026' }))[0].route, 'claim');
-  assert.deepEqual((await gate({ action: 'search', code: 'wrong' }, 'team-2026'))[0].response, { ok: false, auth: 'need_code', claim: false });
-  assert.deepEqual((await gate({ action: 'claim', code: 'hijack-123' }, 'team-2026'))[0].response.ok, false, 'a second claim cannot replace the code');
-  const ok = (await gate({ action: 'results', code: 'team-2026', run_id: '9' }, 'team-2026'))[0];
-  assert.equal(ok.route, 'results'); assert.equal(ok.body.run_id, '9');
-});
-
 test('R25: intake agent output is cleaned: bands, regions, sources, no protected-attribute questions', async () => {
   const ai = { criteria: { role: 'Senior Backend Engineer', similar_titles: ['Backend Developer'], must: ['Python', 'Django'], nice: 'Kafka', experience: '3-5 years', city: 'Pune', region: 'India', companies: ['Acme Payments'], exclude: ['intern'] },
     sources: ['LinkedIn', 'Github', 'Stack Overflow', 'Wellfound'],
@@ -870,18 +859,6 @@ test('R28: the app reads the follow-ups as plain text and saves them safely', as
   assert.equal(rows[0].body, '<p>Hi {first_name},</p><p>Quick bump &lt;script&gt;x&lt;/script&gt;<br/>thanks</p>');
 });
 
-test('R28: saving follow-ups is checked at the gate', async () => {
-  const gate = (body) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': [{ key: 'access_code', value: 'team-123456' }] });
-  const [bad] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'hi' }] });
-  assert.equal(bad.route, 'reply'); assert.match(bad.response.error, /10 to 4000/);
-  const [badStep] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 9, body: 'a long enough body' }] });
-  assert.equal(badStep.route, 'reply');
-  const [ok] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'a long enough body' }] });
-  assert.equal(ok.route, 'save_templates');
-  const [t] = await gate({ action: 'templates', code: 'team-123456' });
-  assert.equal(t.route, 'templates');
-});
-
 test('R28: intake keeps "ideally IIM" as a preference and duties out of the search words', async () => {
   const brief = 'Area Sales Manager in Pune, 5-8 years selling B2B SaaS, owns a team and a quarterly target. Ideally an MBA from IIM or Symbiosis.';
   const ai = { output: [{ content: [{ text: JSON.stringify({ criteria: { role: 'Area Sales Manager', must: ['B2B SaaS', 'team management', 'quarterly targets'], nice: ['MBA'], experience: '5-8 years', city: 'Pune', region: 'India', colleges: 'IIM, Symbiosis', exclude: [] }, sources: ['LinkedIn'], questions: [], rubric: [] }) }] }] };
@@ -892,4 +869,129 @@ test('R28: intake keeps "ideally IIM" as a preference and duties out of the sear
   assert.ok(c.nice.includes('IIM or Symbiosis') && c.nice.includes('team management'));
   const [hard] = await runNode('Intake Result', [ai], { 'App Gate': [{ body: { brief: 'Area Sales Manager in Pune. Must be an MBA from IIM or Symbiosis.' } }] });
   assert.equal(hard.response.criteria.colleges, 'IIM, Symbiosis');
+});
+
+// ------------------------------------------------------------ Round 29: team logins, settings, dashboard
+const RAND = 'a'.repeat(32) + 'b'.repeat(32);
+const gate29 = (body, ctx = {}) => runNode('App Gate', [{}], {
+  'App API': [{ body: JSON.stringify(body) }], 'Fresh Random': [{ rand: ctx.rand || RAND }],
+  'Load App Settings': ctx.settings || [{}], 'Load App Users': ctx.users || [{}], 'Load App Sessions': ctx.sessions || [{}] }).then((r) => r[0]);
+const signUp = async () => {
+  const r = await gate29({ action: 'setup_admin', name: 'Kumar', email: 'Admin@Example.com', password: 'longenough1' });
+  return { admin: r.writes.users[0], session: r.writes.sessions[0], r };
+};
+const live = (email, token = 'c'.repeat(32)) => ({ token, email, expires_at: new Date(Date.now() + 864e5).toISOString() });
+
+test('R29: the first admin is created once, proving ownership with the old access code', async () => {
+  assert.deepEqual((await gate29({ action: 'auth_state' }, { settings: [{ key: 'access_code', value: 'team-2026' }] })).response, { ok: true, has_users: false, need_code: true });
+  const bad = await gate29({ action: 'setup_admin', name: 'K', email: 'k@example.com', password: 'longenough1', code: 'nope' }, { settings: [{ key: 'access_code', value: 'team-2026' }] });
+  assert.match(bad.response.error, /access code/);
+  const short = await gate29({ action: 'setup_admin', name: 'K', email: 'k@example.com', password: 'short' });
+  assert.match(short.response.error, /8 characters/);
+  const { admin, session, r } = await signUp();
+  assert.equal(r.response.ok, true); assert.equal(r.response.token, 'b'.repeat(32));
+  assert.equal(admin.email, 'admin@example.com'); assert.equal(admin.role, 'admin'); assert.equal(admin.salt, 'a'.repeat(32));
+  assert.equal(admin.pass_hash, require('crypto').pbkdf2Sync('longenough1', 'a'.repeat(32), 4000, 32, 'sha256').toString('hex'), 'salted PBKDF2-SHA256');
+  assert.ok(!('longenough1' in admin) && !JSON.stringify(r.writes).includes('longenough1'), 'the password itself is never stored');
+  assert.equal(session.email, 'admin@example.com');
+  assert.equal(r.writes.activity[0].action, 'created the workspace');
+  const again = await gate29({ action: 'setup_admin', name: 'X', email: 'x@example.com', password: 'longenough1' }, { users: [admin] });
+  assert.match(again.response.error, /already set up/);
+});
+
+test('R29: sign in, sessions expire, and every other call needs a session', async () => {
+  const { admin } = await signUp();
+  assert.match((await gate29({ action: 'login', email: 'admin@example.com', password: 'wrong-pass' }, { users: [admin] })).response.error, /not right/);
+  const ok = await gate29({ action: 'login', email: ' ADMIN@example.com', password: 'longenough1' }, { users: [admin] });
+  assert.equal(ok.response.ok, true); assert.equal(ok.writes.sessions.length, 1);
+  assert.equal((await gate29({ action: 'results', run_id: '9' }, { users: [admin] })).response.auth, 'need_login');
+  const old = Object.assign(live('admin@example.com'), { expires_at: '2020-01-01T00:00:00Z' });
+  assert.equal((await gate29({ action: 'results', token: old.token }, { users: [admin], sessions: [old] })).response.auth, 'need_login', 'expired');
+  const s = live('admin@example.com');
+  const r = await gate29({ action: 'results', token: s.token, run_id: '9' }, { users: [admin], sessions: [s] });
+  assert.equal(r.route, 'results'); assert.equal(r.body.run_id, '9'); assert.equal(r.body.user.role, 'admin');
+  const off = Object.assign({}, admin, { status: 'disabled' });
+  assert.equal((await gate29({ action: 'results', token: s.token }, { users: [off], sessions: [s] })).response.auth, 'need_login', 'turned-off accounts are out');
+  const out = await gate29({ action: 'logout', token: s.token }, { users: [admin], sessions: [s] });
+  assert.ok(new Date(out.writes.sessions[0].expires_at) <= new Date(), 'logout ends the session');
+});
+
+test('R29: admins add teammates with a one-time password; recruiters cannot manage the team', async () => {
+  const { admin } = await signUp();
+  const s = live('admin@example.com');
+  const inv = await gate29({ action: 'invite', token: s.token, name: 'Priya', email: 'priya@example.com', role: 'recruiter' }, { users: [admin], sessions: [s] });
+  assert.equal(inv.response.ok, true); assert.match(inv.response.temp_password, /^tr-[0-9a-f]{10}$/);
+  const priya = inv.writes.users[0];
+  assert.equal(priya.must_change, true); assert.equal(priya.role, 'recruiter');
+  assert.match((await gate29({ action: 'invite', token: s.token, name: 'P', email: 'priya@example.com' }, { users: [admin, priya], sessions: [s] })).response.error, /already/);
+  const ps = live('priya@example.com', 'd'.repeat(32));
+  const ctx = { users: [admin, priya], sessions: [s, ps] };
+  for (const a of ['users', 'invite', 'save_settings', 'save_templates', 'update_user']) {
+    assert.match((await gate29({ action: a, token: ps.token }, ctx)).response.error, /Only an admin/, a);
+  }
+  const srch = await gate29({ action: 'search', token: ps.token, criteria: { role: 'Product Manager', city: 'Pune' } }, ctx);
+  assert.equal(srch.route, 'search'); assert.equal(srch.writes.activity[0].detail, 'Product Manager · Pune'); assert.equal(srch.writes.activity[0].name, 'Priya');
+  assert.match((await gate29({ action: 'update_user', token: s.token, email: 'admin@example.com', role: 'recruiter' }, ctx)).response.error, /at least one active admin/);
+  assert.match((await gate29({ action: 'update_user', token: s.token, email: 'admin@example.com', status: 'disabled' }, ctx)).response.error, /at least one active admin|own account/);
+  const promo = await gate29({ action: 'update_user', token: s.token, email: 'priya@example.com', role: 'admin' }, ctx);
+  assert.equal(promo.writes.users[0].role, 'admin');
+  const reset = await gate29({ action: 'reset_password', token: s.token, email: 'priya@example.com' }, ctx);
+  assert.equal(reset.writes.users[0].must_change, true); assert.ok(reset.response.temp_password);
+  const ch = await gate29({ action: 'change_password', token: ps.token, old: inv.response.temp_password, password: 'my-own-pass' }, ctx);
+  assert.equal(ch.response.ok, true); assert.equal(ch.writes.users[0].must_change, false);
+  const users = await gate29({ action: 'users', token: s.token }, ctx);
+  assert.ok(users.response.users.every((u) => !('pass_hash' in u) && !('salt' in u)), 'hashes never leave n8n');
+});
+
+test('R29: sending settings are checked, saved and used by the follow-ups', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '19:00', window_end: '09:00', daily_cap: 50 } }, ctx)).response.error, /sending window/);
+  assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '09:00', window_end: '18:00', daily_cap: 999 } }, ctx)).response.error, /between 1 and 200/);
+  const ok = await gate29({ action: 'save_settings', token: s.token, settings: { signature: 'Kumar\nTalent team', window_start: '10:00', window_end: '17:00', daily_cap: 2, weekdays_only: true } }, ctx);
+  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only']);
+  const [w] = await runNode('Settings Writes', [{}], { 'App Gate': [ok] });
+  assert.equal(w.key, 'signature');
+  const got = await gate29({ action: 'settings', token: s.token }, Object.assign({ settings: ok.writes.settings }, ctx));
+  assert.equal(got.response.settings.daily_cap, 2); assert.equal(got.response.settings.window_start, '10:00');
+  // the follow-up runner reads them
+  const refs = { 'Load Sequences': Array.from({ length: 5 }, (_, i) => seqRow({ contact_key: 'k' + i })), 'Load Templates': [{}], 'Load Seq Settings': ok.writes.settings };
+  at('2026-10-28T09:45:00'); assert.equal((await runNode('Due Follow-ups', [{}], refs)).length, 0, 'before the new 10:00 start');
+  at('2026-10-28T11:00:00'); const due = await runNode('Due Follow-ups', [{}], refs);
+  assert.equal(due.length, 2, 'new daily limit');
+  assert.match(due[0].html, /Best regards,<br\/>Kumar<br\/>Talent team<\/p>$/);
+  Settings.now = () => Date.now();
+});
+
+test('R29: follow-up edits are admin-only and checked at the gate', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  assert.match((await gate29({ action: 'save_templates', token: s.token, steps: [{ step: 2, body: 'hi' }] }, ctx)).response.error, /10 to 4000/);
+  assert.equal((await gate29({ action: 'save_templates', token: s.token, steps: [{ step: 9, body: 'a long enough body' }] }, ctx)).route, 'reply');
+  const ok = await gate29({ action: 'save_templates', token: s.token, steps: [{ step: 2, body: 'a long enough body' }] }, ctx);
+  assert.equal(ok.route, 'save_templates'); assert.equal(ok.writes.activity[0].action, 'edited the follow-up emails');
+  assert.equal((await gate29({ action: 'dashboard', token: s.token }, ctx)).route, 'dashboard');
+});
+
+test('R29: the home dashboard sums up the week, what needs attention and the best sources', async () => {
+  const now = new Date().toISOString();
+  const g = { user: { name: 'Kumar', role: 'admin' }, users_count: 1 };
+  const people = [
+    { run_id: '1', dedupe_key: 'a', name: 'Asha', fit_score: 9, source: 'Topmate' },
+    { run_id: '1', dedupe_key: 'b', name: 'Ravi', fit_score: 9, source: 'LinkedIn', feedback: 'up' },
+    { run_id: '1', dedupe_key: 'c', name: 'Meera', fit_score: 5, source: 'LinkedIn' }];
+  const [r] = await runNode('Dashboard Reply', [{}], {
+    'App Gate': [g],
+    'Load Dash Runs': [{ run_id: '1', role: 'Product Manager', location: 'Pune', status: 'done', count: 3, by_source: 'LinkedIn 2 · Topmate 1', started_at: now, finished_at: now }],
+    'Load Dash People': people,
+    'Load Dash Sequences': [{ contact_key: 'b', status: 'replied', first_name: 'Ravi', role: 'Product Manager', last_sent_at: now }],
+    'Load Dash Activity': [{ at: now, name: 'Kumar', action: 'started a search', detail: 'Product Manager · Pune' }],
+    'Load Dash Templates': [{}], 'Load Dash Settings': [{}] });
+  const x = r.response;
+  assert.deepEqual(x.week, { searches: 1, people: 3, strong: 2 });
+  assert.equal(x.totals.reply_rate, 100);
+  assert.deepEqual(x.attention.map((a) => a.kind), ['reply', 'review']);
+  assert.match(x.attention[1].text, /^1 strong match to review in Product Manager · Pune/);
+  assert.equal(x.sources[0].source, 'LinkedIn'); assert.equal(x.sources[0].replied, 1);
+  assert.deepEqual(x.checklist.filter((c) => c.done).map((c) => c.key), ['search', 'vote', 'approve']);
+  assert.ok(x.services.find((s) => s.name.startsWith('Google')).last_ok);
+  assert.equal(x.activity[0].action, 'started a search');
 });

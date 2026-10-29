@@ -114,7 +114,43 @@ tr.cand:hover td{background:#FAFAFB}
 .list a{display:flex;flex-direction:column;gap:4px;padding:16px 18px;text-decoration:none;color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;z-index:9}
 .empty{padding:40px;text-align:center;color:var(--muted)}
-.gate{max-width:420px;margin:12vh auto;padding:32px;display:flex;flex-direction:column;gap:14px}
+.gate{max-width:440px;margin:10vh auto;padding:32px;display:flex;flex-direction:column;gap:14px}
+.gate form{display:flex;flex-direction:column;gap:10px}
+.who{display:flex;align-items:center;gap:10px}
+.who .av{width:30px;height:30px;font-size:12px;background:#5F6168;color:#fff}
+.who b{color:#fff;font-weight:600;font-size:13px}.who span{font-size:12px;color:#BDBEC3}
+.hero{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px;align-items:start}
+.panel{padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.panel h2{font-size:17px}
+.att{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line2);font-size:14px}
+.att:first-of-type{border-top:0}
+.att .ico{width:30px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;flex:none;font-size:14px}
+.att .go{margin-left:auto;white-space:nowrap;font-weight:600;font-size:13px}
+.chk{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:14px;border-top:1px solid var(--line2)}
+.chk:first-of-type{border-top:0}
+.chk .bx{width:20px;height:20px;border-radius:10px;border:1.5px solid #9C9DA3;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff}
+.chk.done{color:var(--muted)}.chk.done span.t{text-decoration:line-through}
+.chk.done .bx{background:var(--ok);border-color:var(--ok)}
+.prog{height:8px;border-radius:4px;background:var(--line2);overflow:hidden}.prog i{display:block;height:8px;background:var(--ok)}
+.feed{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line2);font-size:14px}
+.feed:first-of-type{border-top:0}
+.feed .av{width:30px;height:30px;font-size:11px}
+.stabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.stabs button{border:0;background:transparent;padding:10px 14px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.stabs button.on{color:var(--ink);border-bottom-color:var(--red)}
+.frow{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line2)}
+.frow:first-of-type{border-top:0}
+.frow .help{font-size:12px;color:var(--muted);margin-top:4px}
+.tog{position:relative;width:44px;height:26px;border-radius:13px;background:#C8C9CE;border:0;cursor:pointer;flex:none}
+.tog i{position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:10px;background:#fff;transition:left .15s}
+.tog.on{background:var(--ok)}.tog.on i{left:21px}
+.pill{font-size:12px;font-weight:600;padding:3px 8px;border-radius:6px;background:#F1F1F3;color:var(--char)}
+.pill.admin{background:var(--tint);color:var(--red2)}
+.secret{font:600 15px ui-monospace,Menlo,monospace;background:var(--ground);border:1px dashed #9C9DA3;border-radius:8px;padding:8px 12px;display:inline-block}
+.welcome{background:linear-gradient(135deg,#3A3A3C,#1F2024);color:#fff;border:0}
+.welcome .muted{color:#C8C9CE}
+@media (max-width:640px){.frow{grid-template-columns:1fr}}
 .err{color:var(--bad);font-size:13px}
 .st{font-size:12px;font-weight:600;padding:4px 8px;border-radius:6px;white-space:nowrap;background:#F1F1F3;color:var(--char)}
 .st.ok{background:var(--okbg);color:var(--ok)}.st.bad{background:var(--badbg);color:var(--bad)}.st.warn{background:var(--warnbg);color:var(--warn)}
@@ -125,28 +161,115 @@ tr.cand:hover td{background:#FAFAFB}
 <header>
   <img src="__LOGO__" alt="Logo">
   <nav id="nav" class="hide" aria-label="Main">
-    <button data-go="search" class="on">New search</button>
+    <button data-go="home" class="on">Home</button>
+    <button data-go="search">New search</button>
     <button data-go="lists">Shortlists</button>
     <button data-go="outreach">Outreach</button>
+    <button data-go="settings">Settings</button>
   </nav>
-  <div class="hdr-r"><span id="hdrNote"></span><button id="logout" class="hide" type="button">Lock</button></div>
+  <div class="hdr-r"><div class="who hide" id="who"><span class="av" id="whoAv"></span><div style="display:flex;flex-direction:column;line-height:1.2"><b id="whoName"></b><span id="whoRole"></span></div></div><button id="logout" class="hide" type="button">Sign out</button></div>
 </header>
 
-<!-- access -->
+<!-- sign in -->
 <section id="v-gate" class="card gate hide">
-  <h1 style="font-size:26px">Sign in to sourcing</h1>
-  <p id="gateText" class="muted" style="margin:0">Enter your team's access code.</p>
-  <form id="gateForm" style="display:flex;flex-direction:column;gap:10px" onsubmit="return false">
-  <input type="text" name="username" value="sourcing" autocomplete="username" hidden>
-  <label class="lbl" for="code">Access code</label>
-  <input id="code" name="password" type="password" autocomplete="current-password">
-  </form>
+  <div id="aLogin">
+    <h1 style="font-size:26px">Sign in</h1>
+    <p class="muted" style="margin:4px 0 14px">Sourcing for your team, running on your own n8n.</p>
+    <form onsubmit="return false">
+      <label class="lbl" for="lEmail">Work email</label><input id="lEmail" type="text" autocomplete="username" inputmode="email">
+      <label class="lbl" for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password">
+      <button id="lBtn" class="btn pri" type="submit">Sign in</button>
+    </form>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">Forgot your password? Ask an admin to reset it in Settings → Team.</p>
+  </div>
+  <div id="aSetup" class="hide">
+    <h1 style="font-size:26px">Set up your workspace</h1>
+    <p class="muted" style="margin:4px 0 14px">You'll be the admin. You can add your team after this.</p>
+    <form onsubmit="return false">
+      <label class="lbl" for="sName">Your name</label><input id="sName" type="text" autocomplete="name">
+      <label class="lbl" for="sEmail">Work email</label><input id="sEmail" type="text" autocomplete="username" inputmode="email">
+      <label class="lbl" for="sPass">Password (8+ characters)</label><input id="sPass" type="password" autocomplete="new-password">
+      <div id="sCodeBox" class="hide" style="display:flex;flex-direction:column;gap:10px"><label class="lbl" for="sCode">Your current access code</label><input id="sCode" type="password" autocomplete="off"><span class="muted" style="font-size:12px">Proves this workspace is yours. After this, everyone signs in with their own account.</span></div>
+      <button id="sBtn" class="btn pri" type="submit">Create workspace</button>
+    </form>
+  </div>
+  <div id="aChange" class="hide">
+    <h1 style="font-size:26px">Choose your password</h1>
+    <p class="muted" style="margin:4px 0 14px">You signed in with a one-time password. Pick your own to continue.</p>
+    <form onsubmit="return false">
+      <input type="text" id="cUser" autocomplete="username" hidden>
+      <label class="lbl" for="cNew">New password (8+ characters)</label><input id="cNew" type="password" autocomplete="new-password">
+      <button id="cBtn" class="btn pri" type="submit">Save and continue</button>
+    </form>
+  </div>
   <div id="gateErr" class="err"></div>
-  <button id="gateBtn" class="btn pri" type="button">Continue</button>
 </section>
 
 <main id="app" class="hide">
   <!-- new search -->
+  <!-- home -->
+  <section id="v-home" class="hide" style="display:flex;flex-direction:column;gap:20px">
+    <div class="hero">
+      <div style="display:flex;flex-direction:column;gap:4px"><span class="lbl" id="hDate"></span><h1 style="font-size:32px;font-weight:800" id="hHello">Welcome</h1></div>
+      <div style="margin-left:auto;display:flex;gap:10px"><button class="btn pri" type="button" data-go="search">+ New search</button></div>
+    </div>
+    <div class="card panel welcome hide" id="hWelcome">
+      <h2 style="font-size:20px;color:#fff">Your sourcing workspace is ready</h2>
+      <p class="muted" style="margin:0">Describe who you're hiring, and in about a minute you get a ranked shortlist from up to 23 sources. Each match comes with the line from their profile that proves it. Approve people and the emails and follow-ups go out from your Gmail.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" type="button" data-go="search">Run your first search</button></div>
+    </div>
+    <div class="kpis" id="hKpis"></div>
+    <div id="hRunning"></div>
+    <div class="grid2">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <section class="card panel"><h2>Needs your attention</h2><div id="hAtt"></div></section>
+        <section class="card panel"><div style="display:flex;align-items:baseline;gap:10px"><h2>Best sources</h2><span class="muted" style="font-size:13px">by replies, then strong matches</span></div><div class="tw"><table><thead><tr><th>Source</th><th>Found</th><th>Strong</th><th>Contacted</th><th>Replied</th></tr></thead><tbody id="hSrc"></tbody></table></div></section>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <section class="card panel" id="hStart"><div style="display:flex;align-items:baseline;gap:10px"><h2>Getting started</h2><span class="muted" style="font-size:13px" id="hStartN"></span></div><div class="prog"><i id="hStartBar" style="width:0"></i></div><div id="hChecks"></div></section>
+        <section class="card panel"><h2>Team activity</h2><div id="hFeed"></div></section>
+      </div>
+    </div>
+  </section>
+
+  <!-- settings -->
+  <section id="v-settings" class="hide" style="display:flex;flex-direction:column;gap:18px">
+    <h1 style="font-size:30px;font-weight:800">Settings</h1>
+    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="services">Connected services</button></div>
+    <div class="card panel" data-sp="account">
+      <div class="frow"><div><b>Name</b></div><div id="acName"></div></div>
+      <div class="frow"><div><b>Email</b></div><div id="acEmail"></div></div>
+      <div class="frow"><div><b>Role</b><div class="help">Admins manage the team, sending settings and follow-up emails.</div></div><div id="acRole"></div></div>
+      <div class="frow"><div><b>Change password</b></div><form onsubmit="return false" style="display:flex;flex-direction:column;gap:8px;max-width:360px"><input type="text" id="acUser" autocomplete="username" hidden><input id="acOld" type="password" placeholder="Current password" autocomplete="current-password"><input id="acNew" type="password" placeholder="New password (8+ characters)" autocomplete="new-password"><div style="display:flex;gap:10px;align-items:center"><button class="btn" type="submit" id="acSave">Update password</button><span id="acMsg" class="muted" style="font-size:13px"></span></div></form></div>
+    </div>
+    <div class="card panel hide" data-sp="team">
+      <div id="tmAdminOnly" class="muted hide">Only admins can see and manage the team.</div>
+      <div id="tmBox">
+        <div class="tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last sign-in</th><th style="text-align:right">Actions</th></tr></thead><tbody id="tmRows"></tbody></table></div>
+        <h3 style="font-size:15px;margin-top:18px">Add a teammate</h3>
+        <form onsubmit="return false" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px">
+          <input id="tmName" type="text" placeholder="Name" style="flex:1 1 160px"><input id="tmEmail" type="text" placeholder="Work email" style="flex:2 1 220px">
+          <select id="tmRole" style="flex:0 1 150px"><option value="recruiter">Recruiter</option><option value="admin">Admin</option></select>
+          <button class="btn pri" type="submit" id="tmAdd">Add</button>
+        </form>
+        <div id="tmMsg" style="margin-top:10px;font-size:14px"></div>
+      </div>
+    </div>
+    <div class="card panel hide" data-sp="sending">
+      <p class="muted" style="margin:0;font-size:14px">How the follow-up emails go out. The first email goes out within 15 minutes of approval.</p>
+      <div class="frow"><div><b>Signature</b><div class="help">Added under every follow-up, after "Best regards,"</div></div><textarea id="snSig" rows="3" placeholder="Your name&#10;Your title, your company"></textarea></div>
+      <div class="frow"><div><b>Sending window</b><div class="help">India time</div></div><div style="display:flex;gap:8px;align-items:center;max-width:320px"><input id="snStart" type="text" placeholder="09:30"><span class="muted">to</span><input id="snEnd" type="text" placeholder="18:30"></div></div>
+      <div class="frow"><div><b>Daily limit</b><div class="help">Most follow-ups sent in one day (1–200)</div></div><input id="snCap" type="text" inputmode="numeric" style="max-width:120px"></div>
+      <div class="frow"><div><b>Weekdays only</b></div><div><button type="button" class="tog on" id="snWk" aria-pressed="true" aria-label="Weekdays only"><i></i></button></div></div>
+      <div class="frow"><div><b>Follow-up schedule</b></div><div class="muted" style="font-size:14px">Days 2, 4, 5 and 7, in the same Gmail thread. Stops on reply or bounce. <a href="#" data-go="outreach">Edit the wording →</a></div></div>
+      <div style="display:flex;gap:10px;align-items:center"><button class="btn pri" type="button" id="snSave">Save sending settings</button><span id="snMsg" class="muted" style="font-size:13px"></span></div>
+    </div>
+    <div class="card panel hide" data-sp="services">
+      <p class="muted" style="margin:0;font-size:14px">The services your n8n uses, and when each one last worked in a search. Keys and passwords stay in n8n's credential store; to change one, open n8n → Credentials.</p>
+      <div class="tw"><table><thead><tr><th>Service</th><th>Used for</th><th>Last worked</th></tr></thead><tbody id="svRows"></tbody></table></div>
+    </div>
+  </section>
+
   <section id="v-search">
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:24px">
       <h1 style="font-size:34px;font-weight:800">Who are you hiring?</h1>
@@ -281,57 +404,69 @@ var REGIONS = ['Global (all regions)','India','United States','United Kingdom','
 var el = function(id){ return document.getElementById(id); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
 var store = { get: function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del: function(k){ try { localStorage.removeItem(k); } catch(e){} } };
-var CODE = store.get('tr_code') || '';
+var TOKEN = '';
+var ME = null;
 var S = { must:[], nice:[], ex:[], similar:[], sources:['LinkedIn','GitHub'], answers:{}, questions:[], rubric:[], touched:{}, runId:null, list:[], filter:'rec', sel:{}, votes:{}, open:null };
 
 function toast(t){ var e=el('toast'); e.textContent=t; e.classList.remove('hide'); clearTimeout(toast.t); toast.t=setTimeout(function(){ e.classList.add('hide'); }, 3200); }
 function call(action, data){
-  var body = Object.assign({ action: action, code: CODE }, data || {});
+  var body = Object.assign({ action: action, token: TOKEN }, data || {});
   return fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(body) })
     .then(function(r){ return r.text(); })
     .then(function(t){ var j; try { j = JSON.parse(t); } catch(e){ throw new Error('The server did not answer properly. Is the pipeline switched on?'); }
-      if (j && j.auth === 'need_code') { showGate(j.claim); throw new Error('locked'); }
+      if (j && j.auth === 'need_login') { TOKEN=''; ME=null; showAuth(j.has_users === false ? 'setup' : 'login'); throw new Error('locked'); }
       return j; });
 }
 
-// ---------- access ----------
-function showGate(claim){
-  el('app').classList.add('hide'); el('nav').classList.add('hide'); el('logout').classList.add('hide'); el('bulk').classList.add('hide');
-  el('v-gate').classList.remove('hide');
-  el('gateText').textContent = claim ? 'First time here: choose an access code for your team (at least 6 characters). Anyone with this code can use sourcing on your n8n.' : "Enter your team's access code.";
-  el('gateBtn').textContent = claim ? 'Create code and continue' : 'Continue';
-  el('gateBtn').dataset.claim = claim ? '1' : '';
-  el('code').focus();
+// ---------- sign in ----------
+// The session lives only in this page (n8n's sandboxed pages can't keep storage), so a reload asks again.
+function showAuth(mode, needCode){
+  ['app','nav','logout','who','bulk'].forEach(function(id){ el(id).classList.add('hide'); });
+  el('v-gate').classList.remove('hide'); el('gateErr').textContent='';
+  el('aLogin').classList.toggle('hide', mode!=='login'); el('aSetup').classList.toggle('hide', mode!=='setup'); el('aChange').classList.toggle('hide', mode!=='change');
+  el('sCodeBox').classList.toggle('hide', !needCode);
+  var f = {login:'lEmail', setup:'sName', change:'cNew'}[mode]; setTimeout(function(){ el(f).focus(); }, 30);
 }
-el('gateBtn').onclick = function(){
-  var c = el('code').value.trim(); el('gateErr').textContent='';
-  if (c.length < 6) { el('gateErr').textContent = 'Use at least 6 characters.'; return; }
-  CODE = c;
-  call(this.dataset.claim ? 'claim' : 'ping').then(function(j){
-    if (!j.ok) { el('gateErr').textContent = j.error || 'That code did not work.'; return; }
-    store.set('tr_code', CODE); start();
-  }).catch(function(e){ if (e.message !== 'locked') el('gateErr').textContent = e.message; });
-};
-el('code').addEventListener('keydown', function(e){ if (e.key === 'Enter') el('gateBtn').click(); });
-el('logout').onclick = function(){ store.del('tr_code'); CODE=''; showGate(false); };
+function signedIn(j){
+  TOKEN = j.token || TOKEN; ME = j.user || ME;
+  if (ME && ME.must_change) { el('cUser').value = ME.email; showAuth('change'); return; }
+  start();
+}
+function busy(btn, on, txt){ btn.disabled = on; if (txt) btn.textContent = txt; }
+el('lBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Signing in…');
+  var pw = el('lPass').value;
+  fetchAuth('login', { email: el('lEmail').value, password: pw }).then(function(j){ busy(b, false, 'Sign in'); if (!j.ok) { el('gateErr').textContent = j.error; return; } S.tempPw = pw; el('lPass').value=''; signedIn(j); }); };
+el('sBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Creating…');
+  fetchAuth('setup_admin', { name: el('sName').value, email: el('sEmail').value, password: el('sPass').value, code: el('sCode').value }).then(function(j){ busy(b, false, 'Create workspace'); if (!j.ok) { el('gateErr').textContent = j.error; return; } el('sPass').value=''; S.firstRun = true; signedIn(j); }); };
+el('cBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Saving…');
+  call('change_password', { old: S.tempPw || '', password: el('cNew').value }).then(function(j){ busy(b, false, 'Save and continue'); if (!j.ok) { el('gateErr').textContent = j.error; return; } ME.must_change=false; el('cNew').value=''; start(); }).catch(function(){ busy(b, false, 'Save and continue'); }); };
+function fetchAuth(action, data){
+  return fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(Object.assign({ action: action }, data)) })
+    .then(function(r){ return r.json(); }).catch(function(){ return { ok:false, error:'The server did not answer. Is the pipeline switched on?' }; });
+}
+el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; showAuth('login'); };
 
 function start(){
-  el('v-gate').classList.add('hide'); el('app').classList.remove('hide'); el('nav').classList.remove('hide'); el('logout').classList.remove('hide');
+  el('v-gate').classList.add('hide'); ['app','nav','logout','who'].forEach(function(id){ el(id).classList.remove('hide'); });
+  el('whoAv').textContent = initials(ME.name); el('whoName').textContent = ME.name; el('whoRole').textContent = ME.role === 'admin' ? 'Admin' : 'Recruiter';
+  el('seqEdit').classList.toggle('hide', ME.role !== 'admin');
   var h = location.hash || '';
   var m = h.match(/^#run=(\w+)/), l = h.match(/^#list=(\w+)/);
-  if (m) { S.runId = m[1]; go('run'); } else if (l) openList(l[1]); else go('search');
+  if (m) { S.runId = m[1]; go('run'); } else if (l) openList(l[1]); else go('home');
   loadRuns();
 }
 
 // ---------- navigation ----------
 function go(v){
-  ['search','run','list','lists','outreach'].forEach(function(k){ el('v-'+k).classList.toggle('hide', k !== v); });
+  ['home','search','run','list','lists','outreach','settings'].forEach(function(k){ el('v-'+k).classList.toggle('hide', k !== v); });
   [].forEach.call(document.querySelectorAll('#nav button'), function(b){ b.classList.toggle('on', b.dataset.go === v || (v==='list' && b.dataset.go==='lists') || (v==='run' && b.dataset.go==='search')); });
   el('bulk').classList.toggle('hide', v !== 'list' || !Object.keys(S.sel).length);
   if (v === 'run') pollRun();
   if (v === 'lists') loadRuns();
   if (v === 'outreach') loadOutreach();
-  if (v === 'search') history.replaceState(null,'',location.pathname+location.search);
+  if (v === 'home') loadHome();
+  if (v === 'settings') openSettings(S.stab || 'account');
+  if (v === 'search' || v === 'home' || v === 'settings') history.replaceState(null,'',location.pathname+location.search);
   window.scrollTo(0,0);
 }
 document.addEventListener('click', function(e){ var t = e.target.closest('[data-go]'); if (t) { e.preventDefault(); go(t.dataset.go); } });
@@ -629,6 +764,95 @@ function openList(id){
   }).catch(function(e){ if (e.message!=='locked') el('lRows').innerHTML='<tr><td colspan="8" class="empty">'+esc(e.message)+'</td></tr>'; });
 }
 
+// ---------- home ----------
+function ago(v){ var d = new Date(v); if (isNaN(d)) return ''; var s = Math.round((Date.now()-d.getTime())/1000);
+  if (s < 60) return 'just now'; if (s < 3600) return Math.round(s/60)+' min ago'; if (s < 86400) return Math.round(s/3600)+' h ago';
+  if (s < 7*86400) return Math.round(s/86400)+' d ago'; return d.toLocaleDateString(undefined,{day:'numeric',month:'short'}); }
+function loadHome(){
+  var hr = new Date().getHours();
+  el('hDate').textContent = new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+  el('hHello').textContent = (hr<12?'Good morning':(hr<17?'Good afternoon':'Good evening')) + ', ' + String((ME&&ME.name)||'').split(' ')[0];
+  call('dashboard').then(function(j){
+    if (!j.ok) { toast(j.error||'Could not load home.'); return; }
+    var w=j.week, t=j.totals;
+    el('hWelcome').classList.toggle('hide', t.searches > 0);
+    el('hKpis').innerHTML = [[w.searches,'searches this week'],[w.people,'people found this week'],[w.strong,'strong matches this week'],[t.active,'in follow-up now'],[t.replied,'replies'+(t.contacted?' · '+t.reply_rate+'% reply rate':'')]]
+      .map(function(k,i){ return '<div class="card kpi"><b'+(i===4?' style="color:var(--ok)"':'')+'>'+k[0]+'</b><span>'+esc(k[1])+'</span></div>'; }).join('');
+    el('hRunning').innerHTML = (j.running||[]).map(function(r){ return '<a href="#" class="card" data-run="'+esc(r.run_id)+'" data-status="running" style="display:flex;align-items:center;gap:12px;padding:14px 18px;text-decoration:none;color:var(--ink)"><span class="spin"></span><b>'+esc(r.role||'Search')+(r.location?' · '+esc(r.location):'')+'</b><span class="muted" style="font-size:13px">searching now</span><span style="margin-left:auto;font-weight:600;font-size:13px;color:var(--red)">Watch live →</span></a>'; }).join('');
+    var IC = { reply:['💬','var(--okbg)'], review:['★','var(--tint)'], bounce:['!','var(--badbg)'] };
+    el('hAtt').innerHTML = (j.attention||[]).map(function(a){ var ic = IC[a.kind]||['•','#F1F1F3'];
+      var go = a.kind==='review' ? '<a href="#" class="go" data-run="'+esc(a.run_id)+'" data-status="done">Review →</a>' : '<a href="#" class="go" data-go="outreach">Open →</a>';
+      return '<div class="att"><span class="ico" style="background:'+ic[1]+'">'+ic[0]+'</span><div style="display:flex;flex-direction:column"><span>'+esc(a.text)+'</span><span class="muted" style="font-size:12px">'+esc(ago(a.when))+'</span></div>'+go+'</div>'; }).join('')
+      || '<p class="muted" style="margin:0;font-size:14px">All caught up. New replies and fresh shortlists show up here.</p>';
+    el('hSrc').innerHTML = (j.sources||[]).map(function(s){ return '<tr><td><span class="tag">'+esc(s.source)+'</span></td><td>'+s.found+'</td><td>'+s.strong+'</td><td>'+s.contacted+'</td><td><b style="color:'+(s.replied?'var(--ok)':'inherit')+'">'+s.replied+'</b></td></tr>'; }).join('')
+      || '<tr><td colspan="5" class="muted">Run a few searches and the sources that work best for you show up here.</td></tr>';
+    var ck = j.checklist||[], done = ck.filter(function(c){ return c.done; }).length;
+    var GO = { search:'search', vote:'lists', approve:'lists', templates:'outreach', signature:'settings:sending', team:'settings:team' };
+    el('hStart').classList.toggle('hide', done === ck.length);
+    el('hStartN').textContent = done + ' of ' + ck.length + ' done';
+    el('hStartBar').style.width = Math.round(100*done/Math.max(1,ck.length)) + '%';
+    el('hChecks').innerHTML = ck.map(function(c){ var g = GO[c.key]||'search', adminOnly = (c.key==='templates'||c.key==='signature'||c.key==='team') && ME.role!=='admin';
+      return '<div class="chk'+(c.done?' done':'')+'"><span class="bx">'+(c.done?'✓':'')+'</span><span class="t">'+esc(c.text)+'</span>'+(c.done||adminOnly?'':'<a href="#" style="margin-left:auto;font-size:13px;font-weight:600" data-goto="'+g+'">Start →</a>')+'</div>'; }).join('');
+    el('hFeed').innerHTML = (j.activity||[]).map(function(a){ return '<div class="feed"><span class="av">'+esc(initials(a.name))+'</span><span><b>'+esc(a.name||'Someone')+'</b> '+esc(a.action)+(a.detail?' <span class="muted">· '+esc(a.detail)+'</span>':'')+'</span><span class="muted" style="font-size:12px;white-space:nowrap">'+esc(ago(a.at))+'</span></div>'; }).join('')
+      || '<p class="muted" style="margin:0;font-size:14px">What your team does shows up here.</p>';
+    S.services = j.services || [];
+  }).catch(function(e){ if (e.message!=='locked') toast(e.message); });
+}
+document.addEventListener('click', function(e){ var a=e.target.closest('[data-goto]'); if(!a) return; e.preventDefault(); var g=a.dataset.goto.split(':'); if (g[1]) S.stab=g[1]; go(g[0]); });
+
+// ---------- settings ----------
+function openSettings(tab){
+  S.stab = tab;
+  [].forEach.call(document.querySelectorAll('#sTabs button'), function(b){ b.classList.toggle('on', b.dataset.st===tab); });
+  [].forEach.call(document.querySelectorAll('[data-sp]'), function(p){ p.classList.toggle('hide', p.dataset.sp!==tab); });
+  if (tab==='account') { el('acName').textContent = ME.name; el('acEmail').textContent = ME.email; el('acUser').value = ME.email; el('acRole').innerHTML = '<span class="pill'+(ME.role==='admin'?' admin':'')+'">'+(ME.role==='admin'?'Admin':'Recruiter')+'</span>'; }
+  if (tab==='team') loadTeam();
+  if (tab==='sending') loadSending();
+  if (tab==='services') loadServices();
+}
+el('sTabs').onclick = function(e){ var b=e.target.closest('[data-st]'); if (b) openSettings(b.dataset.st); };
+el('acSave').onclick = function(){ var b=this; el('acMsg').textContent='Saving…';
+  call('change_password', { old: el('acOld').value, password: el('acNew').value }).then(function(j){ el('acMsg').textContent = j.ok ? 'Password updated.' : j.error; if (j.ok) { el('acOld').value=''; el('acNew').value=''; } }).catch(function(e){ if (e.message!=='locked') el('acMsg').textContent=e.message; }); };
+function loadTeam(){
+  var admin = ME.role==='admin'; el('tmAdminOnly').classList.toggle('hide', admin); el('tmBox').classList.toggle('hide', !admin);
+  if (!admin) return;
+  call('users').then(function(j){ if (!j.ok) { el('tmMsg').textContent=j.error; return; }
+    el('tmRows').innerHTML = j.users.sort(function(a,b){ return (a.status==='active'?0:1)-(b.status==='active'?0:1) || String(a.name).localeCompare(b.name); }).map(function(u){
+      var self = u.email===ME.email, off = u.status!=='active';
+      return '<tr style="'+(off?'opacity:.55':'')+'"><td><div style="display:flex;gap:10px;align-items:center"><span class="av" style="width:30px;height:30px;font-size:11px">'+esc(initials(u.name))+'</span><b>'+esc(u.name)+'</b>'+(self?' <span class="muted" style="font-size:12px">(you)</span>':'')+(u.must_change?' <span class="pill">invited</span>':'')+(off?' <span class="pill">off</span>':'')+'</div></td>'+
+        '<td class="muted">'+esc(u.email)+'</td><td>'+(self?'<span class="pill'+(u.role==='admin'?' admin':'')+'">'+(u.role==='admin'?'Admin':'Recruiter')+'</span>':'<select data-role="'+esc(u.email)+'" style="max-width:140px;height:34px;padding:4px 8px"><option value="recruiter"'+(u.role!=='admin'?' selected':'')+'>Recruiter</option><option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select>')+'</td>'+
+        '<td class="muted" style="font-size:13px">'+esc(u.last_login?ago(u.last_login):'never')+'</td>'+
+        '<td style="text-align:right;white-space:nowrap">'+(self?'':'<button class="btn" style="height:34px;padding:0 10px" data-reset="'+esc(u.email)+'">Reset password</button> <button class="btn" style="height:34px;padding:0 10px" data-onoff="'+esc(u.email)+'" data-to="'+(off?'active':'disabled')+'">'+(off?'Turn on':'Turn off')+'</button>')+'</td></tr>'; }).join('');
+  }).catch(function(e){ if (e.message!=='locked') el('tmMsg').textContent=e.message; });
+}
+function secretMsg(name, pw){ el('tmMsg').innerHTML = '<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px;background:var(--okbg);border-color:#BFE3CC"><b>Share this one-time password with '+esc(name)+' privately:</b><span class="secret">'+esc(pw)+'</span><span class="muted" style="font-size:13px">They sign in at this page with their email and this password, then choose their own. It is shown only once.</span></div>'; }
+el('tmAdd').onclick = function(){ var b=this; el('tmMsg').textContent=''; busy(b,true,'Adding…');
+  call('invite', { name: el('tmName').value, email: el('tmEmail').value, role: el('tmRole').value }).then(function(j){ busy(b,false,'Add');
+    if (!j.ok) { el('tmMsg').innerHTML = '<span class="err">'+esc(j.error)+'</span>'; return; }
+    el('tmName').value=''; el('tmEmail').value=''; loadTeam(); secretMsg(j.user.name, j.temp_password); }).catch(function(e){ busy(b,false,'Add'); if (e.message!=='locked') el('tmMsg').textContent=e.message; }); };
+el('tmRows').addEventListener('change', function(e){ var s=e.target.closest('[data-role]'); if(!s) return;
+  call('update_user', { email: s.dataset.role, role: s.value }).then(function(j){ toast(j.ok ? 'Role updated.' : j.error); loadTeam(); }).catch(function(){}); });
+el('tmRows').addEventListener('click', function(e){
+  var r=e.target.closest('[data-reset]'); if (r) { if (!r._armed) { r._armed=1; r.textContent='Confirm reset'; setTimeout(function(){ r._armed=0; r.textContent='Reset password'; }, 5000); return; }
+    call('reset_password', { email: r.dataset.reset }).then(function(j){ if (!j.ok) { toast(j.error); return; } loadTeam(); secretMsg(r.dataset.reset, j.temp_password); }).catch(function(){}); return; }
+  var o=e.target.closest('[data-onoff]'); if (o) { call('update_user', { email: o.dataset.onoff, status: o.dataset.to }).then(function(j){ toast(j.ok ? (o.dataset.to==='active'?'Account turned on.':'Account turned off. They are signed out.') : j.error); loadTeam(); }).catch(function(){}); }
+});
+function loadSending(){
+  var admin = ME.role==='admin';
+  ['snSig','snStart','snEnd','snCap','snSave'].forEach(function(id){ el(id).disabled = !admin; });
+  el('snMsg').textContent = admin ? '' : 'Only admins can change these.';
+  call('settings').then(function(j){ if (!j.ok) return; var s=j.settings;
+    el('snSig').value=s.signature; el('snStart').value=s.window_start; el('snEnd').value=s.window_end; el('snCap').value=s.daily_cap;
+    el('snWk').classList.toggle('on', !!s.weekdays_only); el('snWk').setAttribute('aria-pressed', s.weekdays_only?'true':'false'); }).catch(function(){}); }
+el('snWk').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
+el('snSave').onclick = function(){ var b=this; el('snMsg').textContent='Saving…';
+  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on') } })
+    .then(function(j){ el('snMsg').textContent = j.ok ? 'Saved. The next follow-ups use these settings.' : j.error; }).catch(function(e){ if (e.message!=='locked') el('snMsg').textContent=e.message; }); };
+function loadServices(){
+  var render = function(){ el('svRows').innerHTML = (S.services||[]).map(function(s){ return '<tr><td><b>'+esc(s.name)+'</b></td><td class="muted">'+esc(s.uses)+'</td><td>'+(s.last_ok?'<span class="st ok">✓ '+esc(ago(s.last_ok))+'</span>':'<span class="st">Not used yet</span>')+'</td></tr>'; }).join(''); };
+  if (S.services && S.services.length) render(); else call('dashboard').then(function(j){ S.services=j.services||[]; render(); }).catch(function(){});
+}
+
 // ---------- follow-up editor ----------
 S.tpl = null;
 function sample(t){ return String(t).replace(/\{first_name\}/g,'Asha').replace(/\{role\}/g,'Product Manager').replace(/\{in_location\}/g,' in Bangalore').replace(/\{location\}/g,'Bangalore').replace(/\{at_company\}/g,' at Acme Payments').replace(/\{company\}/g,'Acme Payments'); }
@@ -674,10 +898,10 @@ function loadOutreach(){
 // ---------- boot ----------
 chipList('fMust', S.must, 'must', 'must-have skills'); chipList('fNice', S.nice, '', 'nice-to-have skills'); chipList('fEx', S.ex, '', 'words to exclude');
 renderSources(); updateGo();
-call('ping').then(function(j){
-  if (!j.ok) { showGate(false); return; }
-  start();
-}).catch(function(e){ if (e.message!=='locked') { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(e.message)+'</p>'); } });
+fetchAuth('auth_state', {}).then(function(j){
+  if (!j.ok) { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(j.error || 'The server did not answer.')+'</p>'); return; }
+  showAuth(j.has_users ? 'login' : 'setup', j.need_code);
+});
 })();
 </script>
 </body>

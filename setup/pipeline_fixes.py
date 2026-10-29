@@ -3519,3 +3519,388 @@ def apply_round28(nodes, conns):
     link("App Route", "App Ensure Templates 2", ri["save_templates"])
     link("App Ensure Templates 2", "Template Rows"); link("Template Rows", "Save Template"); link("Save Template", "Save Templates Reply"); link("Save Templates Reply", "App Reply")
     return nodes, conns
+
+
+# ======================================================================
+# Round 29: the app becomes a team product.
+# - Team logins: one account per person (admin or recruiter), passwords
+#   stored as salted PBKDF2-SHA256, 7-day sessions, and an activity log of
+#   who searched, approved, edited or invited whom. The old shared access
+#   code is only used once, to prove you own the workspace when you create
+#   the first admin.
+# - Settings: signature, sending window, daily cap and weekdays-only for the
+#   follow-ups, kept in app_settings and read by the follow-up runner.
+# - Home dashboard: this week's numbers, what needs attention, best sources,
+#   recent activity and a getting-started checklist.
+# ======================================================================
+USER_COLUMNS = [("email", "string"), ("name", "string"), ("role", "string"), ("pass_hash", "string"), ("salt", "string"),
+                ("status", "string"), ("must_change", "boolean"), ("created_at", "date"), ("last_login", "date")]
+SESSION_COLUMNS = [("token", "string"), ("email", "string"), ("expires_at", "date"), ("created_at", "date")]
+ACTIVITY_COLUMNS = [("at", "date"), ("email", "string"), ("name", "string"), ("action", "string"), ("detail", "string")]
+
+SHA256_JS = r"""
+// ---- SHA-256 / HMAC / PBKDF2 in plain JavaScript (no modules needed) ----
+function utf8(s) { return Array.from(unescape(encodeURIComponent(String(s)))).map(function(c){ return c.charCodeAt(0); }); }
+const K256 = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256(bytes) {
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const l = bytes.length, m = bytes.slice(); m.push(0x80);
+  while ((m.length % 64) !== 56) m.push(0);
+  const bits = l * 8; for (let i = 7; i >= 0; i--) m.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 0xff);
+  const w = new Array(64);
+  for (let o = 0; o < m.length; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (m[o+i*4] << 24) | (m[o+i*4+1] << 16) | (m[o+i*4+2] << 8) | m[o+i*4+3];
+    for (let i = 16; i < 64; i++) {
+      const a = w[i-15], b = w[i-2];
+      const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+      const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + K256[i] + w[i]) | 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  const out = []; H.forEach(function(x){ out.push((x >>> 24) & 0xff, (x >>> 16) & 0xff, (x >>> 8) & 0xff, x & 0xff); });
+  return out;
+}
+function hmac256(key, msg) {
+  if (key.length > 64) key = sha256(key);
+  const k = key.concat(new Array(64 - key.length).fill(0));
+  return sha256(k.map(function(b){ return b ^ 0x5c; }).concat(sha256(k.map(function(b){ return b ^ 0x36; }).concat(msg))));
+}
+function pbkdf2hex(pass, salt, iter) {
+  const P = utf8(pass);
+  let u = hmac256(P, utf8(salt).concat([0, 0, 0, 1])), t = u.slice();
+  for (let i = 1; i < iter; i++) { u = hmac256(P, u); for (let j = 0; j < 32; j++) t[j] ^= u[j]; }
+  return t.map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+"""
+
+APP_GATE_29 = SHA256_JS + r"""
+// ---- Every app request: who is this, are they allowed, then pick a route ----
+let body = $('App API').first().json.body;
+if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+body = body || {};
+const rand = String((($('Fresh Random').first() || {}).json || {}).rand || '');
+const settings = {};
+$('Load App Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) settings[r.key] = String(r.value == null ? '' : r.value); });
+const users = $('Load App Users').all().map(function(i){ return i.json || {}; }).filter(function(u){ return u.email; });
+const sessions = $('Load App Sessions').all().map(function(i){ return i.json || {}; }).filter(function(s){ return s.token; });
+const action = String(body.action || '');
+const now = new Date();
+const W = { users: [], sessions: [], activity: [], settings: [] };
+const out = function(route, extra){ return [{ json: Object.assign({ route: route, writes: W }, extra || {}) }]; };
+const reply = function(r){ return out('reply', { response: r }); };
+const ITER = 4000;
+const hashPw = function(pw, salt){ return pbkdf2hex(String(pw), String(salt), ITER); };
+const USER_KEYS = ['email', 'name', 'role', 'pass_hash', 'salt', 'status', 'must_change', 'created_at', 'last_login'];
+const saveUser = function(u){ const r = {}; USER_KEYS.forEach(function(k){ if (u[k] !== undefined && u[k] !== null) r[k] = u[k]; }); r.must_change = r.must_change === true || r.must_change === 'true'; W.users.push(r); };
+const pub = function(u){ return { email: u.email, name: u.name, role: u.role, status: u.status, last_login: u.last_login || '', must_change: u.must_change === true || u.must_change === 'true' }; };
+const log = function(u, what, detail){ W.activity.push({ at: now.toISOString(), email: u.email, name: u.name, action: what, detail: String(detail || '').slice(0, 300) }); };
+const newSession = function(u){ const token = rand.slice(32, 64); W.sessions.push({ token: token, email: u.email, expires_at: new Date(now.getTime() + 7 * 864e5).toISOString(), created_at: now.toISOString() }); return token; };
+const tempPassword = function(){ return 'tr-' + rand.slice(40, 50); };
+const em = function(e){ return String(e || '').trim().toLowerCase(); };
+const okEmail = function(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); };
+const pwErr = function(p){ return String(p || '').length < 8 ? 'Use at least 8 characters for the password.' : ''; };
+const activeAdmins = function(){ return users.filter(function(u){ return u.role === 'admin' && u.status === 'active'; }); };
+if (rand.length < 64) return reply({ ok: false, error: 'Could not start a secure session. Try again.' });
+
+// -- signed out --
+if (action === 'auth_state') return reply({ ok: true, has_users: users.length > 0, need_code: !users.length && !!settings.access_code });
+if (action === 'setup_admin') {
+  if (users.length) return reply({ ok: false, error: 'This workspace is already set up. Sign in instead.' });
+  if (settings.access_code && String(body.code || '') !== settings.access_code) return reply({ ok: false, error: 'That access code is not right.' });
+  const email = em(body.email), name = String(body.name || '').trim().slice(0, 80);
+  if (!name || !okEmail(email)) return reply({ ok: false, error: 'Add your name and a valid email.' });
+  if (pwErr(body.password)) return reply({ ok: false, error: pwErr(body.password) });
+  const salt = rand.slice(0, 32);
+  const u = { email: email, name: name, role: 'admin', salt: salt, pass_hash: hashPw(body.password, salt), status: 'active', must_change: false, created_at: now.toISOString(), last_login: now.toISOString() };
+  saveUser(u); log(u, 'created the workspace', '');
+  return reply({ ok: true, token: newSession(u), user: pub(u) });
+}
+if (action === 'login') {
+  const u = users.find(function(x){ return x.email === em(body.email); });
+  if (!u || u.status !== 'active' || hashPw(body.password || '', u.salt) !== u.pass_hash) return reply({ ok: false, error: 'Email or password is not right.' });
+  saveUser(Object.assign({}, u, { last_login: now.toISOString() })); log(u, 'signed in', '');
+  return reply({ ok: true, token: newSession(u), user: pub(u) });
+}
+
+// -- everything else needs a live session --
+const tok = String(body.token || '');
+const sess = tok.length >= 32 ? sessions.find(function(s){ return s.token === tok; }) : null;
+const me = sess && new Date(sess.expires_at) > now ? users.find(function(u){ return u.email === sess.email && u.status === 'active'; }) : null;
+if (!me) return reply({ ok: false, auth: 'need_login', has_users: users.length > 0 });
+const isAdmin = me.role === 'admin';
+if (action === 'ping' || action === 'me') return reply({ ok: true, user: pub(me) });
+if (action === 'logout') { W.sessions.push({ token: tok, email: me.email, expires_at: now.toISOString(), created_at: sess.created_at || now.toISOString() }); return reply({ ok: true }); }
+if (action === 'change_password') {
+  if (hashPw(body.old || '', me.salt) !== me.pass_hash) return reply({ ok: false, error: 'Your current password is not right.' });
+  if (pwErr(body.password)) return reply({ ok: false, error: pwErr(body.password) });
+  const salt = rand.slice(0, 32);
+  saveUser(Object.assign({}, me, { salt: salt, pass_hash: hashPw(body.password, salt), must_change: false })); log(me, 'changed their password', '');
+  return reply({ ok: true });
+}
+const ADMIN_ONLY = ['users', 'invite', 'update_user', 'reset_password', 'save_settings', 'save_templates'];
+if (ADMIN_ONLY.indexOf(action) !== -1 && !isAdmin) return reply({ ok: false, error: 'Only an admin can do that.' });
+if (action === 'users') return reply({ ok: true, users: users.map(pub) });
+if (action === 'invite') {
+  const email = em(body.email), name = String(body.name || '').trim().slice(0, 80), role = body.role === 'admin' ? 'admin' : 'recruiter';
+  if (!name || !okEmail(email)) return reply({ ok: false, error: 'Add their name and a valid email.' });
+  if (users.some(function(u){ return u.email === email; })) return reply({ ok: false, error: 'Someone with that email is already on the team.' });
+  const temp = tempPassword(), salt = rand.slice(0, 32);
+  const u = { email: email, name: name, role: role, salt: salt, pass_hash: hashPw(temp, salt), status: 'active', must_change: true, created_at: now.toISOString() };
+  saveUser(u); log(me, 'added a teammate', name + ' (' + role + ')');
+  return reply({ ok: true, user: pub(u), temp_password: temp });
+}
+if (action === 'update_user' || action === 'reset_password') {
+  const u = users.find(function(x){ return x.email === em(body.email); });
+  if (!u) return reply({ ok: false, error: 'No one with that email.' });
+  if (action === 'reset_password') {
+    const temp = tempPassword(), salt = rand.slice(0, 32);
+    saveUser(Object.assign({}, u, { salt: salt, pass_hash: hashPw(temp, salt), must_change: true })); log(me, 'reset a password', u.name);
+    return reply({ ok: true, temp_password: temp });
+  }
+  const role = body.role === 'admin' ? 'admin' : (body.role === 'recruiter' ? 'recruiter' : u.role);
+  const status = body.status === 'disabled' ? 'disabled' : (body.status === 'active' ? 'active' : u.status);
+  const losesAdmin = u.role === 'admin' && u.status === 'active' && (role !== 'admin' || status !== 'active');
+  if (losesAdmin && activeAdmins().length <= 1) return reply({ ok: false, error: 'The team needs at least one active admin.' });
+  if (u.email === me.email && status !== 'active') return reply({ ok: false, error: 'You cannot turn off your own account.' });
+  saveUser(Object.assign({}, u, { role: role, status: status }));
+  log(me, status !== u.status ? (status === 'active' ? 'turned on' : 'turned off') + ' an account' : 'changed a role', u.name + (role !== u.role ? ' → ' + role : ''));
+  return reply({ ok: true, user: pub(Object.assign({}, u, { role: role, status: status })) });
+}
+const SETTING_KEYS = ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only'];
+const sendSettings = function(){ return { signature: settings.signature || '', window_start: settings.window_start || '09:30', window_end: settings.window_end || '18:30',
+  daily_cap: Number(settings.daily_cap) || 50, weekdays_only: settings.weekdays_only !== 'false' }; };
+if (action === 'settings') return reply({ ok: true, settings: sendSettings(), is_admin: isAdmin });
+if (action === 'save_settings') {
+  const s = body.settings || {};
+  const hm = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!hm.test(String(s.window_start)) || !hm.test(String(s.window_end)) || String(s.window_start) >= String(s.window_end)) return reply({ ok: false, error: 'Pick a sending window like 09:30 to 18:30.' });
+  const cap = parseInt(s.daily_cap, 10);
+  if (!(cap >= 1 && cap <= 200)) return reply({ ok: false, error: 'Daily limit must be between 1 and 200.' });
+  const vals = { signature: String(s.signature || '').slice(0, 500), window_start: String(s.window_start), window_end: String(s.window_end), daily_cap: String(cap), weekdays_only: s.weekdays_only === false ? 'false' : 'true' };
+  SETTING_KEYS.forEach(function(k){ W.settings.push({ key: k, value: vals[k] }); });
+  log(me, 'updated the sending settings', vals.window_start + '–' + vals.window_end + ', ' + vals.daily_cap + '/day');
+  return reply({ ok: true, settings: Object.assign(sendSettings(), vals, { daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false' }) });
+}
+
+// -- routes with their own steps --
+const ROUTES = ['intake', 'search', 'status', 'results', 'runs', 'approve', 'feedback', 'outreach', 'templates', 'save_templates', 'dashboard'];
+if (ROUTES.indexOf(action) === -1) return reply({ ok: false, error: 'Unknown action.' });
+if (action === 'save_templates') {
+  const st = Array.isArray(body.steps) ? body.steps : [];
+  const okSteps = st.length && st.every(function(s){ return [2, 3, 4, 5].indexOf(Number(s && s.step)) !== -1 && String(s.body || '').trim().length >= 10 && String(s.body || '').length <= 4000; });
+  if (!okSteps) return reply({ ok: false, error: 'Each follow-up needs some text (10 to 4000 characters).' });
+  log(me, 'edited the follow-up emails', '');
+}
+if (action === 'search') { const c = body.criteria || {}; log(me, 'started a search', [c.role, c.city].filter(Boolean).join(' · ')); }
+if (action === 'approve') log(me, 'approved people for outreach', (Array.isArray(body.keys) ? body.keys.length : 0) + ' people');
+body.user = pub(me);
+return out(action, { body: body, user: pub(me), users_count: users.length });
+"""
+
+WRITES_JS = r"""
+// Save what the gate decided (%s). Nothing to save: the branch stops here.
+const w = ($('App Gate').first().json.writes || {})['%s'] || [];
+return w.map(function(r){ return { json: r }; });
+"""
+
+LOAD_SEQ_SETTINGS_JS = r"""
+// Sending settings from the app (Settings → Sending); the constants above are the defaults.
+const _S = {};
+try { $('Load Seq Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) _S[r.key] = String(r.value == null ? '' : r.value); }); } catch (e) {}
+const _HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CAP = parseInt(_S.daily_cap, 10) > 0 ? parseInt(_S.daily_cap, 10) : DAILY_CAP;
+const WIN_START = _HM.test(_S.window_start || '') ? _S.window_start : START;
+const WIN_END = _HM.test(_S.window_end || '') ? _S.window_end : END;
+const WEEKDAYS_ONLY = _S.weekdays_only !== 'false';
+const SIG = _S.signature ? 'Best regards,<br/>' + _S.signature.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>') + '</p>' : SIGNATURE;
+"""
+
+DASHBOARD_REPLY = r"""
+// Home: this week, what needs attention, best sources, team activity, getting started.
+const g = $('App Gate').first().json;
+const all = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = all('Load Dash Runs').filter(function(r){ return r.run_id; });
+const people = all('Load Dash People').filter(function(r){ return r.dedupe_key; });
+const seq = all('Load Dash Sequences').filter(function(r){ return r.contact_key; });
+const acts = all('Load Dash Activity').filter(function(r){ return r.at; });
+const tpl = all('Load Dash Templates').filter(function(r){ return r.step && r.body; });
+const sets = {}; all('Load Dash Settings').forEach(function(r){ if (r.key) sets[r.key] = r.value; });
+const now = Date.now(), WEEK = 7 * 864e5;
+const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
+const thisWeek = function(v){ return now - t(v) < WEEK; };
+const pct = function(c){ return (Number(c.fit_score) || 0) * 10; };
+const runsWeek = runs.filter(function(r){ return thisWeek(r.started_at); });
+const peopleWeek = people.filter(function(p){ return runsWeek.some(function(r){ return String(r.run_id) === String(p.run_id); }); });
+const replied = seq.filter(function(s){ return s.status === 'replied'; });
+const contacted = seq.length;
+// by source: found, strong, contacted, replied
+const src = {};
+const bySeq = {}; seq.forEach(function(s){ bySeq[s.contact_key] = s; });
+people.forEach(function(p){ const k = p.source || 'Other'; const s = src[k] = src[k] || { source: k, found: 0, strong: 0, contacted: 0, replied: 0 };
+  s.found++; if (pct(p) >= 80) s.strong++; const q = bySeq[p.dedupe_key]; if (q) { s.contacted++; if (q.status === 'replied') s.replied++; } });
+const sources = Object.keys(src).map(function(k){ return src[k]; }).sort(function(a, b){ return (b.replied - a.replied) || (b.strong - a.strong) || (b.found - a.found); }).slice(0, 8);
+// needs attention
+const attention = [];
+replied.slice(0, 5).forEach(function(s){ attention.push({ kind: 'reply', text: (s.first_name || 'Someone') + ' replied about ' + (s.role || 'a role'), when: s.last_sent_at || '' }); });
+seq.filter(function(s){ return s.status === 'stopped' && /bounc/i.test(s.status_text || ''); }).slice(0, 3).forEach(function(s){ attention.push({ kind: 'bounce', text: 'Email to ' + (s.first_name || 'a candidate') + ' bounced. Find another address.', when: s.last_sent_at || '' }); });
+runs.filter(function(r){ return r.status === 'done'; }).sort(function(a, b){ return t(b.started_at) - t(a.started_at); }).slice(0, 6).forEach(function(r){
+  const ps = people.filter(function(p){ return String(p.run_id) === String(r.run_id); });
+  const fresh = ps.filter(function(p){ return pct(p) >= 80 && !p.approved && !p.feedback && !bySeq[p.dedupe_key]; }).length;
+  if (fresh) attention.push({ kind: 'review', run_id: String(r.run_id), text: fresh + ' strong match' + (fresh > 1 ? 'es' : '') + ' to review in ' + (r.role || 'a search') + (r.location ? ' · ' + r.location : ''), when: r.finished_at || r.started_at || '' });
+});
+const running = runs.filter(function(r){ return r.status === 'running' && now - t(r.started_at) < 15 * 60000; })
+  .map(function(r){ return { run_id: String(r.run_id), role: r.role, location: r.location, stage: r.stage }; });
+// connected services: last time each one produced people
+const services = [];
+const lastBy = {};
+runs.filter(function(r){ return r.status === 'done' && r.by_source; }).forEach(function(r){
+  String(r.by_source).split('·').forEach(function(p){ const m = p.trim().match(/^(.+?)\s+(\d+)$/); if (m && (!lastBy[m[1]] || t(r.started_at) > t(lastBy[m[1]]))) lastBy[m[1]] = r.started_at; });
+});
+const svc = function(name, uses, ok){ services.push({ name: name, uses: uses, last_ok: ok || '' }); };
+const anyOf = function(list){ let best = ''; list.forEach(function(s){ if (lastBy[s] && t(lastBy[s]) > t(best)) best = lastBy[s]; }); return best; };
+svc('Google search (Serper)', 'LinkedIn, Open Web and 15 profile sites', anyOf(['LinkedIn', 'Open Web', 'Topmate', 'ADPList', 'Codeforces', 'HackerEarth', 'Devfolio', 'LeetCode', 'Stack Overflow', 'Kaggle', 'Behance', 'Dribbble']));
+svc('OpenAI', 'Reads briefs and scores every profile', runs.filter(function(r){ return r.status === 'done' && Number(r.count) > 0; }).map(function(r){ return r.started_at; }).sort().pop() || '');
+svc('GitHub', 'Developer profiles and commit emails', lastBy.GitHub || '');
+svc('Apollo', 'Work emails and titles', lastBy.Apollo || '');
+svc('Gmail', 'Sends outreach and follow-ups', seq.map(function(s){ return s.last_sent_at; }).sort().pop() || '');
+// getting started
+const steps = [
+  { key: 'search', text: 'Run your first search', done: runs.length > 0 },
+  { key: 'vote', text: 'Give a 👍 or 👎 on a shortlist so the ranking learns', done: people.some(function(p){ return p.feedback; }) },
+  { key: 'approve', text: 'Approve someone for outreach', done: contacted > 0 || people.some(function(p){ return p.approved === true || p.approved === 'true'; }) },
+  { key: 'templates', text: 'Make the follow-up emails yours', done: tpl.length > 0 && tpl.some(function(r){ return !/Just bumping this up in case it got buried/.test(String(r.body)); }) },
+  { key: 'signature', text: 'Set your email signature', done: !!sets.signature },
+  { key: 'team', text: 'Invite a teammate', done: (g.users_count || 1) > 1 }
+];
+return [{ json: { response: { ok: true, user: g.user,
+  week: { searches: runsWeek.length, people: peopleWeek.length, strong: peopleWeek.filter(function(p){ return pct(p) >= 80; }).length },
+  totals: { searches: runs.length, people: people.length, contacted: contacted, replied: replied.length, active: seq.filter(function(s){ return s.status === 'active'; }).length,
+    reply_rate: contacted ? Math.round(100 * replied.length / contacted) : 0 },
+  attention: attention.slice(0, 8), running: running, sources: sources, services: services,
+  activity: acts.sort(function(a, b){ return t(b.at) - t(a.at); }).slice(0, 12).map(function(a){ return { at: a.at, name: a.name, action: a.action, detail: a.detail }; }),
+  checklist: steps } } }];
+"""
+
+APP_ROUTES_29 = APP_ROUTES_28 + ["dashboard"]
+
+
+def apply_round29(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def link(a, b, idx=0, first=False):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        c = {"node": b, "type": "main", "index": 0}
+        if first:
+            conns[a]["main"][idx].insert(0, c)
+        else:
+            conns[a]["main"][idx].append(c)
+
+    def dt(name, op, table, pos, extra=None, **kw):
+        p = {"resource": "row", "operation": op, "dataTableId": _dt_ref(table)}
+        p.update(extra or {})
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, p, **kw)
+        new.append(n)
+        return n
+
+    def code(name, js, pos, once=False):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def cond(k, v):
+        return {"conditions": [{"keyName": k, "condition": "eq", "keyValue": v}]}
+
+    # 1. the gate knows who you are
+    api, gate = N["App API"], N["App Gate"]
+    ax, ay = api["position"]
+    gx, gy = gate["position"]
+    rnd = _node("Fresh Random", "n8n-nodes-base.crypto", 1, [ax, ay + 180], {
+        "action": "generate", "dataPropertyName": "rand", "encodingType": "hex", "stringLength": 64})
+    new.append(rnd)
+    nxt = conns["App API"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Ensure App Settings"], nxt
+    conns["App API"]["main"][0] = [{"node": "Fresh Random", "type": "main", "index": 0}]
+    link("Fresh Random", "Ensure App Settings")
+    prev = conns["Load App Settings"]["main"][0]
+    assert [c["node"] for c in prev] == ["App Gate"], prev
+    e1 = _dt_ensure("Ensure App Users", "app_users", USER_COLUMNS, [gx - 220, gy + 180]); new.append(e1)
+    e2 = _dt_ensure("Ensure App Sessions", "app_sessions", SESSION_COLUMNS, [gx - 220, gy + 340]); new.append(e2)
+    e3 = _dt_ensure("Ensure App Activity", "app_activity", ACTIVITY_COLUMNS, [gx - 220, gy + 500]); new.append(e3)
+    lu = dt("Load App Users", "get", "app_users", [gx, gy + 180], {"returnAll": True}, alwaysOutputData=True); lu["executeOnce"] = True
+    ls = dt("Load App Sessions", "get", "app_sessions", [gx, gy + 340], {"returnAll": True}, alwaysOutputData=True); ls["executeOnce"] = True
+    conns["Load App Settings"]["main"][0] = [{"node": "Ensure App Users", "type": "main", "index": 0}]
+    link("Ensure App Users", "Ensure App Sessions"); link("Ensure App Sessions", "Ensure App Activity")
+    link("Ensure App Activity", "Load App Users"); link("Load App Users", "Load App Sessions"); link("Load App Sessions", "App Gate")
+    gate["parameters"]["jsCode"] = APP_GATE_29
+    gate["executeOnce"] = True
+
+    # 2. the gate's writes, saved before the request is answered (placed above App Route)
+    wy = gy - 520
+    for i, (kind, table, op, key) in enumerate([("users", "app_users", "upsert", "email"), ("sessions", "app_sessions", "upsert", "token"),
+                                                ("activity", "app_activity", "insert", None), ("settings", "app_settings", "upsert", "key")]):
+        nm = kind.capitalize() + " Writes"
+        code(nm, WRITES_JS % (kind, kind), [gx + 220, wy + i * 120])
+        extra = {"columns": _automap(), "options": {}}
+        if key:
+            extra.update({"matchType": "allConditions", "filters": cond(key, "={{ $json.%s }}" % key)})
+        dt("Save " + kind.capitalize(), op, table, [gx + 440, wy + i * 120], extra, onError="continueRegularOutput")
+        link(nm, "Save " + kind.capitalize())
+    route_link = conns["App Gate"]["main"][0]
+    conns["App Gate"]["main"][0] = [{"node": k + " Writes", "type": "main", "index": 0} for k in ["Users", "Sessions", "Activity", "Settings"]] + route_link
+
+    # 3. dashboard route
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(APP_ROUTES_29)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(APP_ROUTES_29)
+    while len(conns["App Route"]["main"]) < len(APP_ROUTES_29):
+        conns["App Route"]["main"].append([])
+    bx, by = N["App Ensure Templates 2"]["position"]
+    by += 200
+    loads = [("Load Dash Runs", "app_runs"), ("Load Dash People", "app_candidates"), ("Load Dash Sequences", SEQ_TABLE),
+             ("Load Dash Activity", "app_activity"), ("Load Dash Templates", TPL_TABLE), ("Load Dash Settings", "app_settings")]
+    for i, (nm, table) in enumerate(loads):
+        n = dt(nm, "get", table, [bx + i * 220, by], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+        n["executeOnce"] = True
+        if i:
+            link(loads[i - 1][0], nm)
+    code("Dashboard Reply", DASHBOARD_REPLY, [bx + len(loads) * 220, by], once=True)
+    link(loads[-1][0], "Dashboard Reply"); link("Dashboard Reply", "App Reply")
+    link("App Route", loads[0][0], APP_ROUTES_29.index("dashboard"))
+
+    # 4. follow-ups use the app's sending settings
+    lt = N["Load Templates"]; x, y = lt["position"]
+    lss = dt("Load Seq Settings", "get", "app_settings", [x + 110, y + 160], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    lss["executeOnce"] = True
+    i = [c["node"] for c in conns["Load Templates"]["main"][0]].index("Load Sequences")
+    conns["Load Templates"]["main"][0][i] = {"node": "Load Seq Settings", "type": "main", "index": 0}
+    link("Load Seq Settings", "Load Sequences")
+    p = N["Due Follow-ups"]["parameters"]
+    marker = "// pick the follow-ups that are due now"
+    assert marker in p["jsCode"]
+    p["jsCode"] = p["jsCode"].replace(marker, LOAD_SEQ_SETTINGS_JS.lstrip() + marker, 1)
+    for old, newv in [("if (now.weekday > 5 || hm < START || hm >= END) return [];", "if ((WEEKDAYS_ONLY && now.weekday > 5) || hm < WIN_START || hm >= WIN_END) return [];"),
+                      ("let room = Math.max(0, DAILY_CAP - sentToday);", "let room = Math.max(0, CAP - sentToday);"),
+                      ("optOut + '<p>' + SIGNATURE", "optOut + '<p>' + SIG")]:
+        assert old in p["jsCode"], "round29 Due Follow-ups: " + old
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    nodes.extend(new)
+    return nodes, conns
