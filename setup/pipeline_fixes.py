@@ -2647,3 +2647,479 @@ def apply_round24(nodes, conns):
 
     nodes.extend(new)
     return nodes, conns
+
+
+# ======================================================================
+# Round 25: the sourcing app.
+# A web app served by the recruiter's own n8n (GET /webhook/sourcing-app):
+#   - one search screen with an AI intake agent: reads the brief or JD as
+#     you type, fills the criteria, asks up to 2 clarifying questions and
+#     writes a scoring rubric (which the scoring AI then uses);
+#   - a live run screen (progress from the pipeline itself);
+#   - a shortlist with match %, per-criterion checks, feedback votes and
+#     "Approve for outreach" (ticks Send Email? in the sheet, so the
+#     existing first email + day 2/4/5/7 follow-ups take over);
+#   - an outreach view of every sequence.
+# A team access code (chosen on first visit) protects the API.
+# State: n8n Data Tables app_settings, app_runs, app_candidates,
+# app_feedback. The Google Sheet stays the system of record.
+# ======================================================================
+import uuid as _uuid
+
+APP_PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
+                 "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance"]
+APP_REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany",
+               "France", "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
+
+RUN_COLUMNS = [("run_id", "string"), ("role", "string"), ("location", "string"), ("must", "string"), ("sources", "string"),
+               ("status", "string"), ("stage", "number"), ("count", "number"), ("by_source", "string"), ("note", "string"),
+               ("started_at", "date"), ("finished_at", "date")]
+CAND_COLUMNS = [("run_id", "string"), ("dedupe_key", "string"), ("name", "string"), ("title", "string"), ("company", "string"),
+                ("location", "string"), ("location_review", "string"), ("fit_score", "number"), ("confidence", "string"),
+                ("experience_check", "string"), ("summary", "string"), ("key_skills", "string"), ("email", "string"),
+                ("contact_source", "string"), ("source", "string"), ("profile_url", "string"), ("linkedin", "string"),
+                ("github", "string"), ("resume_link", "string"), ("outreach_status", "string"), ("approved", "boolean"),
+                ("feedback", "string")]
+SETTINGS_COLUMNS = [("key", "string"), ("value", "string")]
+FEEDBACK_COLUMNS = [("run_id", "string"), ("dedupe_key", "string"), ("feedback", "string")]
+APP_ROUTES = ["reply", "claim", "intake", "search", "status", "results", "runs", "approve", "feedback", "outreach"]
+
+APP_GATE = r"""
+// Every app request: check the team access code, then pick a route.
+let body = $('App API').first().json.body;
+if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+body = body || {};
+const rows = $('Load App Settings').all().map(function(i){ return i.json || {}; });
+const saved = String((rows.find(function(r){ return r.key === 'access_code'; }) || {}).value || '');
+const action = String(body.action || '');
+const code = String(body.code || '');
+const reply = function(r){ return [{ json: { route: 'reply', response: r } }]; };
+if (!saved) {
+  if (action === 'claim' && code.length >= 6) return [{ json: { route: 'claim', code: code } }];
+  return reply({ ok: false, auth: 'need_code', claim: true });
+}
+if (code !== saved) return reply({ ok: false, auth: 'need_code', claim: false });
+if (action === 'ping' || action === 'claim') return reply({ ok: true });
+const ROUTES = ['intake', 'search', 'status', 'results', 'runs', 'approve', 'feedback', 'outreach'];
+if (ROUTES.indexOf(action) === -1) return reply({ ok: false, error: 'Unknown action.' });
+return [{ json: { route: action, body: body } }];
+"""
+
+INTAKE_PROMPT = r"""
+// The intake agent: what a senior sourcer would take from the brief.
+const b = $json.body || {};
+const brief = String(b.brief || '').slice(0, 12000);
+const answers = b.answers && typeof b.answers === 'object' ? b.answers : {};
+const qa = Object.keys(answers).map(function(q){ return 'Q: ' + q + '\nA: ' + answers[q]; }).join('\n');
+const PLATFORMS = %s;
+const REGIONS = %s;
+const system = [
+  'You are a senior sourcer at a recruiting firm. A recruiter gives you a hiring brief or a job description.',
+  'Return ONLY a JSON object with these keys:',
+  '"criteria": { "role": short job title, "similar_titles": up to 3 alternative titles people use for this job,',
+  '  "must": 2-5 hard skills or tools that MUST show up in a public profile (never soft skills, never years),',
+  '  "nice": up to 4 nice-to-have skills, "experience": exactly one of "0-2 years","3-5 years","5-8 years","8+ years","Any"',
+  '  (if years are stated pick the band containing the lower number; junior/graduate => "0-2 years", senior => "5-8 years", lead/principal/head => "8+ years"),',
+  '  "city": city or "", "region": exactly one of ' + JSON.stringify(REGIONS) + ',',
+  '  "companies": target companies or industry as a short comma list or "", "exclude": words or companies to exclude (array) },',
+  '"sources": the best 3-6 of ' + JSON.stringify(PLATFORMS) + ' for this role (engineering: LinkedIn, GitHub, Stack Overflow; data/ML: add Kaggle, Hugging Face; design: Dribbble, Behance; non-technical roles: LinkedIn and Google / Open Web only),',
+  '"questions": 0 to 2 questions, ONLY where the answer would clearly change who we search for (e.g. must-have vs nice-to-have, remote vs on-site, industry). Each {"text": short question, "options": 2-4 short answers}. Never ask about anything already stated or answered. Never ask about gender, age, religion, caste, ethnicity, marital status or any other protected attribute.',
+  '"rubric": 3-6 items {"criterion": short name, "weight": 1-3 (3 = deal-breaker), "how": one sentence on what evidence in a public profile shows it}.',
+  'Use only what the brief states or clearly implies. Do not invent requirements.'
+].join('\n');
+const prompt = 'BRIEF OR JOB DESCRIPTION (between the lines):\n-----\n' + brief + '\n-----\n' + (qa ? '\nANSWERS FROM THE RECRUITER:\n' + qa + '\n' : '');
+return [{ json: { system: system, prompt: prompt } }];
+""" % (json.dumps(APP_PLATFORMS), json.dumps(APP_REGIONS))
+
+INTAKE_PARSE = r"""
+// Clean up the intake agent's answer for the app.
+const PLATFORMS = %s;
+const REGIONS = %s;
+const BANDS = ['0-2 years', '3-5 years', '5-8 years', '8+ years', 'Any'];
+const j = $json || {};
+let raw = '';
+try { raw = j.output[0].content[0].text; } catch (e) { raw = ''; }
+let p = null;
+try { p = JSON.parse(String(raw).replace(/^```(json)?|```$/g, '').trim()); } catch (e) { p = null; }
+if (!p || typeof p !== 'object') return [{ json: { response: { ok: false, error: j.error ? 'The AI could not be reached: ' + (j.error.message || j.error) : 'Could not read that brief. Try adding the role and city.' } } }];
+const arr = function(v, n){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean).slice(0, n); };
+const c = p.criteria || {};
+const criteria = {
+  role: String(c.role || '').slice(0, 80),
+  similar_titles: arr(c.similar_titles, 3),
+  must: arr(c.must, 5),
+  nice: arr(c.nice, 4),
+  experience: BANDS.indexOf(c.experience) !== -1 ? c.experience : 'Any',
+  city: String(c.city || '').slice(0, 60),
+  region: REGIONS.indexOf(c.region) !== -1 ? c.region : '',
+  companies: Array.isArray(c.companies) ? c.companies.join(', ') : String(c.companies || '').slice(0, 120),
+  exclude: arr(c.exclude, 6)
+};
+const PROTECTED = /gender|female|male|\bage\b|religio|caste|ethnic|marital|married|pregnan|disab/i;
+const questions = (Array.isArray(p.questions) ? p.questions : []).filter(function(q){ return q && q.text && !PROTECTED.test(q.text); })
+  .slice(0, 2).map(function(q){ return { text: String(q.text).slice(0, 160), options: arr(q.options, 4) }; }).filter(function(q){ return q.options.length >= 2; });
+const rubric = (Array.isArray(p.rubric) ? p.rubric : []).slice(0, 6).filter(function(r){ return r && r.criterion && !PROTECTED.test(r.criterion + ' ' + (r.how || '')); })
+  .map(function(r){ return { criterion: String(r.criterion).slice(0, 60), weight: Math.max(1, Math.min(3, parseInt(r.weight, 10) || 1)), how: String(r.how || '').slice(0, 200) }; });
+const sources = arr(p.sources, 8).map(function(s){ return /github/i.test(s) ? 'GitHub' : s; }).filter(function(s){ return PLATFORMS.indexOf(s) !== -1; });
+return [{ json: { response: { ok: true, criteria: criteria, sources: sources.length ? sources : ['LinkedIn', 'GitHub'], questions: questions, rubric: rubric } } }];
+""" % (json.dumps(APP_PLATFORMS), json.dumps(APP_REGIONS))
+
+APP_CRITERIA = r"""
+// "Find candidates" from the app: the same fields page 2 of the form sends,
+// so Search Criteria and everything after it run unchanged.
+const PLATFORMS = %s;
+const c = ($json.body || {}).criteria || {};
+const list = function(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(function(s){ return String(s).trim(); }).filter(Boolean); };
+const role = String(c.role || '').trim();
+const sources = list(c.sources).filter(function(s){ return PLATFORMS.indexOf(s) !== -1; });
+if (!role) return [{ json: { bad: true, response: { ok: false, error: 'Add a job title first.' } } }];
+if (!sources.length) return [{ json: { bad: true, response: { ok: false, error: 'Pick at least one source.' } } }];
+return [{ json: {
+  __app: true,
+  role: role.slice(0, 120),
+  similar: c.similar === 'No' ? 'No' : 'Yes',
+  experience: String(c.experience || 'Any'),
+  must: list(c.must).join(', '),
+  nice: list(c.nice).join(', '),
+  city: String(c.city || '').trim(),
+  region: String(c.region || 'Global (all regions)'),
+  industry: String(c.industry || ''),
+  employer: String(c.employer || ''),
+  exclude: list(c.exclude).join(', '),
+  education: String(c.education || 'Any'),
+  sources: sources,
+  notify: '',
+  rubric: String(c.rubric || '').slice(0, 2000),
+  jd_text: String(c.jd_text || '').slice(0, 12000),
+  response: { ok: true, run_id: String($execution.id) }
+} }];
+""" % json.dumps(APP_PLATFORMS)
+
+STATUS_REPLY = r"""
+const r = $input.all().map(function(i){ return i.json || {}; }).find(function(x){ return x.run_id; }) || {};
+return [{ json: { response: { ok: true, run: r.run_id ? r : { status: 'starting', stage: 0 } } } }];
+"""
+
+RUNS_REPLY = r"""
+const rows = $input.all().map(function(i){ return i.json || {}; }).filter(function(r){ return r.run_id; });
+rows.sort(function(a, b){ return String(b.started_at || '').localeCompare(String(a.started_at || '')); });
+return [{ json: { response: { ok: true, runs: rows.slice(0, 40).map(function(r){ return { run_id: r.run_id, role: r.role, location: r.location, status: r.status, count: r.count, started_at: r.started_at }; }) } } }];
+"""
+
+RESULTS_REPLY = r"""
+// A shortlist: the run, its people, and live outreach status per person.
+const run = $('Load Run Info').all().map(function(i){ return i.json || {}; }).find(function(x){ return x.run_id; }) || {};
+const seq = {};
+try { $('Load Sequence Status').all().forEach(function(i){ const s = i.json || {}; if (s.contact_key) seq[s.contact_key] = s.status_text || s.status; }); } catch (e) {}
+const seen = {};
+const people = $('Load Run People').all().map(function(i){ return i.json || {}; }).filter(function(c){
+  if (!c.dedupe_key || seen[c.dedupe_key]) return false; seen[c.dedupe_key] = 1; return true; })
+  .map(function(c){ const o = Object.assign({}, c); if (seq[c.dedupe_key]) o.outreach_status = seq[c.dedupe_key]; delete o.id; delete o.createdAt; delete o.updatedAt; return o; });
+return [{ json: { response: { ok: true, run: run, candidates: people } } }];
+"""
+
+APPROVE_ROWS = r"""
+const b = $json.body || {};
+const keys = (Array.isArray(b.keys) ? b.keys : []).map(String).filter(Boolean).slice(0, 50);
+return keys.map(function(k){ return { json: { run_id: String(b.run_id || ''), dedupe_key: k, approved: true } }; });
+"""
+
+APPROVE_REPLY = r"""
+const n = $input.all().filter(function(i){ return i.json && !i.json.error; }).length;
+return [{ json: { response: { ok: true, approved: n } } }];
+"""
+
+FEEDBACK_ROW = r"""
+const b = $json.body || {};
+const v = ['up', 'down'].indexOf(b.vote) !== -1 ? b.vote : '';
+return [{ json: { run_id: String(b.run_id || ''), dedupe_key: String(b.dedupe_key || ''), feedback: v } }];
+"""
+
+OUTREACH_REPLY = r"""
+const rows = $input.all().map(function(i){ return i.json || {}; }).filter(function(r){ return r.contact_key; })
+  .map(function(r){ return { first_name: r.first_name, email: r.email, role: r.role, location: r.location, step: r.step, status: r.status, status_text: r.status_text, next_due_at: r.next_due_at }; });
+return [{ json: { response: { ok: true, rows: rows } } }];
+"""
+
+RUN_STARTED = r"""
+// The app's live view: this search has started.
+const c = $('Search Criteria').first().json || {};
+const p = Array.isArray(c['Target Platforms']) ? c['Target Platforms'].join(', ') : String(c['Target Platforms'] || '');
+return [{ json: { run_id: String($execution.id), role: c['Target Role'] || '', location: c['Location'] || c['Search Region'] || '',
+  must: c['Primary Skills'] || '', sources: p, status: 'running', stage: 1, count: 0, by_source: '', note: '',
+  started_at: new Date().toISOString() } }];
+"""
+
+RUN_STAGE = r"""
+return [{ json: { run_id: String($execution.id), stage: %d%s } }];
+"""
+
+RUN_CANDIDATES = r"""
+// Every person written to the sheet in this run, for the app's shortlist.
+const out = [];
+$input.all().forEach(function(i){
+  const r = i.json || {};
+  const score = parseFloat(r['Fit Score']);
+  if (!r['Dedupe Key'] || !r['Name'] || !(score > 0)) return;
+  out.push({ json: {
+    run_id: String($execution.id), dedupe_key: String(r['Dedupe Key']), name: String(r['Name']),
+    title: String(r['Role'] || r['Verified Title'] || ''), company: String(r['Current Company'] || ''),
+    location: String(r['Location'] || ''), location_review: String(r['Location Review'] || ''), fit_score: score,
+    confidence: String(r['Confidence'] || ''), experience_check: String(r['Experience Check'] || ''),
+    summary: String(r['Summary'] || '').slice(0, 1500), key_skills: String(r['Key Skills'] || '').slice(0, 400),
+    email: String(r['Email'] || ''), contact_source: String(r['Contact Source'] || ''), source: String(r['Source Platform'] || ''),
+    profile_url: String(r['Profile URL'] || ''), linkedin: String(r['LinkedIn'] || ''), github: String(r['GitHub'] || ''),
+    resume_link: String(r['Resume Link'] || ''), outreach_status: String(r['Outreach Status'] || ''), approved: false, feedback: ''
+  } });
+});
+return out;
+"""
+
+RUN_DONE = r"""
+const n = $json || {};
+return [{ json: { run_id: String($execution.id), status: 'done', stage: 4, count: Number(n.count) || 0, by_source: String(n.by_source || ''),
+  note: String(n.range_text || ''), finished_at: new Date().toISOString() } }];
+"""
+
+RUN_STOPPED = r"""
+return [{ json: { run_id: String($execution.id), status: 'stopped', note: 'The monthly search budget is used up. It resets on the 1st.', finished_at: new Date().toISOString() } }];
+"""
+
+BUILD_APP_PAGE = r"""
+// Serve the sourcing app. It calls its API next door (/webhook/sourcing-app-api).
+return [{ json: { html: %s } }];
+"""
+
+
+def _app_html():
+    p = _Path(__file__).parent / "src" / "app.html"
+    html = p.read_text()
+    logo = "data:image/png;base64," + _LOGO
+    html = html.replace("__LOGO__", logo).replace("__API__", "sourcing-app-api")
+    html = html.replace("__SHEET_URL__", "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit")
+    return html
+
+
+def apply_round25(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    oai = json.loads(json.dumps(N["Message a model"]["credentials"]))
+    mc = N["Mark Contacted"]
+    new = []
+
+    def link(a, b, idx=0, first=False):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        c = {"node": b, "type": "main", "index": 0}
+        if first:
+            conns[a]["main"][idx].insert(0, c)
+        else:
+            conns[a]["main"][idx].append(c)
+
+    def code(name, js, pos, each=False, once=False, **kw):
+        p = {"jsCode": js}
+        if each:
+            p["mode"] = "runOnceForEachItem"
+        n = _node(name, "n8n-nodes-base.code", 2, pos, p, **kw)
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def dt(name, op, table, pos, extra=None, **kw):
+        p = {"resource": "row", "operation": op, "dataTableId": _dt_ref(table)}
+        p.update(extra or {})
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, p, **kw)
+        new.append(n)
+        return n
+
+    def ensure(name, table, cols, pos):
+        n = _dt_ensure(name, table, cols, pos)
+        new.append(n)
+        return n
+
+    def cond(*pairs):
+        return {"conditions": [{"keyName": k, "condition": "eq", "keyValue": v} for k, v in pairs]}
+
+    # ---------------- the page ----------------
+    X, Y = -144, 1400
+    page = _node("App Page", "n8n-nodes-base.webhook", 2, [X, Y],
+                 {"httpMethod": "GET", "path": "sourcing-app", "responseMode": "responseNode", "options": {}},
+                 webhookId="7c1e2a40-8b3d-4f6e-9a12-5d0c3b7e9f01")
+    new.append(page)
+    code("Build App Page", BUILD_APP_PAGE % json.dumps(_app_html()), [X + 220, Y])
+    send = _node("Send App Page", "n8n-nodes-base.respondToWebhook", 1.1, [X + 440, Y], {
+        "respondWith": "text", "responseBody": "={{ $json.html }}",
+        "options": {"responseHeaders": {"entries": [{"name": "Content-Type", "value": "text/html; charset=utf-8"},
+                                                    {"name": "Cache-Control", "value": "no-store"}]}}})
+    new.append(send)
+    link("App Page", "Build App Page")
+    link("Build App Page", "Send App Page")
+
+    # ---------------- the API ----------------
+    Y2 = Y + 240
+    api = _node("App API", "n8n-nodes-base.webhook", 2, [X, Y2],
+                {"httpMethod": "POST", "path": "sourcing-app-api", "responseMode": "responseNode", "options": {}},
+                webhookId="7c1e2a40-8b3d-4f6e-9a12-5d0c3b7e9f02")
+    new.append(api)
+    ensure("Ensure App Settings", "app_settings", SETTINGS_COLUMNS, [X + 220, Y2])
+    ensure("Ensure App Runs", "app_runs", RUN_COLUMNS, [X + 440, Y2])
+    ensure("Ensure App Candidates", "app_candidates", CAND_COLUMNS, [X + 660, Y2])
+    ensure("Ensure App Feedback", "app_feedback", FEEDBACK_COLUMNS, [X + 880, Y2])
+    ls = dt("Load App Settings", "get", "app_settings", [X + 1100, Y2], {"returnAll": True}, alwaysOutputData=True)
+    ls["executeOnce"] = True
+    code("App Gate", APP_GATE, [X + 1320, Y2])
+    sw = _node("App Route", "n8n-nodes-base.switch", 3.2, [X + 1540, Y2], {
+        "mode": "expression", "numberOutputs": len(APP_ROUTES),
+        "output": "={{ %s.indexOf($json.route) }}" % json.dumps(APP_ROUTES)})
+    new.append(sw)
+    reply = _node("App Reply", "n8n-nodes-base.respondToWebhook", 1.1, [X + 2640, Y2 - 200], {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json.response) }}", "options": {}})
+    new.append(reply)
+    for a, b in [("App API", "Ensure App Settings"), ("Ensure App Settings", "Ensure App Runs"), ("Ensure App Runs", "Ensure App Candidates"),
+                 ("Ensure App Candidates", "Ensure App Feedback"), ("Ensure App Feedback", "Load App Settings"),
+                 ("Load App Settings", "App Gate"), ("App Gate", "App Route")]:
+        link(a, b)
+    conns["App Route"] = {"main": [[] for _ in APP_ROUTES]}
+    R = {r: i for i, r in enumerate(APP_ROUTES)}
+    bx = X + 1760
+
+    # reply (0)
+    link("App Route", "App Reply", R["reply"])
+    # claim (1)
+    yy = Y2 - 120
+    code("Claim Row", "return [{ json: { key: 'access_code', value: String($json.code) } }];", [bx, yy])
+    dt("Save Access Code", "insert", "app_settings", [bx + 220, yy], {"columns": _automap(), "options": {}})
+    code("Claim Reply", "return [{ json: { response: { ok: true } } }];", [bx + 440, yy], once=True)
+    link("App Route", "Claim Row", R["claim"]); link("Claim Row", "Save Access Code"); link("Save Access Code", "Claim Reply"); link("Claim Reply", "App Reply")
+    # intake (2)
+    yy = Y2 + 40
+    code("Intake Prompt", INTAKE_PROMPT, [bx, yy])
+    mm = N["Message a model"]
+    intake = _node("Intake Agent", "n8n-nodes-base.httpRequest", 4.2, [bx + 220, yy], {
+        "method": "POST", "url": "https://api.openai.com/v1/responses", "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi", "sendBody": True, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.2, text: { format: { type: 'json_object' } }, input: [{ role: 'system', content: $json.system }, { role: 'user', content: $json.prompt }] }) }}",
+        "options": {"timeout": 60000}}, credentials=json.loads(json.dumps(oai)), onError="continueRegularOutput")
+    new.append(intake)
+    code("Intake Result", INTAKE_PARSE, [bx + 440, yy])
+    link("App Route", "Intake Prompt", R["intake"]); link("Intake Prompt", "Intake Agent"); link("Intake Agent", "Intake Result"); link("Intake Result", "App Reply")
+    # search (3)
+    yy = Y2 + 200
+    code("App Criteria", APP_CRITERIA, [bx, yy])
+    rs = _node("Respond Search", "n8n-nodes-base.respondToWebhook", 1.1, [bx + 220, yy], {
+        "respondWith": "json", "responseBody": "={{ JSON.stringify($json.response) }}", "options": {}})
+    new.append(rs)
+    ok = _node("Start Search?", "n8n-nodes-base.if", 2.3, [bx + 440, yy], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 3},
+                       "conditions": [{"id": "app-ok", "leftValue": "={{ $json.bad === true }}", "rightValue": "",
+                                       "operator": {"type": "boolean", "operation": "false", "singleValue": True}}],
+                       "combinator": "and"}, "looseTypeValidation": True, "options": {}})
+    new.append(ok)
+    link("App Route", "App Criteria", R["search"]); link("App Criteria", "Respond Search"); link("Respond Search", "Start Search?")
+    link("Start Search?", "Search Criteria")
+    # status (4)
+    yy = Y2 + 360
+    dt("Load Run Status", "get", "app_runs", [bx, yy], {"matchType": "allConditions", "filters": cond(("run_id", "={{ $json.body.run_id }}")), "returnAll": True}, alwaysOutputData=True)
+    code("Status Reply", STATUS_REPLY, [bx + 220, yy])
+    link("App Route", "Load Run Status", R["status"]); link("Load Run Status", "Status Reply"); link("Status Reply", "App Reply")
+    # results (5)
+    yy = Y2 + 520
+    dt("Load Run Info", "get", "app_runs", [bx, yy], {"matchType": "allConditions", "filters": cond(("run_id", "={{ $json.body.run_id }}")), "returnAll": True}, alwaysOutputData=True)
+    lp = dt("Load Run People", "get", "app_candidates", [bx + 220, yy], {"matchType": "allConditions", "filters": cond(("run_id", "={{ $('App Gate').first().json.body.run_id }}")), "returnAll": True}, alwaysOutputData=True)
+    lp["executeOnce"] = True
+    lq = dt("Load Sequence Status", "get", SEQ_TABLE, [bx + 440, yy], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    lq["executeOnce"] = True
+    code("Results Reply", RESULTS_REPLY, [bx + 660, yy], once=True)
+    link("App Route", "Load Run Info", R["results"]); link("Load Run Info", "Load Run People"); link("Load Run People", "Load Sequence Status")
+    link("Load Sequence Status", "Results Reply"); link("Results Reply", "App Reply")
+    # runs (6)
+    yy = Y2 + 680
+    lr = dt("Load Runs", "get", "app_runs", [bx, yy], {"returnAll": True}, alwaysOutputData=True)
+    code("Runs Reply", RUNS_REPLY, [bx + 220, yy])
+    link("App Route", "Load Runs", R["runs"]); link("Load Runs", "Runs Reply"); link("Runs Reply", "App Reply")
+    # approve (7)
+    yy = Y2 + 840
+    code("Approve Rows", APPROVE_ROWS, [bx, yy])
+    ap = json.loads(json.dumps(mc))
+    ap["name"], ap["id"], ap["position"] = "Approve In Sheet", "fix-approve-in-sheet", [bx + 220, yy]
+    ap["parameters"]["columns"]["value"] = {"Dedupe Key": "={{ $json.dedupe_key }}", "Send Email?": "TRUE"}
+    ap["parameters"]["columns"]["schema"] = [
+        {"id": "Dedupe Key", "displayName": "Dedupe Key", "required": False, "defaultMatch": False, "display": True, "type": "string", "canBeUsedToMatch": True, "removed": False},
+        {"id": "Send Email?", "displayName": "Send Email?", "required": False, "defaultMatch": False, "display": True, "type": "string", "canBeUsedToMatch": False, "removed": False}]
+    ap["parameters"]["options"] = {"cellFormat": "USER_ENTERED"}
+    ap["onError"] = "continueRegularOutput"
+    ap.pop("webhookId", None)
+    new.append(ap)
+    dt("Mark Approved", "update", "app_candidates", [bx + 220, yy + 120], {"matchType": "allConditions",
+       "filters": cond(("run_id", "={{ $json.run_id }}"), ("dedupe_key", "={{ $json.dedupe_key }}")), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    code("Approve Reply", APPROVE_REPLY, [bx + 440, yy], once=True)
+    link("App Route", "Approve Rows", R["approve"]); link("Approve Rows", "Mark Approved"); link("Approve Rows", "Approve In Sheet")
+    link("Approve In Sheet", "Approve Reply"); link("Approve Reply", "App Reply")
+    # feedback (8)
+    yy = Y2 + 1040
+    code("Feedback Row", FEEDBACK_ROW, [bx, yy])
+    dt("Save Feedback", "upsert", "app_feedback", [bx + 220, yy], {"matchType": "allConditions",
+       "filters": cond(("run_id", "={{ $json.run_id }}"), ("dedupe_key", "={{ $json.dedupe_key }}")), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    dt("Feedback On Person", "update", "app_candidates", [bx + 220, yy + 120], {"matchType": "allConditions",
+       "filters": cond(("run_id", "={{ $json.run_id }}"), ("dedupe_key", "={{ $json.dedupe_key }}")), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    code("Feedback Reply", "return [{ json: { response: { ok: true } } }];", [bx + 440, yy], once=True)
+    link("App Route", "Feedback Row", R["feedback"]); link("Feedback Row", "Feedback On Person"); link("Feedback Row", "Save Feedback")
+    link("Save Feedback", "Feedback Reply"); link("Feedback Reply", "App Reply")
+    # outreach (9)
+    yy = Y2 + 1240
+    dt("Load Outreach Rows", "get", SEQ_TABLE, [bx, yy], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    code("Outreach Reply", OUTREACH_REPLY, [bx + 220, yy])
+    link("App Route", "Load Outreach Rows", R["outreach"]); link("Load Outreach Rows", "Outreach Reply"); link("Outreach Reply", "App Reply")
+
+    # ---------------- the pipeline reports its progress ----------------
+    def up(name, table, pos, upsert=False):
+        return dt(name, "upsert" if upsert else "update", table, pos, {"matchType": "allConditions",
+                  "filters": cond(("run_id", "={{ $json.run_id }}")), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+
+    sc = N["Search Criteria"]; x, y = sc["position"]
+    e1 = ensure("Ensure Run Log", "app_runs", RUN_COLUMNS, [x + 220, y - 260])
+    e2 = ensure("Ensure Run People", "app_candidates", CAND_COLUMNS, [x + 440, y - 260])
+    code("Run Started", RUN_STARTED, [x + 660, y - 260], once=True)
+    up("Save Run Started", "app_runs", [x + 880, y - 260], upsert=True)
+    link("Search Criteria", "Ensure Run Log", first=True); link("Ensure Run Log", "Ensure Run People")
+    link("Ensure Run People", "Run Started"); link("Run Started", "Save Run Started")
+
+    for parent, stage, extra in [("Format Search Results", 2, ""),
+                                 ("Location Check & Rank", 3, ", count: $('Location Check & Rank').all().length")]:
+        px, py = N[parent]["position"]
+        nm = "Run Stage %d" % stage
+        code(nm, RUN_STAGE % (stage, extra), [px + 60, py - 260], once=True)
+        up("Save Run Stage %d" % stage, "app_runs", [px + 280, py - 260])
+        link(parent, nm, first=True); link(nm, "Save Run Stage %d" % stage)
+
+    px, py = N["Append row in sheet"]["position"]
+    code("Run People", RUN_CANDIDATES, [px + 220, py - 220])
+    dt("Save Run People", "insert", "app_candidates", [px + 440, py - 220], {"columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    link("Append row in sheet", "Run People"); link("Run People", "Save Run People")
+
+    px, py = N["Results Note"]["position"]
+    code("Run Done", RUN_DONE, [px + 200, py + 200], once=True)
+    up("Save Run Done", "app_runs", [px + 420, py + 200])
+    link("Results Note", "Run Done"); link("Run Done", "Save Run Done")
+
+    px, py = N["Log Budget Stop"]["position"]
+    code("Run Stopped", RUN_STOPPED, [px + 220, py + 160], once=True)
+    up("Save Run Stopped", "app_runs", [px + 440, py + 160])
+    link("Log Budget Stop", "Run Stopped"); link("Run Stopped", "Save Run Stopped")
+
+    # ---------------- the AI's rubric and pasted JD reach the scoring ----------------
+    p = N["Search Criteria"]["parameters"]
+    a = "  'nl_used': !!d.nl_used"
+    assert a in p["jsCode"], "round25: Search Criteria anchor"
+    p["jsCode"] = p["jsCode"].replace(a, "  'Rubric': String(f.rubric || '').slice(0, 2000),\n  'JD Text': String(f.jd_text || '').slice(0, 12000),\n  'From App': !!f.__app,\n" + a, 1)
+    fp = N["Format Search Results"]["parameters"]
+    a1 = "${ S('Prep JD').jd_text || 'No job description"
+    assert a1 in fp["jsCode"], "round25: JD anchor"
+    fp["jsCode"] = fp["jsCode"].replace(a1, "${ S('Prep JD').jd_text || S('Search Criteria')['JD Text'] || 'No job description", 1)
+    a2 = "Nice-to-have skills: ${ S('Search Criteria')['Secondary Skills'] || 'none' }"
+    assert a2 in fp["jsCode"], "round25: rubric anchor"
+    fp["jsCode"] = fp["jsCode"].replace(a2, a2 + "${ S('Search Criteria')['Rubric'] ? '\\nRecruiter rubric (weigh each line as stated; weight 3 = deal-breaker):\\n' + S('Search Criteria')['Rubric'] : '' }", 1)
+
+    nodes.extend(new)
+    return nodes, conns

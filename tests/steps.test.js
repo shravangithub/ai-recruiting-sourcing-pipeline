@@ -695,3 +695,70 @@ test('R24: follow-ups land 2, 4, 5 and 7 days after the first email, then stop',
   assert.match(o.last_error, /quota/);
   Settings.now = () => Date.now();
 });
+
+// ------------------------------------------------------------ Round 25: the sourcing app
+test('R25: the access code is chosen once, then required on every call', async () => {
+  const gate = (body, saved) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': saved ? [{ key: 'access_code', value: saved }] : [{}] });
+  assert.deepEqual((await gate({ action: 'ping' }))[0].response, { ok: false, auth: 'need_code', claim: true });
+  assert.equal((await gate({ action: 'claim', code: 'abc' }))[0].route, 'reply', 'too short to claim');
+  assert.equal((await gate({ action: 'claim', code: 'team-2026' }))[0].route, 'claim');
+  assert.deepEqual((await gate({ action: 'search', code: 'wrong' }, 'team-2026'))[0].response, { ok: false, auth: 'need_code', claim: false });
+  assert.deepEqual((await gate({ action: 'claim', code: 'hijack-123' }, 'team-2026'))[0].response.ok, false, 'a second claim cannot replace the code');
+  const ok = (await gate({ action: 'results', code: 'team-2026', run_id: '9' }, 'team-2026'))[0];
+  assert.equal(ok.route, 'results'); assert.equal(ok.body.run_id, '9');
+});
+
+test('R25: intake agent output is cleaned: bands, regions, sources, no protected-attribute questions', async () => {
+  const ai = { criteria: { role: 'Senior Backend Engineer', similar_titles: ['Backend Developer'], must: ['Python', 'Django'], nice: 'Kafka', experience: '3-5 years', city: 'Pune', region: 'India', companies: ['Acme Payments'], exclude: ['intern'] },
+    sources: ['LinkedIn', 'Github', 'Stack Overflow', 'Wellfound'],
+    questions: [{ text: 'Is Kafka a must-have?', options: ['Must-have', 'Nice to have'] }, { text: 'Preferred gender?', options: ['Female', 'Any'] }],
+    rubric: [{ criterion: 'Python + Django in production', weight: 3, how: 'Named in current role' }, { criterion: 'Age under 30', weight: 2, how: 'x' }] };
+  const [r] = await runNode('Intake Result', [aiOutput(JSON.stringify(ai))]);
+  const x = r.response;
+  assert.equal(x.ok, true);
+  assert.equal(x.criteria.experience, '3-5 years');
+  assert.deepEqual(x.criteria.nice, ['Kafka']);
+  assert.equal(x.criteria.companies, 'Acme Payments');
+  assert.deepEqual(x.sources, ['LinkedIn', 'GitHub', 'Stack Overflow'], 'unknown sources dropped, GitHub spelled right');
+  assert.deepEqual(x.questions.map((q) => q.text), ['Is Kafka a must-have?'], 'never asks about gender');
+  assert.deepEqual(x.rubric.map((q) => q.criterion), ['Python + Django in production'], 'no age in the rubric');
+  const [bad] = await runNode('Intake Result', [aiOutput('not json')]);
+  assert.equal(bad.response.ok, false);
+});
+
+test('R25: "Find candidates" sends exactly what page 2 of the form sends, plus rubric and JD', async () => {
+  const [c] = await runNode('App Criteria', [{ body: { criteria: { role: 'Backend Engineer', must: ['Python', 'Django'], nice: 'Kafka', city: 'Pune', region: 'India', experience: '3-5 years', sources: ['LinkedIn', 'Wellfound', 'GitHub'], rubric: '- Python (weight 3)', jd_text: 'Full JD' } } }]);
+  assert.equal(c.__app, true); assert.equal(c.must, 'Python, Django'); assert.deepEqual(c.sources, ['LinkedIn', 'GitHub']);
+  assert.equal(c.response.ok, true); assert.equal(c.response.run_id, '999');
+  const [sc] = await runNode('Search Criteria', [c], { 'Draft Criteria': [{}] });
+  assert.equal(sc['Target Role'], 'Backend Engineer'); assert.equal(sc['Primary Skills'], 'Python, Django'); assert.equal(sc['Location'], 'Pune');
+  assert.equal(sc['Search Region'], 'India'); assert.deepEqual(sc['Target Platforms'], ['LinkedIn', 'GitHub']);
+  assert.equal(sc['Rubric'], '- Python (weight 3)'); assert.equal(sc['JD Text'], 'Full JD'); assert.equal(sc['From App'], true);
+  const [none] = await runNode('App Criteria', [{ body: { criteria: { role: '' } } }]);
+  assert.equal(none.bad, true);
+});
+
+test('R25: the scoring prompt carries the rubric and a pasted JD', async () => {
+  const b = await runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria({ Rubric: '- Django in production (weight 3): named in current role', 'JD Text': 'We build payment rails.' })] });
+  assert.match(b[0].prompt, /Recruiter rubric/); assert.match(b[0].prompt, /Django in production/); assert.match(b[0].prompt, /We build payment rails/);
+  const plain = await runNode('Format Search Results', [{ organic: [{ title: 'x', link: 'https://a.b' }] }], { 'Search Criteria': [criteria()] });
+  assert.ok(!/Recruiter rubric/.test(plain[0].prompt));
+});
+
+test('R25: shortlist = people written to the sheet in this run, with live outreach status', async () => {
+  const rows = [{ Name: 'REQ header', 'Dedupe Key': 'req-1', 'Fit Score': '' },
+    { Name: 'Neha Kulkarni', 'Dedupe Key': 'k1', 'Fit Score': '9', Role: 'Backend Engineer', 'Current Company': 'Acme Payments', Email: 'n@acme.in', 'Source Platform': 'LinkedIn + GitHub' },
+    { Name: 'Rohan Iyer', 'Dedupe Key': 'k2', 'Fit Score': '8.5' }];
+  const people = await runNode('Run People', rows);
+  assert.deepEqual(people.map((p) => p.dedupe_key), ['k1', 'k2']);
+  assert.equal(people[0].run_id, '999'); assert.equal(people[0].fit_score, 9); assert.equal(people[0].approved, false);
+  const [r] = await runNode('Results Reply', [{}], { 'Load Run Info': [{ run_id: '999', role: 'Backend Engineer' }],
+    'Load Run People': people.concat([people[0]]), 'Load Sequence Status': [{ contact_key: 'k1', status_text: 'Follow-up 1 of 4 sent' }] });
+  assert.equal(r.response.candidates.length, 2, 'duplicates removed');
+  assert.equal(r.response.candidates[0].outreach_status, 'Follow-up 1 of 4 sent');
+});
+
+test('R25: approve keeps at most 50 people and marks each one', async () => {
+  const out = await runNode('Approve Rows', [{ body: { run_id: '7', keys: Array.from({ length: 60 }, (_, i) => 'k' + i) } }]);
+  assert.equal(out.length, 50); assert.deepEqual(out[0], { run_id: '7', dedupe_key: 'k0', approved: true });
+});
