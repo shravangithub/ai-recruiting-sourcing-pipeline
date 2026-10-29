@@ -809,7 +809,7 @@ test('R26: new sources show their name in the sheet', async () => {
 test('R27: product and non-tech sites are searched by job title and place, one query each', async () => {
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Topmate', 'ADPList', 'Product Hunt', 'Substack', 'Medium'] })] });
   const people = q.filter((x) => x.kind === 'people-profiles' && x.page === 1);
-  assert.deepEqual(people.map((x) => x.q.split(' ')[0]).sort(), ['site:adplist.org/mentors', 'site:medium.com/@', 'site:producthunt.com/@', 'site:substack.com', 'site:topmate.io']);
+  assert.deepEqual(people.map((x) => x.q.split(' ')[0]).sort(), ['site:adplist.org/mentors', 'site:medium.com/@', 'site:producthunt.com', 'site:substack.com', 'site:topmate.io']);
   for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
   const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
   assert.ok(!none.some((x) => /topmate|adplist|substack/.test(x.q)), 'not searched unless ticked');

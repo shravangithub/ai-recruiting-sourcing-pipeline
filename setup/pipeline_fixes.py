@@ -3286,7 +3286,7 @@ PEOPLE_SITES = r"""
 // Product and non-tech profiles: one query per site, by job title and place.
 const PEOPLE = {
   'Topmate': 'site:topmate.io', 'ADPList': 'site:adplist.org/mentors -inurl:expertise -inurl:location -inurl:company',
-  'Product Hunt': 'site:producthunt.com/@', 'Substack': 'site:substack.com', 'Medium': 'site:medium.com/@'
+  'Product Hunt': 'site:producthunt.com inurl:@', 'Substack': 'site:substack.com inurl:about', 'Medium': 'site:medium.com/@'
 };
 platforms.filter(function(pl){ return PEOPLE[pl]; }).forEach(function(pl){
   queries.push({ kind: 'people-profiles', pages: 2, q: fit([[PEOPLE[pl]], roleOpts.length ? roleOpts : [roleShort], locOpts, exclOpts]) });
