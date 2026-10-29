@@ -804,3 +804,29 @@ test('R26: new sources show their name in the sheet', async () => {
   const fn = new Function(code.slice(code.indexOf('function platformOf'), code.indexOf('function domainOf')) + 'return platformOf;')();
   assert.equal(fn('https://devfolio.co/@asha'), 'Devfolio'); assert.equal(fn('https://codeforces.com/profile/x'), 'Codeforces'); assert.equal(fn('https://leetcode.com/u/x'), 'LeetCode');
 });
+
+// ------------------------------------------------------------ Round 27: product and non-tech channels
+test('R27: product and non-tech sites are searched by job title and place, one query each', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Topmate', 'ADPList', 'Product Hunt', 'Substack', 'Medium'] })] });
+  const people = q.filter((x) => x.kind === 'people-profiles' && x.page === 1);
+  assert.deepEqual(people.map((x) => x.q.split(' ')[0]).sort(), ['site:adplist.org/mentors', 'site:medium.com/@', 'site:producthunt.com/@', 'site:substack.com', 'site:topmate.io']);
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
+  const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
+  assert.ok(!none.some((x) => /topmate|adplist|substack/.test(x.q)), 'not searched unless ticked');
+});
+
+test('R27: only profile pages survive from product and non-tech sites', async () => {
+  const links = ['https://topmate.io/asha_pm', 'https://topmate.io/blog/how-to', 'https://adplist.org/mentors/asha-nair', 'https://adplist.org/mentors/expertise/product-management/bangalore',
+    'https://www.producthunt.com/@asha', 'https://www.producthunt.com/posts/split-it', 'https://substack.com/@asha', 'https://asha.substack.com/about', 'https://asha.substack.com/p/pricing',
+    'https://medium.com/@asha', 'https://medium.com/@asha/why-roadmaps-fail-1234'];
+  const [m] = await runNode('Merge Pages', [{ organic: links.map((link) => ({ link })) }]);
+  assert.deepEqual(m.organic.map((o) => o.link), ['https://topmate.io/asha_pm', 'https://adplist.org/mentors/asha-nair', 'https://www.producthunt.com/@asha',
+    'https://substack.com/@asha', 'https://asha.substack.com/about', 'https://medium.com/@asha']);
+});
+
+test('R27: new sources show their name in the sheet', async () => {
+  const code = require('./harness').NODES['Parse Contact'].parameters.jsCode;
+  const fn = new Function(code.slice(code.indexOf('function platformOf'), code.indexOf('function domainOf')) + 'return platformOf;')();
+  assert.equal(fn('https://topmate.io/asha'), 'Topmate'); assert.equal(fn('https://adplist.org/mentors/asha'), 'ADPList');
+  assert.equal(fn('https://www.producthunt.com/@asha'), 'Product Hunt'); assert.equal(fn('https://asha.substack.com/about'), 'Substack');
+});

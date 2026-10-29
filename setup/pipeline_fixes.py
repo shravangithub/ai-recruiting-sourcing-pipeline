@@ -1737,7 +1737,8 @@ PAGE1_FIELDS = [
 
 PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
              "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance",
-             "Devfolio", "Unstop", "Devpost", "HackerEarth", "LeetCode", "CodeChef", "Codeforces"]
+             "Devfolio", "Unstop", "Devpost", "HackerEarth", "LeetCode", "CodeChef", "Codeforces",
+             "Topmate", "ADPList", "Product Hunt", "Substack", "Medium"]
 REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
            "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
 
@@ -2722,7 +2723,7 @@ const system = [
   '  (if years are stated pick the band containing the lower number; junior/graduate => "0-2 years", senior => "5-8 years", lead/principal/head => "8+ years"),',
   '  "city": city or "", "region": exactly one of ' + JSON.stringify(REGIONS) + ',',
   '  "companies": target companies or industry as a short comma list or "", "exclude": words or companies to exclude (array) },',
-  '"sources": the best 3-6 of ' + JSON.stringify(PLATFORMS) + ' for this role (engineering: LinkedIn, GitHub, Stack Overflow; data/ML: add Kaggle, Hugging Face; design: Dribbble, Behance; students, graduates and early-career engineers: add Devfolio, Unstop, Devpost or HackerEarth (hackathons) and LeetCode, CodeChef or Codeforces (competitive programming) when problem-solving or building matters; non-technical roles: LinkedIn and Google / Open Web only),',
+  '"sources": the best 3-6 of ' + JSON.stringify(PLATFORMS) + ' for this role (engineering: LinkedIn, GitHub, Stack Overflow; data/ML: add Kaggle, Hugging Face; design: Dribbble, Behance; students, graduates and early-career engineers: add Devfolio, Unstop, Devpost or HackerEarth (hackathons) and LeetCode, CodeChef or Codeforces (competitive programming) when problem-solving or building matters; product managers: LinkedIn, Product Hunt, ADPList, Topmate, Substack; other non-technical roles (sales, marketing, HR, finance, operations): LinkedIn, Topmate, Google / Open Web, plus Substack or Medium for people who write),',
   '"questions": 0 to 2 questions, ONLY where the answer would clearly change who we search for (e.g. must-have vs nice-to-have, remote vs on-site, industry). Each {"text": short question, "options": 2-4 short answers}. Never ask about anything already stated or answered. Never ask about gender, age, religion, caste, ethnicity, marital status or any other protected attribute.',
   '"rubric": 3-6 items {"criterion": short name, "weight": 1-3 (3 = deal-breaker), "how": one sentence on what evidence in a public profile shows it}.',
   'RULES: Anything described as "a plus", "nice to have", "preferred", "bonus" or "ideally" goes in "nice", never in "must".',
@@ -3272,4 +3273,55 @@ def apply_round26(nodes, conns):
                                          [{"node": "CF Annotate", "type": "main", "index": 0}]]}
     conns["CF Users"] = {"main": [[{"node": "CF Annotate", "type": "main", "index": 0}]]}
     conns["CF Annotate"] = {"main": [[{"node": "Format Search Results", "type": "main", "index": 0}]]}
+    return nodes, conns
+
+
+# ======================================================================
+# Round 27: product and non-tech channels.
+# Topmate and ADPList (mentor pages with title and company), Product Hunt
+# makers, Substack and Medium writers. Searched by job title and place,
+# keeping only people's profile pages (no posts, lists or category pages).
+# ======================================================================
+PEOPLE_SITES = r"""
+// Product and non-tech profiles: one query per site, by job title and place.
+const PEOPLE = {
+  'Topmate': 'site:topmate.io', 'ADPList': 'site:adplist.org/mentors -inurl:expertise -inurl:location -inurl:company',
+  'Product Hunt': 'site:producthunt.com/@', 'Substack': 'site:substack.com', 'Medium': 'site:medium.com/@'
+};
+platforms.filter(function(pl){ return PEOPLE[pl]; }).forEach(function(pl){
+  queries.push({ kind: 'people-profiles', pages: 2, q: fit([[PEOPLE[pl]], roleOpts.length ? roleOpts : [roleShort], locOpts, exclOpts]) });
+});
+"""
+
+NOT_PROFILE_27 = r"""
+// Product and non-tech sites: keep only people's profile pages.
+PROFILE_ONLY.push(
+  [/topmate\.io/i, /topmate\.io\/(?!blog|explore|about|pricing|login|signup|features|terms|privacy|careers|search|categor)[\w.-]+\/?$/i],
+  [/adplist\.org/i, /adplist\.org\/mentors\/(?!expertise|location|company)[\w.-]+\/?$/i],
+  [/producthunt\.com/i, /producthunt\.com\/@[\w.-]+\/?$/i],
+  [/substack\.com/i, /(substack\.com\/@[\w.-]+|[\w-]+\.substack\.com\/about)\/?$/i],
+  [/medium\.com/i, /medium\.com\/@[\w.-]+(\/about)?\/?$/i]
+);
+"""
+
+
+def apply_round27(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round27 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    R("Build Search Query", "const out = [];\nfor (const qq of queries) {", PEOPLE_SITES.lstrip() + "const out = [];\nfor (const qq of queries) {")
+    R("Merge Pages", "const notProfile = function(link)", NOT_PROFILE_27.lstrip() + "const notProfile = function(link)")
+    R("Format Search Results", "leetcode\\.com\\/u\\/)/i;",
+      "leetcode\\.com\\/u\\/|topmate\\.io\\/|adplist\\.org\\/mentors\\/|producthunt\\.com\\/@|substack\\.com\\/@|substack\\.com\\/about|medium\\.com\\/@)/i;")
+    R("Parse Contact", "  if (u.indexOf('codeforces.com') !== -1) return 'Codeforces';",
+      "  if (u.indexOf('codeforces.com') !== -1) return 'Codeforces';\n"
+      "  if (u.indexOf('topmate.io') !== -1) return 'Topmate';\n  if (u.indexOf('adplist.org') !== -1) return 'ADPList';\n"
+      "  if (u.indexOf('producthunt.com') !== -1) return 'Product Hunt';\n  if (u.indexOf('substack.com') !== -1) return 'Substack';\n"
+      "  if (u.indexOf('medium.com') !== -1) return 'Medium';")
+    R("Location Check & Rank", "['codeforces.com','Codeforces']]",
+      "['codeforces.com','Codeforces'],['topmate.io','Topmate'],['adplist.org','ADPList'],['producthunt.com','Product Hunt'],['substack.com','Substack'],['medium.com','Medium']]")
     return nodes, conns
