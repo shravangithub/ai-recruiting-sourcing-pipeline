@@ -67,6 +67,20 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **The sourcing app** – open `https://<your-n8n>/webhook/sourcing-app` for a real product
+  instead of forms and a spreadsheet:
+  - **One search screen with an AI intake agent.** Paste a brief or JD; it fills role, must-haves,
+    nice-to-haves, experience, location and exclusions as you type, asks up to 2 clarifying
+    questions when the answer would change the search (never about gender, age or other protected
+    attributes), and writes a scoring rubric that the scoring AI then uses.
+  - **Live run screen** with the pipeline's real progress.
+  - **Shortlist** with an honest match % (the AI's score, adjusted by what the checks found: years,
+    must-haves actually seen, location), per-criterion checks, thumbs up/down, and
+    **Approve for outreach**, which ticks *Send Email?* so the first email and the day 2/4/5/7
+    follow-ups take over.
+  - **Outreach** view of every sequence.
+  - Protected by a team access code chosen on first visit. Data stays in your n8n (Data Tables
+    `app_runs`, `app_candidates`, `app_feedback`, `app_settings`) and your Google Sheet.
 - **Outreach sequences** – after the first email, each person gets up to four follow-ups as
   replies in the same Gmail thread, **2, 4, 5 and 7 days** later. Every follow-up first checks the
   thread: a reply (or a bounce) stops the sequence at once. Weekdays 9:30–18:30 IST only, at most
