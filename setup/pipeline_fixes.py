@@ -2725,6 +2725,9 @@ const system = [
   '"sources": the best 3-6 of ' + JSON.stringify(PLATFORMS) + ' for this role (engineering: LinkedIn, GitHub, Stack Overflow; data/ML: add Kaggle, Hugging Face; design: Dribbble, Behance; non-technical roles: LinkedIn and Google / Open Web only),',
   '"questions": 0 to 2 questions, ONLY where the answer would clearly change who we search for (e.g. must-have vs nice-to-have, remote vs on-site, industry). Each {"text": short question, "options": 2-4 short answers}. Never ask about anything already stated or answered. Never ask about gender, age, religion, caste, ethnicity, marital status or any other protected attribute.',
   '"rubric": 3-6 items {"criterion": short name, "weight": 1-3 (3 = deal-breaker), "how": one sentence on what evidence in a public profile shows it}.',
+  'RULES: Anything described as "a plus", "nice to have", "preferred", "bonus" or "ideally" goes in "nice", never in "must".',
+  '"must" and "nice" contain ONLY skills the brief actually names. Never add generic skills it does not mention (no "Microservices", "REST APIs", "Cloud" unless written).',
+  'Anything the brief says to avoid goes in "exclude" as a short word: "no interns" => "intern", "no agencies" => "agency", "not from X" => "X".',
   'Use only what the brief states or clearly implies. Do not invent requirements.'
 ].join('\n');
 const prompt = 'BRIEF OR JOB DESCRIPTION (between the lines):\n-----\n' + brief + '\n-----\n' + (qa ? '\nANSWERS FROM THE RECRUITER:\n' + qa + '\n' : '');
