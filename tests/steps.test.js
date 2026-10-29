@@ -769,8 +769,8 @@ test('R25: approve keeps at most 50 people and marks each one', async () => {
 // ------------------------------------------------------------ Round 26: hackathon and contest channels
 test('R26: hackathon and contest sites get their own queries, each within 32 words', async () => {
   const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Devfolio', 'Devpost', 'Unstop', 'LeetCode', 'Codeforces', 'CodeChef'] })] });
-  assert.ok(q.some((x) => x.kind === 'hackathon-profiles' && /site:devfolio\.co/.test(x.q) && /site:devpost\.com/.test(x.q) && /site:unstop\.com\/u/.test(x.q)));
-  assert.ok(q.some((x) => x.kind === 'contest-profiles' && /site:codeforces\.com\/profile/.test(x.q) && /site:codechef\.com\/users/.test(x.q)));
+  const sites = q.filter((x) => x.page === 1).map((x) => x.q.split(' ')[0]);
+  assert.deepEqual(sites.sort(), ['site:codechef.com/users', 'site:codeforces.com/profile', 'site:devfolio.co/@', 'site:devpost.com', 'site:leetcode.com/u', 'site:unstop.com/u'], 'one query per site');
   for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
   const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
   assert.ok(!none.some((x) => /devfolio|codeforces/.test(x.q)), 'not searched unless ticked');

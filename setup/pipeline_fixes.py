@@ -3151,21 +3151,21 @@ def apply_round25(nodes, conns):
 # databases), so they can't be found this way.
 # ======================================================================
 COMPETE_SITES = r"""
-// Hackathon and competitive-programming profiles
-const COMPETE = { 'Devfolio': 'site:devfolio.co', 'Unstop': 'site:unstop.com/u', 'Devpost': 'site:devpost.com', 'HackerEarth': 'site:hackerearth.com' };
-const CONTEST = { 'LeetCode': 'site:leetcode.com', 'CodeChef': 'site:codechef.com/users', 'Codeforces': 'site:codeforces.com/profile' };
-const hackSites = platforms.filter(function(pl){ return COMPETE[pl]; }).map(function(pl){ return COMPETE[pl]; });
-const contestSites = platforms.filter(function(pl){ return CONTEST[pl]; }).map(function(pl){ return CONTEST[pl]; });
-// builders list their stack: search by skills, then by role
-if (hackSites.length) {
-  queries.push({ kind: 'hackathon-profiles', pages: 2, q: fit([[orOf(hackSites)], locOpts, skillsDrop, exclOpts]) });
-  if (roleOpts.length) queries.push({ kind: 'hackathon-profiles', pages: 1, q: fit([[orOf(hackSites)], locOpts, roleOpts, exclOpts]) });
-}
-// contest profiles show a place and languages, rarely a job title
-if (contestSites.length) {
-  queries.push({ kind: 'contest-profiles', pages: 2, q: fit([[orOf(contestSites)], locOpts, exclOpts]) });
-  if (skillArr.length || skillRawBool) queries.push({ kind: 'contest-profiles', pages: 1, q: fit([[orOf(contestSites)], locOpts, skillOpts, exclOpts]) });
-}
+// Hackathon and competitive-programming profiles: one query per site, aimed at
+// profile pages (one shared query lets the biggest site crowd out the rest).
+const COMPETE = {
+  'Devfolio': { site: 'site:devfolio.co/@', by: 'skills' }, 'Unstop': { site: 'site:unstop.com/u', by: 'skills' },
+  'Devpost': { site: 'site:devpost.com -inurl:software -inurl:hackathons -inurl:challenges', by: 'skills' },
+  'HackerEarth': { site: 'site:hackerearth.com/@', by: 'skills' },
+  'LeetCode': { site: 'site:leetcode.com/u', by: 'place' }, 'CodeChef': { site: 'site:codechef.com/users', by: 'place' },
+  'Codeforces': { site: 'site:codeforces.com/profile', by: 'place' }
+};
+platforms.filter(function(pl){ return COMPETE[pl]; }).forEach(function(pl){
+  const c = COMPETE[pl];
+  // builders list their stack; contest profiles show a place and languages
+  const parts = c.by === 'skills' ? [[c.site], locOpts, skillsDrop, exclOpts] : [[c.site], locOpts, exclOpts];
+  queries.push({ kind: c.by === 'skills' ? 'hackathon-profiles' : 'contest-profiles', pages: 2, q: fit(parts) });
+});
 """
 
 NOT_PROFILE = r"""
