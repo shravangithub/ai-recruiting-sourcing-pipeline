@@ -765,3 +765,42 @@ test('R25: approve keeps at most 50 people and marks each one', async () => {
   const out = await runNode('Approve Rows', [{ body: { run_id: '7', keys: Array.from({ length: 60 }, (_, i) => 'k' + i) } }]);
   assert.equal(out.length, 50); assert.deepEqual(out[0], { run_id: '7', dedupe_key: 'k0', approved: true });
 });
+
+// ------------------------------------------------------------ Round 26: hackathon and contest channels
+test('R26: hackathon and contest sites get their own queries, each within 32 words', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Devfolio', 'Devpost', 'Unstop', 'LeetCode', 'Codeforces', 'CodeChef'] })] });
+  assert.ok(q.some((x) => x.kind === 'hackathon-profiles' && /site:devfolio\.co/.test(x.q) && /site:devpost\.com/.test(x.q) && /site:unstop\.com\/u/.test(x.q)));
+  assert.ok(q.some((x) => x.kind === 'contest-profiles' && /site:codeforces\.com\/profile/.test(x.q) && /site:codechef\.com\/users/.test(x.q)));
+  for (const x of q) assert.ok(x.q.trim().split(/\s+/).length <= 32, x.q);
+  const none = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'] })] });
+  assert.ok(!none.some((x) => /devfolio|codeforces/.test(x.q)), 'not searched unless ticked');
+});
+
+test('R26: only profile pages survive from hackathon and contest sites', async () => {
+  const links = ['https://devfolio.co/@asha', 'https://devfolio.co/projects/payments-bot', 'https://devpost.com/asha-n', 'https://devpost.com/software/split-it',
+    'https://leetcode.com/u/asha_n/', 'https://leetcode.com/problems/two-sum/', 'https://www.codechef.com/users/asha_n', 'https://www.codechef.com/START100',
+    'https://codeforces.com/profile/asha_n', 'https://codeforces.com/contest/1900', 'https://unstop.com/u/asha', 'https://unstop.com/hackathons/xyz', 'https://www.hackerearth.com/@asha', 'https://www.hackerearth.com/challenges/'];
+  const [m] = await runNode('Merge Pages', [{ organic: links.map((link) => ({ link })) }]);
+  assert.deepEqual(m.organic.map((o) => o.link), ['https://devfolio.co/@asha', 'https://devpost.com/asha-n', 'https://leetcode.com/u/asha_n/',
+    'https://www.codechef.com/users/asha_n', 'https://codeforces.com/profile/asha_n', 'https://unstop.com/u/asha', 'https://www.hackerearth.com/@asha']);
+});
+
+test('R26: Codeforces profiles are enriched from the public API (rating, city, organisation)', async () => {
+  const organic = [{ link: 'https://codeforces.com/profile/asha_n', title: 'asha_n - Codeforces', snippet: 'Profile' }, { link: 'https://devfolio.co/@asha', title: 'Asha', snippet: 'x' }];
+  const [h] = await runNode('CF Handles', [{ organic }]);
+  assert.equal(h.cf_url, 'https://codeforces.com/api/user.info?handles=asha_n');
+  const [a] = await runNode('CF Annotate', [{}], { 'CF Handles': [h], 'CF Users': [{ status: 'OK', result: [{ handle: 'asha_n', firstName: 'Asha', lastName: 'Nair', city: 'Pune', country: 'India', organization: 'COEP', rating: 1912, rank: 'expert', maxRating: 2010 }] }] });
+  assert.equal(a.organic[0].title, 'Asha Nair (asha_n) - Codeforces');
+  assert.match(a.organic[0].snippet, /rating 1912 \(expert\), best 2010; location: Pune, India; organisation: COEP/);
+  assert.equal(a.organic[1].title, 'Asha'); assert.equal(a.cf_url, undefined);
+  const [none] = await runNode('CF Handles', [{ organic: [organic[1]] }]);
+  assert.equal(none.cf_url, '');
+  const [still] = await runNode('CF Annotate', [{}], { 'CF Handles': [h] });
+  assert.equal(still.organic.length, 2, 'API down: results still flow on');
+});
+
+test('R26: new sources show their name in the sheet', async () => {
+  const code = require('./harness').NODES['Parse Contact'].parameters.jsCode;
+  const fn = new Function(code.slice(code.indexOf('function platformOf'), code.indexOf('function domainOf')) + 'return platformOf;')();
+  assert.equal(fn('https://devfolio.co/@asha'), 'Devfolio'); assert.equal(fn('https://codeforces.com/profile/x'), 'Codeforces'); assert.equal(fn('https://leetcode.com/u/x'), 'LeetCode');
+});

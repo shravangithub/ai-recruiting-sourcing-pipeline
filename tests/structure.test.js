@@ -30,7 +30,8 @@ test('no step runs twice: only Merge nodes take more than one incoming branch', 
     'Log Search Complete': ['Results Gate', 'Sourcing Summary'],             // Results Gate only fires when nothing was written
     'Results Note': ['Results Gate', 'Sourcing Summary'],              // Results Gate only fires when nothing was written
     'Advance Sequence': ['Send Follow-up', 'Still No Reply?'],      // per-item: sent rows and replied rows, each handled once
-    'Search Criteria': ['Check Search', 'Start Search?'],             // a search starts from the form OR from the app, never both
+    'Search Criteria': ['Check Search', 'Start Search?'],
+    'CF Annotate': ['Any Codeforces?', 'CF Users'],                  // Codeforces found or not, never both             // a search starts from the form OR from the app, never both
     'App Reply': ['App Route', 'Claim Reply', 'Intake Result', 'Status Reply', 'Results Reply', 'Runs Reply', 'Approve Reply', 'Feedback Reply', 'Outreach Reply'] }; // one answer per app request      // per-item: sent rows and replied rows, each handled once            // Results Gate only fires when nothing was written
   for (const [node, srcs] of Object.entries(inc)) {
     if (srcs.size < 2 || NODES[node].type.endsWith('.merge')) continue;

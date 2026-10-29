@@ -1736,7 +1736,8 @@ PAGE1_FIELDS = [
 ]
 
 PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
-             "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance"]
+             "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance",
+             "Devfolio", "Unstop", "Devpost", "HackerEarth", "LeetCode", "CodeChef", "Codeforces"]
 REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
            "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
 
@@ -2666,8 +2667,7 @@ def apply_round24(nodes, conns):
 # ======================================================================
 import uuid as _uuid
 
-APP_PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
-                 "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance"]
+APP_PLATFORMS = list(PLATFORMS)
 APP_REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany",
                "France", "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
 
@@ -2722,7 +2722,7 @@ const system = [
   '  (if years are stated pick the band containing the lower number; junior/graduate => "0-2 years", senior => "5-8 years", lead/principal/head => "8+ years"),',
   '  "city": city or "", "region": exactly one of ' + JSON.stringify(REGIONS) + ',',
   '  "companies": target companies or industry as a short comma list or "", "exclude": words or companies to exclude (array) },',
-  '"sources": the best 3-6 of ' + JSON.stringify(PLATFORMS) + ' for this role (engineering: LinkedIn, GitHub, Stack Overflow; data/ML: add Kaggle, Hugging Face; design: Dribbble, Behance; non-technical roles: LinkedIn and Google / Open Web only),',
+  '"sources": the best 3-6 of ' + JSON.stringify(PLATFORMS) + ' for this role (engineering: LinkedIn, GitHub, Stack Overflow; data/ML: add Kaggle, Hugging Face; design: Dribbble, Behance; students, graduates and early-career engineers: add Devfolio, Unstop, Devpost or HackerEarth (hackathons) and LeetCode, CodeChef or Codeforces (competitive programming) when problem-solving or building matters; non-technical roles: LinkedIn and Google / Open Web only),',
   '"questions": 0 to 2 questions, ONLY where the answer would clearly change who we search for (e.g. must-have vs nice-to-have, remote vs on-site, industry). Each {"text": short question, "options": 2-4 short answers}. Never ask about anything already stated or answered. Never ask about gender, age, religion, caste, ethnicity, marital status or any other protected attribute.',
   '"rubric": 3-6 items {"criterion": short name, "weight": 1-3 (3 = deal-breaker), "how": one sentence on what evidence in a public profile shows it}.',
   'RULES: Anything described as "a plus", "nice to have", "preferred", "bonus" or "ideally" goes in "nice", never in "must".',
@@ -3136,4 +3136,139 @@ def apply_round25(nodes, conns):
     fp["jsCode"] = fp["jsCode"].replace(a2, a2 + "${ S('Search Criteria')['Rubric'] ? '\\nRecruiter rubric (weigh each line as stated; weight 3 = deal-breaker):\\n' + S('Search Criteria')['Rubric'] : '' }", 1)
 
     nodes.extend(new)
+    return nodes, conns
+
+
+# ======================================================================
+# Round 26: hackathon and competitive-programming channels.
+# Devfolio, Unstop, Devpost, HackerEarth (hackathons) and LeetCode, CodeChef,
+# Codeforces (contests), searched through Google like Behance/Dribbble.
+# Only real profile pages are kept (no problems, contests or project pages).
+# Codeforces profiles are then looked up in Codeforces' free public API for
+# the person's name, city, country, organisation and rating, which the
+# scoring and location check use as evidence.
+# Indeed, Naukri and Instahyre profiles are private (paid recruiter
+# databases), so they can't be found this way.
+# ======================================================================
+COMPETE_SITES = r"""
+// Hackathon and competitive-programming profiles
+const COMPETE = { 'Devfolio': 'site:devfolio.co', 'Unstop': 'site:unstop.com/u', 'Devpost': 'site:devpost.com', 'HackerEarth': 'site:hackerearth.com' };
+const CONTEST = { 'LeetCode': 'site:leetcode.com', 'CodeChef': 'site:codechef.com/users', 'Codeforces': 'site:codeforces.com/profile' };
+const hackSites = platforms.filter(function(pl){ return COMPETE[pl]; }).map(function(pl){ return COMPETE[pl]; });
+const contestSites = platforms.filter(function(pl){ return CONTEST[pl]; }).map(function(pl){ return CONTEST[pl]; });
+// builders list their stack: search by skills, then by role
+if (hackSites.length) {
+  queries.push({ kind: 'hackathon-profiles', pages: 2, q: fit([[orOf(hackSites)], locOpts, skillsDrop, exclOpts]) });
+  if (roleOpts.length) queries.push({ kind: 'hackathon-profiles', pages: 1, q: fit([[orOf(hackSites)], locOpts, roleOpts, exclOpts]) });
+}
+// contest profiles show a place and languages, rarely a job title
+if (contestSites.length) {
+  queries.push({ kind: 'contest-profiles', pages: 2, q: fit([[orOf(contestSites)], locOpts, exclOpts]) });
+  if (skillArr.length || skillRawBool) queries.push({ kind: 'contest-profiles', pages: 1, q: fit([[orOf(contestSites)], locOpts, skillOpts, exclOpts]) });
+}
+"""
+
+NOT_PROFILE = r"""
+// Hackathon and contest sites: keep only people's profile pages.
+const PROFILE_ONLY = [
+  [/devfolio\.co/i, /devfolio\.co\/@[\w.-]+\/?$/i],
+  [/unstop\.com/i, /unstop\.com\/u\/[\w.-]+\/?$/i],
+  [/devpost\.com/i, /devpost\.com\/(?!software|hackathons|c\/|settings|about|help|portfolio\/redirect)[\w.-]+\/?$/i],
+  [/hackerearth\.com/i, /hackerearth\.com\/@[\w.-]+\/?$/i],
+  [/leetcode\.com/i, /leetcode\.com\/(u\/[\w.-]+|(?!problems|problemset|discuss|contest|explore|company|tag|studyplan|accounts|subscribe|assessment|interview|store|list|playground)[\w.-]+)\/?$/i],
+  [/codechef\.com/i, /codechef\.com\/users\/[\w.-]+\/?$/i],
+  [/codeforces\.com/i, /codeforces\.com\/profile\/[\w.-]+\/?$/i]
+];
+const notProfile = function(link){ const l = String(link || ''); const r = PROFILE_ONLY.find(function(p){ return p[0].test(l); }); return r ? !r[1].test(l) : false; };
+"""
+
+CF_HANDLES = r"""
+// Codeforces profiles in this search: look them up in Codeforces' public API.
+const j = $input.first().json || {};
+const handles = [];
+(j.organic || []).forEach(function(o){
+  const m = String(o.link || '').match(/codeforces\.com\/profile\/([\w.-]+)\/?$/i);
+  if (m && handles.indexOf(m[1]) === -1) handles.push(m[1]);
+});
+return [{ json: Object.assign({}, j, { cf_handles: handles.slice(0, 100),
+  cf_url: handles.length ? 'https://codeforces.com/api/user.info?handles=' + handles.slice(0, 100).join(';') : '' }) }];
+"""
+
+CF_ANNOTATE = r"""
+// Add what Codeforces says about each person to their search result, so the
+// scoring and the location check can use it.
+const base = $('CF Handles').first().json || {};
+let users = [];
+try { const r = $('CF Users').first().json || {}; if (r.status === 'OK' && Array.isArray(r.result)) users = r.result; } catch (e) {}
+const byHandle = {};
+users.forEach(function(u){ if (u && u.handle) byHandle[String(u.handle).toLowerCase()] = u; });
+const organic = (base.organic || []).map(function(o){
+  const m = String(o.link || '').match(/codeforces\.com\/profile\/([\w.-]+)\/?$/i);
+  const u = m && byHandle[m[1].toLowerCase()];
+  if (!u) return o;
+  const name = [u.firstName, u.lastName].filter(Boolean).join(' ');
+  const where = [u.city, u.country].filter(Boolean).join(', ');
+  const bits = [];
+  if (u.rating) bits.push('Codeforces rating ' + u.rating + (u.rank ? ' (' + u.rank + ')' : '') + (u.maxRating ? ', best ' + u.maxRating : ''));
+  if (where) bits.push('location: ' + where);
+  if (u.organization) bits.push('organisation: ' + u.organization);
+  return Object.assign({}, o, { title: (name ? name + ' (' + u.handle + ')' : o.title) + ' - Codeforces', snippet: [o.snippet, bits.join('; ')].filter(Boolean).join(' | ') });
+});
+const out = Object.assign({}, base, { organic: organic });
+delete out.cf_url; delete out.cf_handles;
+return [{ json: out }];
+"""
+
+
+def apply_round26(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, new):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round26 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, new, 1)
+
+    # 1. the searches
+    R("Build Search Query", "const out = [];\nfor (const qq of queries) {", COMPETE_SITES.lstrip() + "const out = [];\nfor (const qq of queries) {")
+
+    # 2. keep only profile pages
+    R("Merge Pages", "const items = $input.all();", NOT_PROFILE.lstrip() + "const items = $input.all();")
+    R("Merge Pages", "    if (o && o.link && JOB_AD.test(String(o.link))) { seen[key] = true; continue; }",
+      "    if (o && o.link && (JOB_AD.test(String(o.link)) || notProfile(o.link))) { seen[key] = true; continue; }")
+
+    # 3. they are always real people
+    R("Format Search Results", "linkedin\\.com\\/in\\/)/i;",
+      "linkedin\\.com\\/in\\/|devfolio\\.co\\/@|unstop\\.com\\/u\\/|hackerearth\\.com\\/@|codechef\\.com\\/users\\/|codeforces\\.com\\/profile\\/|leetcode\\.com\\/u\\/)/i;")
+
+    # 4. source names
+    R("Parse Contact", "  if (u.indexOf('apollo.io') !== -1) return 'Apollo';",
+      "  if (u.indexOf('apollo.io') !== -1) return 'Apollo';\n"
+      "  if (u.indexOf('devfolio.co') !== -1) return 'Devfolio';\n  if (u.indexOf('unstop.com') !== -1) return 'Unstop';\n"
+      "  if (u.indexOf('devpost.com') !== -1) return 'Devpost';\n  if (u.indexOf('hackerearth.com') !== -1) return 'HackerEarth';\n"
+      "  if (u.indexOf('leetcode.com') !== -1) return 'LeetCode';\n  if (u.indexOf('codechef.com') !== -1) return 'CodeChef';\n"
+      "  if (u.indexOf('codeforces.com') !== -1) return 'Codeforces';")
+    R("Location Check & Rank", "['behance.net','Behance'],['wellfound.com','Wellfound']]",
+      "['behance.net','Behance'],['wellfound.com','Wellfound'],['devfolio.co','Devfolio'],['unstop.com','Unstop'],['devpost.com','Devpost'],"
+      "['hackerearth.com','HackerEarth'],['leetcode.com','LeetCode'],['codechef.com','CodeChef'],['codeforces.com','Codeforces']]")
+
+    # 5. Codeforces public API, between Merge Pages and the scoring
+    mp = N["Merge Pages"]; x, y = mp["position"]
+    h = _node("CF Handles", "n8n-nodes-base.code", 2, [x + 60, y + 200], {"jsCode": CF_HANDLES})
+    gate = _node("Any Codeforces?", "n8n-nodes-base.if", 2.3, [x + 260, y + 200], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 3},
+                       "conditions": [{"id": "cf-any", "leftValue": "={{ $json.cf_url }}", "rightValue": "",
+                                       "operator": {"type": "string", "operation": "notEmpty", "singleValue": True}}],
+                       "combinator": "and"}, "looseTypeValidation": True, "options": {}})
+    users = _node("CF Users", "n8n-nodes-base.httpRequest", 4.2, [x + 460, y + 120], {
+        "url": "={{ $json.cf_url }}", "options": {"timeout": 20000}}, onError="continueRegularOutput")
+    ann = _node("CF Annotate", "n8n-nodes-base.code", 2, [x + 660, y + 200], {"jsCode": CF_ANNOTATE})
+    nodes.extend([h, gate, users, ann])
+    nxt = conns["Merge Pages"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Format Search Results"], nxt
+    conns["Merge Pages"]["main"][0] = [{"node": "CF Handles", "type": "main", "index": 0}]
+    conns["CF Handles"] = {"main": [[{"node": "Any Codeforces?", "type": "main", "index": 0}]]}
+    conns["Any Codeforces?"] = {"main": [[{"node": "CF Users", "type": "main", "index": 0}],
+                                         [{"node": "CF Annotate", "type": "main", "index": 0}]]}
+    conns["CF Users"] = {"main": [[{"node": "CF Annotate", "type": "main", "index": 0}]]}
+    conns["CF Annotate"] = {"main": [[{"node": "Format Search Results", "type": "main", "index": 0}]]}
     return nodes, conns
