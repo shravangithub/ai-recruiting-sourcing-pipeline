@@ -3730,6 +3730,8 @@ const SIG = _S.signature ? 'Best regards,<br/>' + _S.signature.replace(/&/g, '&a
 
 DASHBOARD_REPLY = r"""
 // Home: this week, what needs attention, best sources, team activity, getting started.
+""" + DEFAULT_TEMPLATES + r"""
+const plain = function(h){ return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim(); };
 const g = $('App Gate').first().json;
 const all = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
 const runs = all('Load Dash Runs').filter(function(r){ return r.run_id; });
@@ -3781,7 +3783,7 @@ const steps = [
   { key: 'search', text: 'Run your first search', done: runs.length > 0 },
   { key: 'vote', text: 'Give a 👍 or 👎 on a shortlist so the ranking learns', done: people.some(function(p){ return p.feedback; }) },
   { key: 'approve', text: 'Approve someone for outreach', done: contacted > 0 || people.some(function(p){ return p.approved === true || p.approved === 'true'; }) },
-  { key: 'templates', text: 'Make the follow-up emails yours', done: tpl.length > 0 && tpl.some(function(r){ return !/Just bumping this up in case it got buried/.test(String(r.body)); }) },
+  { key: 'templates', text: 'Make the follow-up emails yours', done: tpl.some(function(r){ const d = DEFAULTS.find(function(x){ return x.step === Number(r.step); }); return d && plain(r.body) !== plain(d.body); }) },
   { key: 'signature', text: 'Set your email signature', done: !!sets.signature },
   { key: 'team', text: 'Invite a teammate', done: (g.users_count || 1) > 1 }
 ];

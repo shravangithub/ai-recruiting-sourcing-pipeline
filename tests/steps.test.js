@@ -995,3 +995,11 @@ test('R29: the home dashboard sums up the week, what needs attention and the bes
   assert.ok(x.services.find((s) => s.name.startsWith('Google')).last_ok);
   assert.equal(x.activity[0].action, 'started a search');
 });
+
+test('R29: the checklist only ticks the follow-ups once their wording really changed', async () => {
+  const base = { 'App Gate': [{ user: { name: 'K' }, users_count: 1 }], 'Load Dash Runs': [{}], 'Load Dash People': [{}], 'Load Dash Sequences': [{}], 'Load Dash Activity': [{}], 'Load Dash Settings': [{}] };
+  const tick = async (rows) => (await runNode('Dashboard Reply', [{}], Object.assign({ 'Load Dash Templates': rows }, base)))[0].response.checklist.find((c) => c.key === 'templates').done;
+  const def2 = '<p>Hi {first_name},</p><p>Just bumping this up in case it got buried. Would a quick 15-minute chat about the {role} role{in_location} work for you this week?</p>';
+  assert.equal(await tick([{ step: 2, body: def2 }, { step: 3, body: '<p>Hi {first_name},</p><p>A little more context: from your work{at_company}, I think the {role} role could be a strong fit. Happy to send the full job description - just reply and I will share it.</p>' }]), false);
+  assert.equal(await tick([{ step: 2, body: '<p>Hi {first_name},</p><p>Circling back on the {role} role.</p>' }]), true);
+});

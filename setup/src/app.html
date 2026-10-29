@@ -772,8 +772,10 @@ function loadHome(){
   var hr = new Date().getHours();
   el('hDate').textContent = new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
   el('hHello').textContent = (hr<12?'Good morning':(hr<17?'Good afternoon':'Good evening')) + ', ' + String((ME&&ME.name)||'').split(' ')[0];
+  if (!S.homeLoaded) { var sp = '<div class="think"><span class="spin"></span>loading…</div>'; ['hAtt','hFeed','hChecks'].forEach(function(id){ el(id).innerHTML = sp; }); el('hSrc').innerHTML = '<tr><td colspan="5">'+sp+'</td></tr>'; }
   call('dashboard').then(function(j){
     if (!j.ok) { toast(j.error||'Could not load home.'); return; }
+    S.homeLoaded = true;
     var w=j.week, t=j.totals;
     el('hWelcome').classList.toggle('hide', t.searches > 0);
     el('hKpis').innerHTML = [[w.searches,'searches this week'],[w.people,'people found this week'],[w.strong,'strong matches this week'],[t.active,'in follow-up now'],[t.replied,'replies'+(t.contacted?' · '+t.reply_rate+'% reply rate':'')]]
