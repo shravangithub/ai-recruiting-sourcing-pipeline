@@ -67,6 +67,17 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.2: a team workspace** (see [`RELEASES/v1.2.md`](RELEASES/v1.2.md)):
+  - **Team logins**: each person signs in with their own email and password. Roles are *admin*
+    (manages the team, sending settings and follow-up emails) and *recruiter* (searches, reviews,
+    approves). Passwords are stored as salted PBKDF2-SHA256 in your n8n (Data Table `app_users`),
+    sessions last 7 days, and an activity log records who searched, approved, edited or invited whom.
+    The first admin proves ownership with the old access code once.
+  - **Home**: this week's numbers, what needs your attention (replies, fresh strong matches, bounces),
+    best sources by replies, team activity and a getting-started checklist.
+  - **Settings**: your account and password; team (add people with a one-time password, change roles,
+    reset passwords, turn accounts off); sending (signature, window, daily limit, weekdays only, used
+    by the follow-ups); and connected services with when each last worked.
 - **v1.1: more channels, non-tech roles, a smarter app** (see [`RELEASES/v1.1.md`](RELEASES/v1.1.md)):
   - **10 new sources**: Devfolio, Unstop, Devpost and HackerEarth (hackathons); LeetCode, CodeChef and
     Codeforces (competitive programming, with each Codeforces profile's name, city and rating from
