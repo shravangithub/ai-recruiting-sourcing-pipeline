@@ -67,6 +67,15 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.1: more channels, non-tech roles, a smarter app** (see [`RELEASES/v1.1.md`](RELEASES/v1.1.md)):
+  - **10 new sources**: Devfolio, Unstop, Devpost and HackerEarth (hackathons); LeetCode, CodeChef and
+    Codeforces (competitive programming, with each Codeforces profile's name, city and rating from
+    Codeforces' free API); Topmate, ADPList and Medium (product managers and other non-tech roles).
+  - **Non-tech roles**: title variants for product, program, sales, marketing, HR, finance, operations
+    and customer success; an optional **Colleges** filter; scoring that weighs scope, outcomes, team size
+    and domain instead of code.
+  - **App**: a *why they match* panel quoting the profile for each must-have, votes that re-rank the
+    shortlist, and an editor for the follow-up emails.
 - **The sourcing app** – open `https://<your-n8n>/webhook/sourcing-app` for a real product
   instead of forms and a spreadsheet:
   - **One search screen with an AI intake agent.** Paste a brief or JD; it fills role, must-haves,
@@ -210,6 +219,9 @@ Complete (with counts) or Paused.
 | Hacker News | "Who wants to be hired" posts that mention the city | none |
 | Open web | Google search for CVs, portfolios and personal sites | Serper |
 | X, Dribbble, Behance, Reddit | Google X-ray | Serper |
+| Devfolio, Unstop, Devpost, HackerEarth | Google search of profile pages (one search per site), by skills and city | Serper |
+| LeetCode, CodeChef, Codeforces | Google search of profile pages by city; Codeforces profiles are filled in from Codeforces' free API (name, city, organisation, rating) | Serper |
+| Topmate, ADPList, Medium | Google search of profile and mentor pages by job title and city | Serper |
 
 Phone numbers, education and gender are rarely public, so those columns are often empty.
 
