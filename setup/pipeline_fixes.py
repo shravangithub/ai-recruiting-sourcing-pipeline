@@ -3853,7 +3853,7 @@ def apply_round29(nodes, conns):
     gate["executeOnce"] = True
 
     # 2. the gate's writes, saved before the request is answered (placed above App Route)
-    wy = gy - 520
+    wy = gy - 640
     for i, (kind, table, op, key) in enumerate([("users", "app_users", "upsert", "email"), ("sessions", "app_sessions", "upsert", "token"),
                                                 ("activity", "app_activity", "insert", None), ("settings", "app_settings", "upsert", "key")]):
         nm = kind.capitalize() + " Writes"
