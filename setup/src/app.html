@@ -171,7 +171,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .bcol.drop{outline:2px dashed var(--red);outline-offset:-4px;background:#FFF8F8}
 .bcolh{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:var(--char);padding:4px 4px 2px}
 .bcolh .n{margin-left:auto;font-weight:600;color:var(--muted)}
-.bcard{background:#fff;border:1px solid transparent;border-radius:10px;padding:10px;display:grid;grid-template-columns:30px minmax(0,1fr) 32px;grid-template-areas:'av name ring' 'sub sub sub' 'tags tags tags';gap:6px 8px;align-items:center;cursor:grab;text-align:left;font:inherit;color:inherit;width:100%;box-shadow:0 1px 0 rgba(31,32,36,.06)}
+.bcard{background:#fff;border:1px solid transparent;border-radius:10px;padding:10px;display:grid;grid-template-columns:30px minmax(0,1fr) auto;grid-template-areas:'av name ring' 'sub sub sub' 'tags tags tags';gap:6px 8px;align-items:center;cursor:grab;text-align:left;font:inherit;color:inherit;width:100%;box-shadow:0 1px 0 rgba(31,32,36,.06)}
 .bcard:hover{border-color:#C8C9CE}
 .bcard.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
 .bcard:focus-visible{outline:2px solid var(--red);outline-offset:2px}
@@ -181,11 +181,17 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .cname{grid-area:name;font-size:14px;font-weight:700;line-height:1.25;min-width:0}
 .csub{grid-area:sub;font-size:12px;color:var(--muted);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ctags{grid-area:tags;display:flex;gap:4px;flex-wrap:wrap}.ctags span{white-space:nowrap}.ctags:empty{display:none}
-.ring{grid-area:ring;--c:var(--ok);width:32px;height:32px;border-radius:16px;background:conic-gradient(var(--c) calc(var(--p)*1%),#E4E4E7 0);display:flex;align-items:center;justify-content:center;font:800 11px Manrope,sans-serif;color:var(--ink);position:relative}
-.ring::before{content:"";position:absolute;inset:3px;border-radius:50%;background:#fff}
-.ring i{position:relative;font-style:normal}
-.ring.md{--c:#D69A2D}.ring.lo{--c:#9C9DA3}
-.ring.big{width:52px;height:52px;border-radius:26px;font-size:15px}.ring.big::before{inset:4px}
+/* match % as a battery level */
+.batt{grid-area:ring;--c:#22A45D;display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-right:4px}
+.batt .cell{position:relative;width:30px;height:14px;border:1.5px solid #6E6F75;border-radius:4px;padding:1.5px;box-sizing:border-box;background:#fff}
+.batt .cell::after{content:"";position:absolute;right:-4.5px;top:3px;width:3px;height:5px;border-radius:0 2px 2px 0;background:#6E6F75}
+.batt .cell i{display:block;height:100%;width:calc(var(--p)*1%);background:var(--c);border-radius:2px}
+.batt b{font:800 11.5px/1 Manrope,sans-serif;color:var(--ink)}
+.batt.md{--c:#E0A526}.batt.lo{--c:#B4B5BB}
+.batt.big{flex:0 0 64px;width:64px;align-items:center;gap:5px;padding-right:6px;box-sizing:border-box}
+.batt.big .cell{width:52px;height:24px;border-width:2px;border-radius:6px;padding:2.5px}
+.batt.big .cell::after{right:-6px;top:6px;width:4px;height:8px}
+.batt.big b{font-size:17px}
 .bcard .r{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bcard b{font-size:14px}
 .bm{font-size:12px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--okbg);color:var(--ok)}
@@ -943,7 +949,7 @@ function bCard(c){
   return '<button type="button" class="bcard'+(B.open===c.dedupe_key?' on':'')+'" draggable="true" data-card="'+esc(c.dedupe_key)+'" aria-label="'+esc(c.name+', '+p+'% match')+'">'+
     '<span class="cav">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
     '<span class="cname">'+esc(c.name)+'</span><span class="csub">'+esc(sub.slice(0,90))+'</span><span class="ctags">'+shown+'</span>'+
-    '<span class="ring '+(p>=80?'':(p>=60?'md':'lo'))+'" style="--p:'+p+'" title="'+p+'% match"><i>'+p+'</i></span></button>';
+    '<span class="batt '+(p>=80?'':(p>=60?'md':'lo'))+'" style="--p:'+p+'" title="'+p+'% match"><span class="cell"><i></i></span><b>'+p+'%</b></span></button>';
 }
 function renderBoard(){
   var j = B.data || { roles: [], cards: [] }, run = j.run || {};
@@ -1251,7 +1257,7 @@ function openCard(key, keep){
   else if (B.tab === 'interview') body = kitPanel(c);
   else body = hist.length ? hist.map(function(h){ return '<div class="hist"><span><b>'+esc(h.by||'')+'</b> '+esc(h.kind==='stage' ? 'moved them to ' + (STAGE_NAME[h.to_stage]||h.to_stage) : h.detail)+'</span><span class="muted" style="font-size:12px">'+esc(ago(h.at))+'</span></div>'; }).join('') : '<p class="muted" style="margin:0">Nobody has changed anything yet. Stage moves, notes and replies show here.</p>';
   var foot = B.tab === 'overview' ? '<button type="button" class="btn dark" id="dSave">Save</button>'+(c.email && !c.approved && ['found','shortlisted'].indexOf(c.stage)!==-1 ? '<button type="button" class="btn pri" id="dApprove">Approve for outreach</button>' : '')+(hasReply ? '<button type="button" class="btn" data-dt="reply">Read their reply</button>' : '') : '';
-  el('bDrawer').innerHTML = '<div class="dh"><div style="display:flex;align-items:center;gap:14px"><span class="ring big '+(p>=80?'':(p>=60?'md':'lo'))+'" style="--p:'+p+'" title="'+p+'% match"><i>'+p+'%</i></span><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><h2 style="font-size:22px;margin:0">'+esc(c.name)+'</h2><span class="muted" style="font-size:13px">'+esc([c.title && c.company ? c.title + ' at ' + c.company : (c.title||c.company||''), c.location].filter(Boolean).join(', '))+'</span><span style="font-size:12px;color:var(--muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:'+TONE[c.stage][0]+';margin-right:6px"></span>'+esc(STAGE_NAME[c.stage]||'')+(c.owner?', owned by '+esc(c.owner):'')+', found on '+esc(String(c.source||'the web').replace('Google / Open Web','the open web'))+'</span></div><button type="button" class="ic" id="dClose" aria-label="Close" style="margin-left:auto;align-self:flex-start">×</button></div>'+
+  el('bDrawer').innerHTML = '<div class="dh"><div style="display:flex;align-items:center;gap:14px"><span class="batt big '+(p>=80?'':(p>=60?'md':'lo'))+'" style="--p:'+p+'" title="'+p+'% match"><span class="cell"><i></i></span><b>'+p+'%</b></span><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><h2 style="font-size:22px;margin:0">'+esc(c.name)+'</h2><span class="muted" style="font-size:13px">'+esc([c.title && c.company ? c.title + ' at ' + c.company : (c.title||c.company||''), c.location].filter(Boolean).join(', '))+'</span><span style="font-size:12px;color:var(--muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:'+TONE[c.stage][0]+';margin-right:6px"></span>'+esc(STAGE_NAME[c.stage]||'')+(c.owner?', owned by '+esc(c.owner):'')+', found on '+esc(String(c.source||'the web').replace('Google / Open Web','the open web'))+'</span></div><button type="button" class="ic" id="dClose" aria-label="Close" style="margin-left:auto;align-self:flex-start">×</button></div>'+
     '<div class="dtabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" aria-selected="'+(B.tab===t[0])+'" class="'+(B.tab===t[0]?'on':'')+'" data-dt="'+t[0]+'">'+esc(t[1])+(t[0]==='reply' && !RD[c.dedupe_key] ? '<i aria-label="new"></i>' : '')+'</button>'; }).join('')+'</div></div>'+
     '<div class="db">'+body+'</div>'+(foot ? '<div class="dfoot">'+foot+'</div>' : '');
   el('bDrawer').classList.remove('hide');
