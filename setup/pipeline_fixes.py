@@ -1738,7 +1738,7 @@ PAGE1_FIELDS = [
 PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
              "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance",
              "Devfolio", "Unstop", "Devpost", "HackerEarth", "LeetCode", "CodeChef", "Codeforces",
-             "Topmate", "ADPList", "Medium"]
+             "Topmate", "ADPList", "Medium", "Research papers", "Speakers & experts"]
 REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
            "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
 
@@ -4435,3 +4435,286 @@ def apply_round31(nodes, conns, routes_in):
       "criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate: teamRate, best_time: bestTime, viewers: viewers } } }];")
     nodes.extend(new)
     return nodes, conns, routes
+
+
+# ======================================================================
+# Round 32: more places to find people, all free.
+# - Research papers: industry researchers from OpenAlex (free public API;
+#   about 100 searches a day without a key, one per sourcing run).
+# - Speakers & experts: conference speakers (Sessionize), Google Developer
+#   Experts, Microsoft MVPs and AWS Heroes, through the existing Google search.
+# - Veterans: a preset that searches for people leaving the armed forces and
+#   scores what their service shows, not corporate job titles.
+# - Target companies: one search per company, and a Map view on the Board.
+# - Past candidates first: people from earlier searches who fit a new role,
+#   added to it in one click.
+# ======================================================================
+BUILD_RESEARCH_QUERY = r"""
+// Research papers (OpenAlex): recent papers on the role's topic by people at
+// companies in the search country, newest first. One request per search.
+const form = $('Search Criteria').first().json;
+let platforms = form['Target Platforms'];
+if (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+if (!platforms.some(function(p){ return /research/i.test(String(p)); })) return [];
+const skills = String(form['Primary Skills'] || form['Key Skills & Criteria'] || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+const term = (skills.length ? skills.slice(0, 2).join(' ') : String(form['Target Role'] || '')).replace(/[^\w\s+#.-]/g, ' ').trim();
+if (!term) return [];
+const CC = { 'india':'IN','united states':'US','united kingdom':'GB','singapore':'SG','united arab emirates':'AE','germany':'DE','netherlands':'NL','canada':'CA','australia':'AU','ireland':'IE','france':'FR' };
+const INDIA = /bangalore|bengaluru|mumbai|delhi|gurgaon|gurugram|noida|chennai|hyderabad|pune|kolkata|kochi|ahmedabad|jaipur|india/i;
+const region = String(form['Search Region'] || '').toLowerCase().replace(/\s*\(.*\)\s*/, '').trim();
+const loc = String(form['Location'] || '');
+const cc = CC[region] || (INDIA.test(loc) ? 'IN' : '');
+const since = new Date(Date.now() - 4 * 365 * 86400000).toISOString().slice(0, 10);
+const filter = ['authorships.institutions.type:company', 'from_publication_date:' + since].concat(cc ? ['authorships.institutions.country_code:' + cc] : []).join(',');
+const url = 'https://api.openalex.org/works?search=' + encodeURIComponent(term) + '&filter=' + filter + '&per_page=100&sort=publication_date:desc&select=id,title,publication_year,authorships,cited_by_count';
+return [{ json: { research_term: term, research_cc: cc, research_url: url } }];
+"""
+
+RESEARCH_TO_ORGANIC = r"""
+// One line per researcher: where they work, how many recent papers, the newest titles.
+const q = $('Build Research Query').first().json;
+const j = $input.first().json || {};
+const works = Array.isArray(j.results) ? j.results : [];
+const PUBLISHER = /springer|elsevier|wiley|ieee|taylor|francis|sage publi|nature|igi global|scitepress|mdpi/i;
+const by = {};
+works.forEach(function(w){
+  (w.authorships || []).forEach(function(a){
+    const inst = (a.institutions || []).find(function(i){ return i.type === 'company' && (!q.research_cc || i.country_code === q.research_cc) && !PUBLISHER.test(i.display_name || ''); });
+    if (!inst || !a.author || !a.author.display_name) return;
+    const k = a.author.id;
+    const x = by[k] = by[k] || { name: a.author.display_name, orcid: a.author.orcid || '', id: a.author.id, inst: inst.display_name, papers: [], cites: 0, years: [] };
+    if (x.papers.length < 6) x.papers.push(String(w.title || '').slice(0, 140));
+    x.cites += w.cited_by_count || 0; x.years.push(w.publication_year);
+  });
+});
+const COUNTRY = { IN:'India', US:'United States', GB:'United Kingdom', SG:'Singapore', AE:'United Arab Emirates', DE:'Germany', NL:'Netherlands', CA:'Canada', AU:'Australia', IE:'Ireland', FR:'France' };
+const people = Object.keys(by).map(function(k){ return by[k]; }).sort(function(a, b){ return b.papers.length - a.papers.length || b.cites - a.cites; }).slice(0, 30);
+const organic = people.map(function(x){
+  const org = String(x.inst).replace(/\s*\((india|united states|united kingdom|germany|singapore)\)\s*$/i, '');
+  const n = x.papers.length;
+  return { title: x.name + ' - Researcher at ' + org,
+    link: x.orcid || x.id,
+    snippet: x.name + ' works at ' + org + (q.research_cc ? ', ' + (COUNTRY[q.research_cc] || q.research_cc) : '') + '. ' + n + ' recent paper' + (n === 1 ? '' : 's') + ' on ' + q.research_term +
+      ' (' + Math.min.apply(null, x.years) + '-' + Math.max.apply(null, x.years) + ', cited ' + x.cites + ' times): "' + x.papers.slice(0, 3).join('"; "') + '". Industry researcher; find contact on LinkedIn or the papers.' };
+});
+return [{ json: { organic: organic, source: 'research', results_count: organic.length } }];
+"""
+
+EXPERT_SITES = r"""
+// Speakers & experts: conference speaker pages and expert programmes, one
+// query per site, by topic (skills or job title) and place.
+if (platforms.some(function(pl){ return /speakers|experts/i.test(String(pl)); })) {
+  const topicOpts = skillArr.length || skillRawBool ? skillOpts : (roleOpts.length ? roleOpts : [roleShort]);
+  // expert pages name a country more often than a city
+  const country = countryOf(loc);
+  const placeOpts = loc ? ['(' + [locList[0] || q(loc.toLowerCase()), country ? q(country) : ''].filter(Boolean).join(' OR ') + ')', ''] : [''];
+  [['site:sessionize.com intitle:"speaker profile"', 2], ['site:developers.google.com/community/experts/directory/profile', 1],
+   ['site:mvp.microsoft.com', 1], ['site:aws.amazon.com/developer/community/heroes', 1]].forEach(function(x){
+    queries.push({ kind: 'expert-profiles', pages: x[1], q: fit([[x[0]], topicOpts, placeOpts, exclOpts]) });
+  });
+}
+// Veterans: people from the armed forces, by role and place, and officers
+// moving into corporate roles.
+if (VETERANS) {
+  const FORCES = INDIA_GL ? '("Indian Army" OR "Indian Navy" OR "Indian Air Force" OR veteran)' : '(veteran OR "armed forces" OR army OR navy)';
+  const RANKS = INDIA_GL ? '(Colonel OR Major OR "Wing Commander" OR Commander)' : '(Colonel OR Major OR Captain OR Commander)';
+  queries.push({ kind: 'profiles', pages: 2, q: fit([['site:linkedin.com/in'], [FORCES], roleOpts.concat(['']), locOpts.concat(['']), exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });
+  queries.push({ kind: 'profiles', pages: 2, q: fit([['site:linkedin.com/in'], [FORCES], [RANKS], ['(transition OR retired)', ''], locOpts.concat(['']), exclOpts]) });
+}
+// Target companies: one LinkedIn search per company, so every company is covered.
+if (has(/linkedin/i) && employerList.length > 1) {
+  employerList.slice(0, 5).forEach(function(co){
+    queries.push({ kind: 'company-profiles', pages: 2, q: fit([['site:linkedin.com/in'], [co], roleOpts.concat(['']), locOpts.concat(['']), exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });
+  });
+}
+"""
+
+NOT_PROFILE_32 = r"""
+// Speakers & experts and research: only people's pages.
+PROFILE_ONLY.push(
+  [/sessionize\.com/i, /sessionize\.com\/(?!api|app|playbook|blog|pricing|events?|organizers?|speakers-directory)[\w.-]+\/?$/i],
+  [/developers\.google\.com/i, /\/experts\/directory\/profile\/[\w.-]+\/?$/i],
+  [/mvp\.microsoft\.com/i, /(publicprofile|mvp\/profile)\/[\w.-]+\/?$/i],
+  [/aws\.amazon\.com\/developer\/community\/heroes/i, /heroes\/[\w.-]+\/?$/i]
+);
+"""
+
+VETERAN_SCORING = ("${ S('Search Criteria')['Veterans'] ? "
+                   "'VETERANS SEARCH: these are people from the armed forces. Score what their service shows, not corporate titles: "
+                   "rank and years of service (scope and seniority), people led, logistics, operations, security, training, procurement, administration, "
+                   "technical branches (signals, engineering, EME, aviation) and any civilian courses or certifications. Translate it to the role "
+                   "(e.g. a Colonel commanding 800 people = senior operations leadership). Do not penalise missing corporate experience; "
+                   "do penalise profiles that show no service at all.\\n' : '' }")
+
+PAST_PEOPLE_REPLY = r"""
+// People from earlier searches who fit this role, best first. Read-only.
+""" + PERSON_KEY_JS + r"""
+const g = $('App Gate').first().json, b = g.body || {};
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = {}; rows('Load Past Runs').forEach(function(r){ if (r.run_id) runs[String(r.run_id)] = r; });
+const people = rows('Load Past People').filter(function(r){ return r.dedupe_key && r.name; });
+const STOP = /^(senior|sr|junior|jr|lead|principal|staff|head|of|and|the|i|ii|iii|manager|associate)$/;
+const words = function(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9+#.\s]/g, ' ').split(/\s+/).filter(function(w){ return w.length > 1 && !STOP.test(w); }); };
+const roleW = words(b.role);
+const must = (Array.isArray(b.must) ? b.must : String(b.must || '').split(',')).map(function(s){ return String(s).trim().toLowerCase(); }).filter(Boolean).slice(0, 6);
+const city = String(b.city || '').toLowerCase().trim();
+const cur = String(b.run_id || '');
+const have = {};
+people.filter(function(r){ return String(r.run_id) === cur; }).forEach(function(r){ personKeys(r).forEach(function(k){ have[k] = 1; }); });
+const shows = function(r, m){
+  const hay = (String(r.key_skills || '') + ' ' + String(r.title || '')).toLowerCase();
+  if (hay.indexOf(m) !== -1) return true;
+  return String(r.summary || '').toLowerCase().split(/(?<=[.;!?])\s+/).some(function(sn){ return sn.indexOf(m) !== -1 && !/\b(no|not|without|lacks?|missing|unclear)\b/.test(sn); });
+};
+const best = {};
+people.forEach(function(r){
+  if (String(r.run_id) === cur || r.feedback === 'down') return;
+  const ks = personKeys(r); if (ks.some(function(k){ return have[k]; })) return;
+  const tw = words(r.title), hit = roleW.filter(function(w){ return tw.indexOf(w) !== -1; });
+  const ms = must.filter(function(m){ return shows(r, m); });
+  const inCity = city && String(r.location || '').toLowerCase().indexOf(city.split(/[ ,]/)[0]) !== -1;
+  let score = (roleW.length ? 45 * hit.length / roleW.length : 0) + (must.length ? 35 * ms.length / must.length : 0) + (inCity ? 10 : 0) + Math.min(10, Number(r.fit_score) || 0);
+  if (!hit.length && ms.length < Math.ceil(must.length / 2)) return;
+  if (score < 45) return;
+  const key = ks[0] || r.dedupe_key;
+  if (best[key] && best[key].score >= score) return;
+  const run = runs[String(r.run_id)] || {};
+  best[key] = { score: Math.round(score), why: hit.concat(ms).slice(0, 4), from_role: [run.role, run.location].filter(Boolean).join(', ') || 'an earlier search', from_run: String(r.run_id),
+    person: { dedupe_key: r.dedupe_key, name: r.name, title: r.title || '', company: r.company || '', location: r.location || '', location_review: r.location_review || '', fit_score: Number(r.fit_score) || 0,
+      confidence: r.confidence || '', experience_check: r.experience_check || '', summary: r.summary || '', key_skills: r.key_skills || '', email: r.email || '', contact_source: r.contact_source || '',
+      source: r.source || '', profile_url: r.profile_url || '', linkedin: r.linkedin || '', github: r.github || '', resume_link: r.resume_link || '' } };
+});
+const list = Object.keys(best).map(function(k){ return best[k]; }).sort(function(a, b){ return b.score - a.score; }).slice(0, 25);
+return [{ json: { response: { ok: true, people: list, searched: people.length } } }];
+"""
+
+GATE_R32_JS = r"""
+// -- add people from earlier searches to this role --
+if (action === 'import_people') {
+  const run = String(body.run_id || '').trim();
+  const list = Array.isArray(body.people) ? body.people.slice(0, 50) : [];
+  if (!/^\d+$/.test(run) || !list.length) return reply({ ok: false, error: 'Pick people to add first.' });
+  const S = function(v, n){ return String(v == null ? '' : v).slice(0, n || 300); };
+  const seenK = {};
+  list.forEach(function(p){
+    if (!p || !p.dedupe_key || !p.name || seenK[p.dedupe_key]) return; seenK[p.dedupe_key] = 1;
+    W.people.push({ run_id: run, dedupe_key: S(p.dedupe_key, 200), name: S(p.name, 120), title: S(p.title, 200), company: S(p.company, 120), location: S(p.location, 120),
+      location_review: S(p.location_review, 200), fit_score: Math.max(0, Math.min(10, Number(p.fit_score) || 0)), confidence: S(p.confidence, 40), experience_check: S(p.experience_check, 200),
+      summary: S(p.summary, 2000), key_skills: S(p.key_skills, 500), email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(p.email || '')) ? S(p.email, 200) : '', contact_source: S(p.contact_source, 60),
+      source: S(p.source, 60), profile_url: /^https?:\/\//.test(String(p.profile_url || '')) ? S(p.profile_url, 500) : '', linkedin: /^https?:\/\//.test(String(p.linkedin || '')) ? S(p.linkedin, 500) : '',
+      github: /^https?:\/\//.test(String(p.github || '')) ? S(p.github, 500) : '', resume_link: /^https?:\/\//.test(String(p.resume_link || '')) ? S(p.resume_link, 500) : '',
+      outreach_status: '', approved: false, feedback: '' });
+    W.events.push({ at: now.toISOString(), run_id: run, dedupe_key: S(p.dedupe_key, 200), person: S(p.name, 120), kind: 'note', from_stage: '', to_stage: '',
+      detail: 'added from an earlier search' + (p.from_role ? ' (' + S(p.from_role, 80) + ')' : ''), by: me.name });
+  });
+  log(me, 'added people from earlier searches', W.people.length + ' people');
+  return reply({ ok: true, added: W.people.length });
+}
+"""
+
+
+def apply_round32(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        key = "jsCode" if "jsCode" in p else None
+        assert key and old in p[key], "round32 %s: anchor not found: %s" % (name, old[:70])
+        p[key] = p[key].replace(old, newv, 1)
+
+    def link(a, b, idx=0, to=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": to})
+
+    def code(name, js, pos, once=True):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    # 1. research papers (OpenAlex) as a 12th source
+    kx, ky = N["Build Repo Query"]["position"]
+    ry = ky - 144
+    code("Build Research Query", BUILD_RESEARCH_QUERY, [kx, ry])
+    new.append(_node("Research Search", "n8n-nodes-base.httpRequest", 4.2, [kx + 192, ry], {
+        "url": "={{ $json.research_url }}", "sendHeaders": True,
+        "headerParameters": {"parameters": [{"name": "User-Agent", "value": "open-source-sourcing-pipeline"}]},
+        "options": {"timeout": 20000}}, onError="continueRegularOutput"))
+    code("Research To Organic", RESEARCH_TO_ORGANIC, [kx + 400, ry])
+    link("Load CRM Rows", "Build Research Query"); link("Build Research Query", "Research Search"); link("Research Search", "Research To Organic")
+    wa = N["Wait For All Sources"]
+    n_in = wa["parameters"]["numberInputs"]
+    wa["parameters"]["numberInputs"] = n_in + 1
+    link("Research To Organic", "Wait For All Sources", 0, n_in)
+
+    # 2. speakers & experts, veterans, target companies (search queries)
+    R("Build Search Query", "const employerList = employer.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 3).map(q);",
+      "const employerList = employer.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 5).map(q);")
+    R("Build Search Query", "const out = [];\nfor (const qq of queries) {",
+      "const VETERANS = form['Veterans'] === true || form['Veterans'] === 'Yes';\nconst INDIA_GL = gl === 'in' || !gl;\n" + EXPERT_SITES.lstrip() + "const out = [];\nfor (const qq of queries) {")
+    # with several target companies the combined LinkedIn query uses the first three
+    R("Build Search Query", "const employerOpts = employerList.length ? shrink(employerList).concat(['']) : [''];",
+      "const employerOpts = employerList.length ? shrink(employerList.slice(0, 3)).concat(['']) : [''];")
+    R("Merge Pages", "const notProfile = function(link)", NOT_PROFILE_32.lstrip() + "const notProfile = function(link)")
+    R("Format Search Results", "medium\\.com\\/@)/i;",
+      "medium\\.com\\/@|openalex\\.org\\/A|orcid\\.org\\/|sessionize\\.com\\/|experts\\/directory\\/profile\\/|mvp\\.microsoft\\.com\\/|community\\/heroes\\/)/i;")
+    R("Format Search Results", "--- INSTRUCTIONS ---\n", "--- INSTRUCTIONS ---\n" + VETERAN_SCORING + "\n")
+    R("Parse Contact", "  if (u.indexOf('medium.com') !== -1) return 'Medium';",
+      "  if (u.indexOf('medium.com') !== -1) return 'Medium';\n"
+      "  if (u.indexOf('openalex.org') !== -1 || u.indexOf('orcid.org') !== -1) return 'Research papers';\n"
+      "  if (/sessionize\\.com|developers\\.google\\.com\\/community\\/experts|mvp\\.microsoft\\.com|community\\/heroes/.test(u)) return 'Speakers & experts';")
+    R("Location Check & Rank", "['medium.com','Medium']]",
+      "['medium.com','Medium'],['openalex.org','Research papers'],['orcid.org','Research papers'],['sessionize.com','Speakers & experts'],['developers.google.com/community/experts','Speakers & experts'],['mvp.microsoft.com','Speakers & experts'],['community/heroes','Speakers & experts']]")
+    R("Search Criteria", "  'Keywords to Exclude':", "  'Veterans': val('veteran', 'Veterans') === true || val('veteran', 'Veterans') === 'Yes',\n  'Keywords to Exclude':")
+    fields = N["Check Search"]["parameters"]["formFields"]["values"]
+    ci = [f.get("fieldName") for f in fields].index("colleges")
+    fields.insert(ci + 1, VETERAN_FIELD)
+    R("App Criteria", "  colleges: String(c.colleges || '').slice(0, 200),", "  colleges: String(c.colleges || '').slice(0, 200),\n  veteran: c.veteran === true || c.veteran === 'Yes' ? 'Yes' : '',")
+    R("App Criteria", "if (!sources.length) return", "if (c.veteran === true || c.veteran === 'Yes') { if (sources.indexOf('LinkedIn') === -1) sources.unshift('LinkedIn'); }\nif (!sources.length) return")
+    # intake suggests the new channels and spots veteran briefs
+    R("Intake Prompt", "product managers: LinkedIn, Topmate, ADPList;",
+      "product managers: LinkedIn, Topmate, ADPList; research, R&D, AI/ML scientists and applied researchers: add Research papers; senior engineers, architects, developer advocates and tech leads: add Speakers & experts;")
+    R("Intake Result", "try { brief = String(($('App Gate').first().json.body || {}).brief || ''); } catch (e) {}",
+      "try { brief = String(($('App Gate').first().json.body || {}).brief || ''); } catch (e) {}\n"
+      "criteria.veteran = /\\b(veterans?|ex[- ]?servicem[ae]n|ex[- ]?(army|navy|air force|defen[cs]e)|armed forces|military background|defen[cs]e (background|personnel)|retired officers?)\\b/i.test(brief);")
+
+    # 3. the gate: import people, the new route
+    R("App Gate", "const W = { users: [], sessions: [], activity: [], settings: [], stages: [], events: [] };",
+      "const W = { users: [], sessions: [], activity: [], settings: [], stages: [], events: [], people: [] };")
+    R("App Gate", "// -- routes with their own steps --", GATE_R32_JS.lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'thread', 'send_reply', 'kit'];", "'thread', 'send_reply', 'kit', 'past_people'];")
+    gx, gy = N["App Gate"]["position"]
+    pw = code("People Writes", WRITES_JS % ("people", "people"), [gx - 200, gy - 360], once=False)
+    sp = _node("Save Imported People", "n8n-nodes-base.dataTable", 1.1, [gx + 20, gy - 360], {"resource": "row", "operation": "insert",
+        "dataTableId": _dt_ref("app_candidates"), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    new.append(sp)
+    link("People Writes", "Save Imported People")
+    gl = conns["App Gate"]["main"][0]
+    i = [c["node"] for c in gl].index("App Route")
+    gl[i:i] = [{"node": "People Writes", "type": "main", "index": 0}]
+
+    routes = routes_in + ["past_people"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    bx, by = N["Kit Prompt"]["position"]
+    y = by + 200
+    for k, (nm, table) in enumerate([("Load Past Runs", "app_runs"), ("Load Past People", "app_candidates")]):
+        ld = _node(nm, "n8n-nodes-base.dataTable", 1.1, [bx + 220 * k, y], {"resource": "row", "operation": "get", "dataTableId": _dt_ref(table), "returnAll": True},
+                   alwaysOutputData=True, onError="continueRegularOutput")
+        ld["executeOnce"] = True
+        new.append(ld)
+    code("Past People Reply", PAST_PEOPLE_REPLY, [bx + 440, y])
+    link("App Route", "Load Past Runs", routes.index("past_people")); link("Load Past Runs", "Load Past People"); link("Load Past People", "Past People Reply"); link("Past People Reply", "App Reply")
+    nodes.extend(new)
+    return nodes, conns, routes
+
+
+VETERAN_FIELD = {"fieldName": "veteran", "fieldLabel": "Veterans only", "fieldType": "dropdown",
+                 "fieldOptions": {"values": [{"option": "No"}, {"option": "Yes"}]}, "defaultValue": "={{ $json['veteran'] || 'No' }}"}

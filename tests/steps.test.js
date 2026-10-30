@@ -1163,3 +1163,70 @@ test('R31: the board adds warm connections, open-to-work, opens, who else is her
   assert.deepEqual(x.viewers, ['Priya']); assert.equal(x.team_reply_rate, 50);
   assert.equal(x.best_time, 'Tue 10:00–12:00');
 });
+
+test('R32: research papers come from OpenAlex, as industry researchers in the search country', async () => {
+  const [q] = await runNode('Build Research Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Applied Scientist', 'Primary Skills': 'computer vision, autonomous driving', 'Target Platforms': ['LinkedIn', 'Research papers'] })] });
+  assert.equal(q.research_cc, 'IN'); assert.equal(q.research_term, 'computer vision autonomous driving');
+  assert.match(q.research_url, /authorships\.institutions\.type:company/); assert.match(q.research_url, /country_code:IN/);
+  assert.deepEqual(await runNode('Build Research Query', [{}], { 'Search Criteria': [criteria()] }), [], 'not picked: no request');
+  const works = { results: [
+    { title: 'Lane detection at night', publication_year: 2025, cited_by_count: 4, authorships: [
+      { author: { id: 'https://openalex.org/A1', display_name: 'Asha Rao', orcid: 'https://orcid.org/0000-0001' }, institutions: [{ display_name: 'Kitebase (India)', type: 'company', country_code: 'IN' }] },
+      { author: { id: 'https://openalex.org/A2', display_name: 'Prof X' }, institutions: [{ display_name: 'Some University', type: 'education', country_code: 'IN' }] },
+      { author: { id: 'https://openalex.org/A3', display_name: 'Ed Itor' }, institutions: [{ display_name: 'Springer Nature (India)', type: 'company', country_code: 'IN' }] }] },
+    { title: 'Radar fusion', publication_year: 2023, cited_by_count: 10, authorships: [
+      { author: { id: 'https://openalex.org/A1', display_name: 'Asha Rao', orcid: 'https://orcid.org/0000-0001' }, institutions: [{ display_name: 'Kitebase (India)', type: 'company', country_code: 'IN' }] }] }] };
+  const [o] = await runNode('Research To Organic', [works], { 'Build Research Query': [q] });
+  assert.equal(o.organic.length, 1, 'university and publisher people left out');
+  assert.equal(o.organic[0].link, 'https://orcid.org/0000-0001');
+  assert.match(o.organic[0].title, /Asha Rao - Researcher at Kitebase$/);
+  assert.match(o.organic[0].snippet, /2 recent papers .*2023-2025, cited 14 times/);
+  assert.equal((await runNode('Research To Organic', [{ error: 'timeout' }], { 'Build Research Query': [q] }))[0].organic.length, 0);
+  assert.equal(await runNode('Parse Contact', [{ profile_url: 'https://orcid.org/0000-0001' }]).then(() => true).catch(() => true), true);
+});
+
+test('R32: speakers & experts, veterans and target companies add their own searches', async () => {
+  const ex = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Speakers & experts'] })] });
+  const eq = ex.filter((x) => /sessionize|experts\/directory|mvp\.microsoft|community\/heroes/.test(x.q));
+  assert.equal(new Set(eq.map((x) => x.q)).size, 4, 'one query per site');
+  assert.ok(eq.every((x) => /Spring Boot/.test(x.q) && /india/i.test(x.q)));
+  const vet = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Security Manager', 'Primary Skills': '', 'Key Skills & Criteria': '', 'Target Platforms': ['LinkedIn'], Veterans: true })] });
+  const vq = vet.filter((x) => /Indian Army/.test(x.q));
+  assert.equal(new Set(vq.map((x) => x.q)).size, 2); assert.ok(vq.some((x) => /Colonel/.test(x.q)));
+  const co = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'], 'Current Employer': 'Kitebase, Northwind SaaS, Meridian Pay, Cedarloop' })] });
+  const cq = [...new Set(co.filter((x) => x.kind === 'company-profiles').map((x) => x.q))];
+  assert.equal(cq.length, 4); assert.ok(cq.some((x) => /Cedarloop/.test(x)));
+  assert.ok(co.every((x) => x.words <= 32));
+  const single = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'], 'Current Employer': 'Kitebase' })] });
+  assert.equal(single.filter((x) => x.kind === 'company-profiles').length, 0, 'one company: the main search covers it');
+});
+
+test('R32: past candidates who fit a new role are found once each, best first', async () => {
+  const P = (o) => Object.assign({ run_id: '1', title: '', company: '', location: '', summary: '', key_skills: '', fit_score: 7 }, o);
+  const [r] = await runNode('Past People Reply', [{}], {
+    'App Gate': [{ body: { role: 'Senior Product Manager', must: ['B2B SaaS', 'pricing'], city: 'Bangalore', run_id: '9' } }],
+    'Load Past Runs': [{ run_id: '1', role: 'Product Manager', location: 'Bangalore' }, { run_id: '2', role: 'Growth PM' }],
+    'Load Past People': [
+      P({ dedupe_key: 'a', name: 'Asha Nair', title: 'Product Manager', company: 'Northwind', location: 'Bengaluru, Bangalore', key_skills: 'B2B SaaS, pricing' }),
+      P({ run_id: '2', dedupe_key: 'a2', name: 'Asha Nair', title: 'Senior Product Manager', company: 'Northwind', key_skills: 'B2B SaaS' }),
+      P({ dedupe_key: 'b', name: 'Raj Iyer', title: 'Java Developer', key_skills: 'Java' }),
+      P({ dedupe_key: 'c', name: 'Neha K', title: 'Product Manager', company: 'Brightlane', feedback: 'down', key_skills: 'B2B SaaS, pricing' }),
+      P({ run_id: '9', dedupe_key: 'd', name: 'Kavya Iyer', title: 'Product Manager', company: 'Kitebase' }),
+      P({ dedupe_key: 'd0', name: 'Kavya Iyer', title: 'Product Manager', company: 'Kitebase', key_skills: 'B2B SaaS, pricing' })] });
+  const names = r.response.people.map((x) => x.person.name);
+  assert.deepEqual(names, ['Asha Nair'], 'no Java dev, no thumbs-down, nobody already on this role, Asha once');
+  assert.equal(r.response.people[0].from_role, 'Product Manager, Bangalore');
+});
+
+test('R32: adding people from earlier searches copies them into the role, with a note', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const g = await gate29({ action: 'import_people', token: s.token, run_id: '77', people: [
+    { dedupe_key: 'a', name: 'Asha Nair', title: 'PM', email: 'asha@x.example', profile_url: 'javascript:alert(1)', fit_score: 42, from_role: 'Product Manager' },
+    { dedupe_key: 'a', name: 'Asha Nair' }] }, ctx);
+  assert.equal(g.response.added, 1);
+  const p = g.writes.people[0];
+  assert.equal(p.run_id, '77'); assert.equal(p.profile_url, ''); assert.equal(p.fit_score, 10); assert.equal(p.approved, false);
+  assert.match(g.writes.events[0].detail, /added from an earlier search \(Product Manager\)/);
+  assert.match((await gate29({ action: 'import_people', token: s.token, run_id: 'x', people: [] }, ctx)).response.error, /Pick people/);
+  assert.equal((await gate29({ action: 'past_people', token: s.token, role: 'PM' }, ctx)).route, 'past_people');
+});

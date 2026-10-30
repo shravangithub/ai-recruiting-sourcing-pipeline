@@ -216,6 +216,21 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .hist{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;font-size:13px;padding:7px 0;border-top:1px solid var(--line2)}
 .bfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pulse{display:flex;flex-direction:column;gap:12px}
+.opt{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 10px;border-radius:10px;background:var(--ground);border:0;font-family:inherit;color:var(--ink);text-align:left;cursor:pointer;width:100%}
+.opt .tog{flex:none}
+.past{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:#F1F5FA}
+.past label{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:8px;align-items:start;font-size:12.5px;line-height:1.4;cursor:pointer}
+.past label input{margin-top:2px}
+.past .w{color:var(--muted);font-size:11.5px}
+.map{border-collapse:separate;border-spacing:3px;font-size:13px;width:100%}
+.map th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:4px 8px;white-space:nowrap;text-transform:none;letter-spacing:0;background:transparent;border:0}
+.map td{background:#fff;border-radius:8px;padding:6px 8px;vertical-align:top;min-width:120px}
+.map td.co{background:transparent;font-weight:700;white-space:nowrap}
+.map td.z{background:#F5F5F6}
+.map td b{font:800 15px Manrope,sans-serif;margin-right:6px}
+.map .who{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.map .who button{border:0;background:#E8EEF7;color:#1F2A44;border-radius:5px;font:600 11px Inter,sans-serif;padding:2px 6px;cursor:pointer}
+.mapwrap{flex:1 1 auto;min-width:0;background:#EFEFF1;border-radius:14px;padding:14px;overflow-x:auto}
 .pk{display:flex;flex-direction:column;gap:1px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;min-width:120px}
 .pk b{font:800 19px Manrope,sans-serif}.pk span{font-size:12px;color:var(--muted)}
 .fc{flex:0 1 560px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:12px;background:var(--char);color:#fff}
@@ -509,8 +524,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 (function(){
 var API = '__API__';
 var SHEET_URL = '__SHEET_URL__';
-var PLATFORMS = ['LinkedIn','GitHub','Stack Overflow','Google / Open Web','Hacker News','GitLab','Kaggle','Hugging Face','Dev.to','Reddit','X (Twitter)','Dribbble','Behance','Devfolio','Unstop','Devpost','HackerEarth','LeetCode','CodeChef','Codeforces','Topmate','ADPList','Medium'];
-var YIELD = {'LinkedIn':'~25','GitHub':'~40','Stack Overflow':'~35','Google / Open Web':'~12','Hacker News':'~14','GitLab':'~11','Kaggle':'~28','Hugging Face':'~27','Dev.to':'~8','Reddit':'~14','X (Twitter)':'~13','Dribbble':'~10','Behance':'~20','Devfolio':'new','Unstop':'new','Devpost':'new','HackerEarth':'new','LeetCode':'new','CodeChef':'new','Codeforces':'new','Topmate':'new','ADPList':'new','Medium':'new'};
+var PLATFORMS = ['LinkedIn','GitHub','Stack Overflow','Google / Open Web','Hacker News','GitLab','Kaggle','Hugging Face','Dev.to','Reddit','X (Twitter)','Dribbble','Behance','Devfolio','Unstop','Devpost','HackerEarth','LeetCode','CodeChef','Codeforces','Topmate','ADPList','Medium','Research papers','Speakers & experts'];
+var YIELD = {'LinkedIn':'~25','GitHub':'~40','Stack Overflow':'~35','Google / Open Web':'~12','Hacker News':'~14','GitLab':'~11','Kaggle':'~28','Hugging Face':'~27','Dev.to':'~8','Reddit':'~14','X (Twitter)':'~13','Dribbble':'~10','Behance':'~20','Devfolio':'new','Unstop':'new','Devpost':'new','HackerEarth':'new','LeetCode':'new','CodeChef':'new','Codeforces':'new','Topmate':'new','ADPList':'new','Medium':'new','Research papers':'new','Speakers & experts':'new'};
 var REGIONS = ['Global (all regions)','India','United States','United Kingdom','Canada','Australia','Germany','France','Netherlands','Singapore','United Arab Emirates','Ireland'];
 var el = function(id){ return document.getElementById(id); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
@@ -895,6 +910,7 @@ function loadBoard(runId){
   call('board', { run_id: runId || '' }).then(function(j){
     if (!j.ok) { toast(j.error || 'Could not load the board.'); return; }
     B.data = j; B.runId = String((j.run && j.run.run_id) || runId || '');
+    if (B.pastFor !== B.runId && j.run && j.run.status !== 'running' && (j.roles||[]).length > 1) { B.pastFor = B.runId; B.past = null; var cr0 = j.criteria || {}; loadPast(B, { role: j.run.role || cr0.role || '', must: bList(cr0.must || j.run.must), city: j.run.location || '', run_id: B.runId }); }
     var cr = j.criteria || {};
     S.listMust = bList(cr.must || (j.run && j.run.must)); S.listNice = bList(cr.nice); S.listCity = !!String((j.run && j.run.location) || '').trim();
     if (!B.data.cards.length && !(j.roles||[]).length) B.newRole = true;
@@ -936,9 +952,11 @@ function renderBoard(){
   var cards = (j.cards||[]).filter(bVisible);
   var nf = cards.filter(function(c){ return c.stage === 'not_fit'; }).length, sn = cards.filter(function(c){ return c.snoozed && c.stage !== 'not_fit'; }).length;
   el('bFilters').innerHTML = [['all','Everyone'],['mine','Mine'],['strong','80%+'],['email','Has email']].map(function(f){ return '<button type="button" class="f'+(B.filter===f[0]?' on':'')+'" data-bf="'+f[0]+'">'+f[1]+'</button>'; }).join('') +
-    '<button type="button" class="f'+(B.showOut?' on':'')+'" data-bf="out">Not a fit '+nf+' · Not now '+sn+'</button>';
+    '<button type="button" class="f'+(B.showOut?' on':'')+'" data-bf="out">Not a fit '+nf+' · Not now '+sn+'</button>'+
+    '<button type="button" class="f'+(B.view==='map'?' on':'')+'" data-bf="map" aria-pressed="'+(B.view==='map')+'">Map</button>';
   renderPulse(cards);
   var html = '<section class="bcol bbrief" aria-label="Brief">'+briefPanel()+'</section>';
+  if (B.view === 'map' && !B.newRole) { el('bWrap').innerHTML = html + renderMap(cards); if (B.open) openCard(B.open, true); return; }
   COLS.forEach(function(col){
     var list = cards.filter(function(c){ return c.stage === col[0] && (B.showOut || !c.snoozed); }).sort(function(a,b){ return bPct(b)-bPct(a); });
     var head = col[0]==='found' && run.status==='running' ? '<span class="spin" style="width:10px;height:10px"></span>Found<span class="n">searching…</span>' : esc(col[1])+'<span class="n">'+list.length+'</span>';
@@ -1015,6 +1033,49 @@ function poolPanel(){
   return '<div class="pool"><span class="lbl">What if · of '+all.length+' found</span><div class="pb"><span><b>'+full+'</b> show every must-have</span><span></span></div><div class="pb" style="grid-template-columns:minmax(0,1fr)"><i class="hl" style="width:'+Math.round(100*full/max)+'%"></i></div>'+
     rows.slice(0,3).map(function(r){ return '<div class="pb"><span>Make <b>'+esc(r.m)+'</b> nice-to-have</span><span style="font-weight:700;text-align:right">+'+r.gain+'</span></div><div class="pb" style="grid-template-columns:minmax(0,1fr)"><i style="width:'+Math.round(100*(full+r.gain)/max)+'%"></i></div>'; }).join('')+'</div>';
 }
+// ----- people from earlier searches -----
+function loadPast(holder, q){
+  if (!q.role) return;
+  var key = JSON.stringify(q); if (holder.pastKey === key) return; holder.pastKey = key;
+  call('past_people', q).then(function(j){ if (holder.pastKey !== key || !j.ok) return;
+    holder.past = { list: j.people || [], pick: {} }; (j.people||[]).slice(0, 5).forEach(function(x){ if (x.score >= 60) holder.past.pick[x.person.dedupe_key] = 1; });
+    if (holder === B ? !B.newRole : B.nb === holder) renderBrief(); }).catch(function(){});
+}
+function pastPicked(past){ if (!past) return []; return past.list.filter(function(x){ return past.pick[x.person.dedupe_key]; }).map(function(x){ return Object.assign({ from_role: x.from_role }, x.person); }); }
+function pastPanel(past, mode){
+  if (!past || !past.list.length) return '';
+  var n = pastPicked(past).length, shown = past.all ? past.list : past.list.slice(0, 5);
+  return '<div class="past"><div style="display:flex;align-items:baseline;gap:8px"><b style="font-size:13px">'+past.list.length+' from your earlier searches fit</b>'+(past.list.length > 5 ? '<a href="#" id="pastAll" style="margin-left:auto;font-size:12px">'+(past.all?'fewer':'all')+'</a>' : '')+'</div>'+
+    shown.map(function(x){ var p = x.person; return '<label><input type="checkbox" data-past="'+esc(p.dedupe_key)+'"'+(past.pick[p.dedupe_key]?' checked':'')+'><span><b>'+esc(p.name)+'</b> '+esc([p.title, p.company].filter(Boolean).join(' at ').slice(0,60))+'<br><span class="w">From '+esc(x.from_role)+(x.why.length?'. Matches '+esc(x.why.join(', ')):'')+'</span></span><span class="w">'+x.score+'</span></label>'; }).join('')+
+    (mode === 'role' ? '<button type="button" class="btn" id="pastAdd" style="height:34px"'+(n?'':' disabled')+'>Add '+n+' to this role</button>' : '<span class="w" style="font-size:12px">'+(n ? n+' ticked will be added when the search starts.' : 'Tick people to add them to this role.')+'</span>')+'</div>';
+}
+function importPast(people, runId, starting){
+  call('import_people', { run_id: runId, people: people }).then(function(j){
+    if (!j.ok) { toast(j.error || 'Could not add them.'); return; }
+    toast(starting ? 'Searching. ' + j.added + ' from earlier searches are already in Found.' : j.added + ' added to Found from earlier searches.');
+    if (B.past) B.past = null; B.pastFor = null; loadBoard(runId);
+  }).catch(function(e){ if (e.message!=='locked') toast(e.message); });
+}
+// ----- map: who works where, by level -----
+var LEVELS = [['ic','Individual'],['senior','Senior / lead'],['manager','Manager'],['head','Head / director+']];
+function levelOf(t){ t = String(t||'').toLowerCase().replace(/\b(product|program|programme|project|account|key account|marketing|brand|community|customer success|relationship|engineering manager)\s+manager\b/g, function(m){ return /engineering/.test(m) ? m : 'pm'; });
+  if (/\b(vp|vice president|director|head|chief|cxo|cto|cpo|ceo|coo|cfo|founder|partner|gm|general manager)\b/.test(t)) return 'head';
+  if (/\b(manager|mgr)\b/.test(t)) return 'manager';
+  if (/\b(senior|sr\.?|lead|principal|staff|architect|group)\b/.test(t)) return 'senior';
+  return 'ic'; }
+function renderMap(cards){
+  var by = {}, coName = {};
+  cards.filter(function(c){ return c.stage !== 'not_fit'; }).forEach(function(c){ var k = String(c.company||'').toLowerCase().replace(/\b(pvt|private|ltd|limited|inc|llp|technologies|technology|india)\b/g,'').replace(/[^a-z0-9]/g,''); if (!k) k = '—';
+    coName[k] = coName[k] || c.company || 'Company not shown'; (by[k] = by[k] || []).push(c); });
+  var keys = Object.keys(by).sort(function(a,b){ return (a==='—') - (b==='—') || by[b].length - by[a].length; }).slice(0, 25);
+  var tgt = String(((B.data||{}).criteria||{}).employer||'').toLowerCase().split(',').map(function(x){ return x.trim().replace(/[^a-z0-9]/g,''); }).filter(Boolean);
+  return '<section class="mapwrap" aria-label="Map"><div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px"><b>Who works where</b><span class="muted" style="font-size:13px">'+cards.length+' people at '+Object.keys(by).length+' companies, by level. Click a name to open them.</span></div>'+
+    '<table class="map"><thead><tr><th>Company</th>'+LEVELS.map(function(l){ return '<th>'+l[1]+'</th>'; }).join('')+'</tr></thead><tbody>'+
+    keys.map(function(k){ var ppl = by[k], isT = tgt.some(function(t){ return k.indexOf(t) === 0 || t.indexOf(k) === 0; });
+      return '<tr><td class="co">'+esc(coName[k])+(isT?' <span class="bdup">target</span>':'')+'<div class="muted" style="font-weight:400;font-size:12px">'+ppl.length+' '+(ppl.length===1?'person':'people')+'</div></td>'+LEVELS.map(function(l){ var xs = ppl.filter(function(c){ return levelOf(c.title) === l[0]; });
+        return xs.length ? '<td><b>'+xs.length+'</b><div class="who">'+xs.slice(0,4).map(function(c){ return '<button type="button" data-card="'+esc(c.dedupe_key)+'">'+esc(String(c.name).split(' ')[0])+' '+bPct(c)+'%</button>'; }).join('')+(xs.length>4?'<span class="w">+'+(xs.length-4)+'</span>':'')+'</div></td>' : '<td class="z"></td>'; }).join('')+'</tr>'; }).join('')+
+    '</tbody></table></section>';
+}
 // ----- the brief column: this role's search, or a new one -----
 function briefPanel(){
   var j = B.data || {}, run = j.run || {};
@@ -1028,6 +1089,9 @@ function briefPanel(){
       '<label for="nbBrief" style="position:absolute;left:-9999px">Brief</label><textarea id="nbBrief" rows="4" style="font-size:14px;line-height:1.5;background:#FAFAFB" placeholder="e.g. Area Sales Manager in Pune, 5–8 years, B2B SaaS. Ideally an MBA. No freshers.">'+esc(nb.brief)+'</textarea>'+
       (nb.q.length ? nb.q.map(function(q,qi){ return '<div class="q"><b>'+esc(q.text)+'</b><div class="qopts">'+q.options.map(function(o){ return '<button type="button" data-nbq="'+qi+'" data-a="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div></div>'; }).join('') : '')+
       (crit ? '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Read as · tap to switch must / nice</span><div class="chips">'+chips+'</div><div class="chips">'+facts.map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>' : '')+
+      (crit ? '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Target companies (optional, up to 5)</span><input id="nbCos" type="text" value="'+esc(nb.companies||'')+'" placeholder="e.g. Kitebase, Northwind SaaS"></label>'+
+        '<button type="button" class="opt" id="nbVet" aria-pressed="'+(!!nb.veteran)+'"><span class="tog'+(nb.veteran?' on':'')+'"><i></i></span><span><b>Veterans only</b><br><span class="muted" style="font-size:12px">People leaving the armed forces, scored on what their service shows</span></span></button>' : '')+
+      pastPanel(nb.past, 'new')+
       channelList(nb.sources, null)+
       '<button type="button" class="btn pri" id="nbGo" '+(crit?'':'disabled')+'>Find people · about 1 min</button>'+
       ((j.roles||[]).length ? '<button type="button" class="btn" id="nbCancel" style="height:36px">Back to '+esc(run.role||'the board')+'</button>' : '');
@@ -1040,8 +1104,9 @@ function briefPanel(){
     '<p style="margin:0;font-size:14px;line-height:1.5;background:#FAFAFB;border:1px solid var(--line);border-radius:10px;padding:10px 12px">'+esc(j.brief || [run.role, run.location, run.must].filter(Boolean).join(' · ') || 'No brief saved for this search.')+'</p>'+
     '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Searched for</span><div class="chips">'+
       bList(cr.must || run.must).map(function(x){ return '<span class="crit must">'+esc(x)+' · must</span>'; }).join('')+bList(cr.nice).map(function(x){ return '<span class="crit nice">'+esc(x)+' · nice</span>'; }).join('')+'</div>'+
-      '<div class="chips">'+[cr.experience && cr.experience!=='Any' ? cr.experience : '', run.location, cr.colleges].filter(Boolean).map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>'+
+      '<div class="chips">'+[cr.experience && cr.experience!=='Any' ? cr.experience : '', run.location, cr.colleges, cr.employer ? 'At ' + cr.employer : '', cr.veteran === 'Yes' ? 'Veterans only' : ''].filter(Boolean).map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>'+
     poolPanel()+
+    pastPanel(B.past, 'role')+
     channelList(B.srcSel, found)+
     '<button type="button" class="btn pri" id="bAgain">Find more people</button>'+
     '<button type="button" class="btn" id="bEdit" style="height:36px">Edit the brief and search again</button>';
@@ -1062,6 +1127,8 @@ function nbIntake(){
     if (my !== nbSeq) return; nb.busy = false;
     if (!j.ok) { toast(j.error || 'Could not read that brief.'); renderBrief(); return; }
     nb.crit = j.criteria || {}; nb.must = (nb.crit.must||[]).slice(); nb.nice = (nb.crit.nice||[]).slice(); nb.rubric = j.rubric || [];
+    if (!nb.touchedCos) nb.companies = nb.crit.companies || ''; if (!nb.touchedVet) nb.veteran = !!nb.crit.veteran;
+    loadPast(nb, { role: nb.crit.role || '', must: nb.must, city: nb.crit.city || '', run_id: '' });
     nb.q = (j.questions||[]).filter(function(q){ return q && q.text; }).slice(0,2);
     if (!nb.touchedSrc && (j.sources||[]).length) nb.sources = j.sources.filter(function(p){ return PLATFORMS.indexOf(p)!==-1; });
     renderBrief();
@@ -1078,18 +1145,19 @@ function nbSearch(btn){
   if (!nb.sources.length) { toast('Pick at least one channel.'); return; }
   btn.disabled = true; btn.textContent = 'Starting…';
   var crit = { role: c.role || '', similar: 'Yes', experience: ['0-2 years','3-5 years','5-8 years','8+ years'].indexOf(c.experience)!==-1 ? c.experience : 'Any', must: nb.must.join(', '), nice: nb.nice.join(', '),
-    city: c.city || '', region: REGIONS.indexOf(c.region)!==-1 ? c.region : (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', exclude: (c.exclude||[]).join(', '), education: 'Any',
+    city: c.city || '', region: REGIONS.indexOf(c.region)!==-1 ? c.region : (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: nb.companies != null ? nb.companies : (c.companies || ''), colleges: c.colleges || '', veteran: nb.veteran ? 'Yes' : '', exclude: (c.exclude||[]).join(', '), education: 'Any',
     sources: nb.sources, rubric: (nb.rubric||[]).map(function(r){ return '- ' + r.criterion + ' (weight ' + (r.weight||1) + '): ' + (r.how||''); }).join('\n'), jd_text: nb.brief.length > 400 ? nb.brief : '' };
   call('search', { criteria: crit, brief: nb.brief }).then(function(j){
     if (!j.ok) { btn.disabled = false; btn.textContent = 'Find people · about 1 min'; toast(j.error || 'Could not start the search.'); return; }
-    B.newRole = false; B.nb = null; B.srcSel = null; B.runId = String(j.run_id); toast('Searching. People appear in Found as they are scored.');
+    var picks = pastPicked(nb.past); B.newRole = false; B.nb = null; B.srcSel = null; B.runId = String(j.run_id);
+    if (picks.length) importPast(picks, B.runId, true); else toast('Searching. People appear in Found as they are scored.');
     loadBoard(B.runId);
   }).catch(function(e){ btn.disabled = false; btn.textContent = 'Find people · about 1 min'; if (e.message!=='locked') toast(e.message); });
 }
 function rerun(edit){
   var j = B.data || {}, cr = j.criteria, run = j.run || {};
   if (edit || !cr) {
-    B.newRole = true; B.nb = { brief: j.brief || [run.role, run.location ? 'in ' + run.location : '', run.must].filter(Boolean).join(', '), must: [], nice: [], crit: null, sources: (B.srcSel||[]).slice(), touchedSrc: true, q: [] };
+    B.newRole = true; B.nb = { brief: j.brief || [run.role, run.location ? 'in ' + run.location : '', run.must].filter(Boolean).join(', '), must: [], nice: [], crit: null, sources: (B.srcSel||[]).slice(), touchedSrc: true, q: [], companies: (cr && cr.employer) || '', touchedCos: !!(cr && cr.employer), veteran: !!(cr && cr.veteran === 'Yes'), touchedVet: !!(cr && cr.veteran === 'Yes') };
     renderBoard(); nbIntake(); return;
   }
   var crit = Object.assign({}, cr, { sources: (B.srcSel && B.srcSel.length) ? B.srcSel : cr.sources });
@@ -1098,7 +1166,7 @@ function rerun(edit){
     B.runId = String(r.run_id); B.srcSel = null; toast('Searching again. People you already have are kept, new ones land in Found.'); loadBoard(B.runId);
   }).catch(function(e){ if (e.message!=='locked') toast(e.message); });
 }
-el('bWrap').addEventListener('input', function(e){ if (e.target.id === 'nbBrief') { B.nb.brief = e.target.value; clearTimeout(nbT); nbT = setTimeout(nbIntake, 1200); } });
+el('bWrap').addEventListener('input', function(e){ if (e.target.id === 'nbCos') { B.nb.companies = e.target.value; B.nb.touchedCos = true; return; } if (e.target.id === 'nbBrief') { B.nb.brief = e.target.value; clearTimeout(nbT); nbT = setTimeout(nbIntake, 1200); } });
 el('bWrap').addEventListener('click', function(e){
   var t;
   if ((t = e.target.closest('[data-mv]'))) { var a = t.dataset.mv.split(':'), nb = B.nb, from = nb[a[0]], to = a[0]==='must' ? nb.nice : nb.must; to.push(from.splice(+a[1],1)[0]); renderBrief(); return; }
@@ -1109,6 +1177,10 @@ el('bWrap').addEventListener('click', function(e){
   if (e.target.closest('#nbCancel')) { B.newRole = false; B.nb = null; renderBoard(); return; }
   if (e.target.closest('#bAgain')) { rerun(false); return; }
   if (e.target.closest('#bLike')) { findLike(); return; }
+  if (e.target.closest('#nbVet')) { B.nb.veteran = !B.nb.veteran; B.nb.touchedVet = true; if (B.nb.veteran && B.nb.sources.indexOf('LinkedIn') === -1) B.nb.sources.unshift('LinkedIn'); renderBrief(); return; }
+  if ((t = e.target.closest('[data-past]'))) { var hp = B.newRole ? B.nb.past : B.past; if (hp) { if (t.checked) hp.pick[t.dataset.past] = 1; else delete hp.pick[t.dataset.past]; renderBrief(); } return; }
+  if (e.target.closest('#pastAll')) { e.preventDefault(); var hp2 = B.newRole ? B.nb.past : B.past; if (hp2) { hp2.all = !hp2.all; renderBrief(); } return; }
+  if (e.target.closest('#pastAdd')) { var pk = pastPicked(B.past); if (pk.length) { e.target.closest('#pastAdd').disabled = true; importPast(pk, B.runId, false); } return; }
   if (e.target.closest('#bEdit')) { rerun(true); return; }
   if ((t = e.target.closest('[data-card]'))) { openCard(t.dataset.card); }
 });
@@ -1116,7 +1188,7 @@ el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#b
   var r = e.target.closest('[data-rail]'); if (!r) return; var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
   col.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
   col.classList.add('flash'); setTimeout(function(){ col.classList.remove('flash'); }, 1200); });
-el('bFilters').onclick = function(e){ var b = e.target.closest('[data-bf]'); if (!b) return; if (b.dataset.bf === 'out') B.showOut = !B.showOut; else B.filter = b.dataset.bf; renderBoard(); };
+el('bFilters').onclick = function(e){ var b = e.target.closest('[data-bf]'); if (!b) return; if (b.dataset.bf === 'out') B.showOut = !B.showOut; else if (b.dataset.bf === 'map') B.view = B.view === 'map' ? '' : 'map'; else B.filter = b.dataset.bf; renderBoard(); };
 el('bRole').onchange = function(){ B.newRole = false; B.nb = null; B.srcSel = null; B.open = null; el('bDrawer').classList.add('hide'); loadBoard(this.value); };
 el('bNew').onclick = function(){ B.newRole = true; B.nb = null; renderBoard(); setTimeout(function(){ if (el('nbBrief')) el('nbBrief').focus(); }, 30); };
 // ----- drag a card to another column -----
