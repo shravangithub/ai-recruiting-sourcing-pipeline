@@ -884,7 +884,9 @@ function openList(id){
 // ---------- board ----------
 var B = { runId: null, data: null, filter: 'all', open: null, newRole: false, nb: null, poll: null, srcSel: null };
 var COLS = [['found','Found'],['shortlisted','Shortlisted'],['approved','Approved'],['followup','In follow-up'],['replied','Replied'],['interview','Interview'],['hired','Hired']];
-var TONE = { found:['#D4D4D8','#3A3A3C'], shortlisted:['#9C9DA3','#fff'], approved:['#6E6F75','#fff'], followup:['#3A3A3C','#fff'], replied:['#16794A','#fff'], interview:['#BF1E2D','#fff'], hired:['#8F1621','#fff'], not_fit:['#C8C9CE','#3A3A3C'] };
+// stage colours: neutral grey, then blues as outreach moves, then teal and greens as people engage.
+// No red in the pipeline (red reads as "declined"); red stays for actions and warnings.
+var TONE = { found:['#E4E4E7','#3A3A3C'], shortlisted:['#CFDAEA','#1F2A44'], approved:['#9FB4D6','#1F2A44'], followup:['#4A6FA5','#fff'], replied:['#277A70','#fff'], interview:['#1E6B52','#fff'], hired:['#14532D','#fff'], not_fit:['#C8C9CE','#3A3A3C'] };
 var EMPTY = { found:'New people land here as a search scores them.', shortlisted:'Drag strong people here. The ranking learns from it.', approved:'Approved people get their first email within 15 minutes.', followup:'People getting follow-ups on days 2, 4, 5 and 7 show here.', replied:'Replies show up here by themselves.', interview:'Move people here once a call is booked.', hired:'Your hires end up here.' };
 var STAGE_NAME = { found:'Found', shortlisted:'Shortlisted', approved:'Approved', followup:'In follow-up', replied:'Replied', interview:'Interview', hired:'Hired', not_fit:'Not a fit' };
 function bList(v){ return (Array.isArray(v) ? v : String(v||'').split(',')).map(function(x){ return String(x).trim(); }).filter(Boolean); }
@@ -947,7 +949,7 @@ function renderBoard(){
     if (col[0]==='shortlisted' && list.length >= 2 && !B.newRole && run.status !== 'running') ghost = '<button type="button" class="ghost" id="bLike"><b style="font-size:13px">Find more like these '+list.length+'</b><span class="muted" style="font-size:12px">Searches again using their titles and companies: '+esc(lookalike(list).companies.slice(0,3).join(', ') || 'similar profiles')+'</span></button>';
     if (col[0]==='interview' && list.length) extra += '<div class="win"><b style="font-size:13px">'+list.length+' in interviews</b><span style="color:#D4D4D8">From a brief to a conversation. Open a card for interview questions.</span></div>';
     var empty = !list.length && !(col[0]==='found' && run.status==='running') ? '<div class="bempty">'+esc(EMPTY[col[0]]||'')+'</div>' : '';
-    html += '<section class="bcol" data-col="'+col[0]+'" aria-label="'+esc(col[1])+'" style="--tone:'+TONE[col[0]][0]+(col[0]==='replied' && list.length?';background:#E9F5EE':'')+'"><div class="bcolh">'+head+'</div>'+extra+empty+list.slice(0,60).map(bCard).join('')+ghost+(list.length>60?'<span class="muted" style="font-size:12px">+ '+(list.length-60)+' more</span>':'')+'</section>';
+    html += '<section class="bcol" data-col="'+col[0]+'" aria-label="'+esc(col[1])+'" style="--tone:'+TONE[col[0]][0]+(col[0]==='replied' && list.length?';background:#E7F2F0':'')+'"><div class="bcolh">'+head+'</div>'+extra+empty+list.slice(0,60).map(bCard).join('')+ghost+(list.length>60?'<span class="muted" style="font-size:12px">+ '+(list.length-60)+' more</span>':'')+'</section>';
   });
   if (B.showOut) { var out = cards.filter(function(c){ return c.stage === 'not_fit'; });
     html += '<section class="bcol" data-col="not_fit" aria-label="Not a fit" style="--tone:#C8C9CE"><div class="bcolh">Not a fit<span class="n">'+out.length+'</span></div>'+out.map(bCard).join('')+'</section>'; }
