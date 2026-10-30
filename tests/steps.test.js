@@ -1230,3 +1230,20 @@ test('R32: adding people from earlier searches copies them into the role, with a
   assert.match((await gate29({ action: 'import_people', token: s.token, run_id: 'x', people: [] }, ctx)).response.error, /Pick people/);
   assert.equal((await gate29({ action: 'past_people', token: s.token, role: 'PM' }, ctx)).route, 'past_people');
 });
+
+test('R33: wrapped google.com/goto links are swapped for the real profile address', async () => {
+  const G = (t) => 'https://www.google.com/goto?url=' + t;
+  const pages = [{ organic: [{ title: 'Asha Rao - Security Manager | LinkedIn', link: G('AAA') }, { title: 'x', link: 'https://in.linkedin.com/in/x' }] },
+    { organic: [{ title: 'dup', link: G('AAA') }, { title: 'refused', link: G('BBB') }] }];
+  const asks = await runNode('Find Google Links', pages);
+  assert.deepEqual(asks.map((a) => a.u), [G('AAA'), G('BBB')], 'each wrapped link once');
+  assert.deepEqual(await runNode('Find Google Links', [{ organic: [{ link: 'https://in.linkedin.com/in/x' }] }]), [{ u: '' }]);
+  const res = [{ statusCode: 302, headers: { location: 'https://in.linkedin.com/in/asha-rao' } }, { statusCode: 429, headers: {}, body: 'rate limited' }];
+  const out = await runNode('Unwrap Links', res, { 'Find Google Links': asks, 'Wait For All Sources': pages });
+  assert.equal(out[0].organic[0].link, 'https://in.linkedin.com/in/asha-rao');
+  assert.equal(out[1].organic[0].link, 'https://in.linkedin.com/in/asha-rao');
+  assert.equal(out[1].organic[1].link, G('BBB'), 'unresolved links are kept');
+  assert.deepEqual(out[0]._links, { unwrapped: 2, still_wrapped: 1 });
+  const notice = await runNode('Unwrap Links', [{ statusCode: 200, body: '<a href="https://www.google.com/x">g</a><a href="https://kitebase.example/about?a=1&amp;b=2">go</a>' }], { 'Find Google Links': [{ u: G('CCC') }], 'Wait For All Sources': [{ organic: [{ link: G('CCC') }] }] });
+  assert.equal(notice[0].organic[0].link, 'https://kitebase.example/about?a=1&b=2');
+});

@@ -4718,3 +4718,74 @@ def apply_round32(nodes, conns, routes_in):
 
 VETERAN_FIELD = {"fieldName": "veteran", "fieldLabel": "Veterans only", "fieldType": "dropdown",
                  "fieldOptions": {"values": [{"option": "No"}, {"option": "Yes"}]}, "defaultValue": "={{ $json['veteran'] || 'No' }}"}
+
+
+# ======================================================================
+# Round 33: Google now hides many result links behind google.com/goto?url=...
+# (rolled out mid-2026), and the search service passes some through. Before
+# anything reads the results, each wrapped link is resolved to the real page
+# with one request that stops at the redirect (5 at a time). Unresolved links
+# stay as they were, so nothing is lost if Google refuses.
+# ======================================================================
+FIND_GOTO = r"""
+// The wrapped google.com/goto links in this search's results, once each.
+const seen = {}, out = [];
+$input.all().forEach(function(i){
+  ((i.json || {}).organic || []).forEach(function(o){
+    const l = String(o.link || '');
+    if (/^https?:\/\/(www\.)?google\.[a-z.]+\/goto\?/i.test(l) && !seen[l]) { seen[l] = 1; out.push({ json: { u: l } }); }
+  });
+});
+// nothing to resolve: one harmless request keeps the step simple
+return out.length ? out.slice(0, 250) : [{ json: { u: '' } }];
+"""
+
+UNWRAP_LINKS = r"""
+// Put the real addresses back in place of the wrapped Google links.
+const map = {};
+const asks = $('Find Google Links').all();
+$input.all().forEach(function(r, k){
+  const u = ((asks[k] || {}).json || {}).u; if (!u) return;
+  const j = r.json || {}, h = j.headers || {};
+  let loc = h.location || h.Location || '';
+  if (!loc && typeof j.body === 'string') { const m = j.body.match(/href="(https?:\/\/(?!(www\.)?google\.)[^"]+)"/i); if (m) loc = m[1].replace(/&amp;/g, '&'); }
+  if (/^https?:\/\//i.test(loc) && !/^https?:\/\/(www\.)?google\./i.test(loc)) map[u] = loc;
+});
+let fixed = 0, left = 0;
+const items = $('Wait For All Sources').all().map(function(i){
+  const j = Object.assign({}, i.json || {});
+  if (Array.isArray(j.organic)) j.organic = j.organic.map(function(o){
+    const l = String(o.link || '');
+    if (map[l]) { fixed++; return Object.assign({}, o, { link: map[l], google_link: l }); }
+    if (/google\.[a-z.]+\/goto\?/i.test(l)) left++;
+    return o;
+  });
+  return { json: j };
+});
+if (items.length) items[0].json._links = { unwrapped: fixed, still_wrapped: left };
+return items;
+"""
+
+
+def apply_round33(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    wx, wy = N["Wait For All Sources"]["position"]
+    y = wy - 200
+    f = _node("Find Google Links", "n8n-nodes-base.code", 2, [wx, y], {"jsCode": FIND_GOTO})
+    h = _node("Resolve Google Link", "n8n-nodes-base.httpRequest", 4.2, [wx + 200, y], {
+        "url": "={{ $json.u || 'https://www.google.com/generate_204' }}",
+        "sendHeaders": True, "headerParameters": {"parameters": [{"name": "User-Agent", "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"}]},
+        "options": {"redirect": {"redirect": {"followRedirects": False}},
+                    "response": {"response": {"fullResponse": True, "neverError": True, "responseFormat": "text"}},
+                    "batching": {"batch": {"batchSize": 5, "batchInterval": 300}}, "timeout": 8000}},
+        onError="continueRegularOutput")
+    u = _node("Unwrap Links", "n8n-nodes-base.code", 2, [wx + 400, y], {"jsCode": UNWRAP_LINKS})
+    u["executeOnce"] = True
+    nodes.extend([f, h, u])
+    nxt = conns["Wait For All Sources"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Merge Pages"], nxt
+    conns["Wait For All Sources"]["main"][0] = [{"node": "Find Google Links", "type": "main", "index": 0}]
+    conns["Find Google Links"] = {"main": [[{"node": "Resolve Google Link", "type": "main", "index": 0}]]}
+    conns["Resolve Google Link"] = {"main": [[{"node": "Unwrap Links", "type": "main", "index": 0}]]}
+    conns["Unwrap Links"] = {"main": [[{"node": "Merge Pages", "type": "main", "index": 0}]]}
+    return nodes, conns

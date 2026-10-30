@@ -7680,6 +7680,77 @@
     4420
    ],
    "executeOnce": true
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// The wrapped google.com/goto links in this search's results, once each.\nconst seen = {}, out = [];\n$input.all().forEach(function(i){\n  ((i.json || {}).organic || []).forEach(function(o){\n    const l = String(o.link || '');\n    if (/^https?:\\/\\/(www\\.)?google\\.[a-z.]+\\/goto\\?/i.test(l) && !seen[l]) { seen[l] = 1; out.push({ json: { u: l } }); }\n  });\n});\n// nothing to resolve: one harmless request keeps the step simple\nreturn out.length ? out.slice(0, 250) : [{ json: { u: '' } }];\n"
+   },
+   "id": "fix-find-google-links",
+   "name": "Find Google Links",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -220,
+    -200
+   ]
+  },
+  {
+   "parameters": {
+    "url": "={{ $json.u || 'https://www.google.com/generate_204' }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "User-Agent",
+       "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+      }
+     ]
+    },
+    "options": {
+     "redirect": {
+      "redirect": {
+       "followRedirects": false
+      }
+     },
+     "response": {
+      "response": {
+       "fullResponse": true,
+       "neverError": true,
+       "responseFormat": "text"
+      }
+     },
+     "batching": {
+      "batch": {
+       "batchSize": 5,
+       "batchInterval": 300
+      }
+     },
+     "timeout": 8000
+    }
+   },
+   "id": "fix-resolve-google-link",
+   "name": "Resolve Google Link",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    -20,
+    -200
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// Put the real addresses back in place of the wrapped Google links.\nconst map = {};\nconst asks = $('Find Google Links').all();\n$input.all().forEach(function(r, k){\n  const u = ((asks[k] || {}).json || {}).u; if (!u) return;\n  const j = r.json || {}, h = j.headers || {};\n  let loc = h.location || h.Location || '';\n  if (!loc && typeof j.body === 'string') { const m = j.body.match(/href=\"(https?:\\/\\/(?!(www\\.)?google\\.)[^\"]+)\"/i); if (m) loc = m[1].replace(/&amp;/g, '&'); }\n  if (/^https?:\\/\\//i.test(loc) && !/^https?:\\/\\/(www\\.)?google\\./i.test(loc)) map[u] = loc;\n});\nlet fixed = 0, left = 0;\nconst items = $('Wait For All Sources').all().map(function(i){\n  const j = Object.assign({}, i.json || {});\n  if (Array.isArray(j.organic)) j.organic = j.organic.map(function(o){\n    const l = String(o.link || '');\n    if (map[l]) { fixed++; return Object.assign({}, o, { link: map[l], google_link: l }); }\n    if (/google\\.[a-z.]+\\/goto\\?/i.test(l)) left++;\n    return o;\n  });\n  return { json: j };\n});\nif (items.length) items[0].json._links = { unwrapped: fixed, still_wrapped: left };\nreturn items;\n"
+   },
+   "id": "fix-unwrap-links",
+   "name": "Unwrap Links",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    180,
+    -200
+   ],
+   "executeOnce": true
   }
  ],
  "connections": {
@@ -8722,7 +8793,7 @@
    "main": [
     [
      {
-      "node": "Merge Pages",
+      "node": "Find Google Links",
       "type": "main",
       "index": 0
      }
@@ -10483,6 +10554,39 @@
     [
      {
       "node": "App Reply",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Find Google Links": {
+   "main": [
+    [
+     {
+      "node": "Resolve Google Link",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Resolve Google Link": {
+   "main": [
+    [
+     {
+      "node": "Unwrap Links",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Unwrap Links": {
+   "main": [
+    [
+     {
+      "node": "Merge Pages",
       "type": "main",
       "index": 0
      }
