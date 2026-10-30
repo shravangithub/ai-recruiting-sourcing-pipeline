@@ -3925,16 +3925,21 @@ EVENT_COLUMNS = [("at", "date"), ("run_id", "string"), ("dedupe_key", "string"),
 STAGES = ["found", "shortlisted", "approved", "followup", "replied", "interview", "hired", "not_fit"]
 
 PERSON_KEY_JS = r"""
-// The same person across roles: LinkedIn link first, then email, then name + company.
-const personKey = function(c){
-  const li = String(c.linkedin || (/linkedin\.com\/in\//i.test(c.profile_url || '') ? c.profile_url : '') || '').toLowerCase()
-    .replace(/^https?:\/\//, '').replace(/^[a-z]{2,3}\.linkedin\.com/, 'linkedin.com').replace(/^www\./, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
-  if (li.indexOf('linkedin.com/in/') === 0) return 'li:' + li.slice(16);
+// The same person across roles: any shared LinkedIn link, email, profile link,
+// or full name + company counts as a match.
+const personKeys = function(c){
+  const ks = [];
+  const norm = function(u){ return String(u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^[a-z]{2,3}\.linkedin\.com/, 'linkedin.com').replace(/^www\./, '').replace(/[?#].*$/, '').replace(/\/+$/, ''); };
+  const li = norm(c.linkedin || (/linkedin\.com\/in\//i.test(c.profile_url || '') ? c.profile_url : ''));
+  if (li.indexOf('linkedin.com/in/') === 0) ks.push('li:' + li.slice(16));
   const em = String(c.email || '').toLowerCase().trim();
-  if (em.indexOf('@') > 0) return 'em:' + em;
-  const nm = String(c.name || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).join(' ');
+  if (em.indexOf('@') > 0) ks.push('em:' + em);
+  const pu = norm(c.profile_url);
+  if (pu && pu.indexOf('linkedin.com/in/') !== 0 && /\/[^/]{3,}/.test(pu)) ks.push('url:' + pu);
+  const nm = String(c.name || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
   const co = String(c.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  return nm && co ? 'nc:' + nm + '@' + co : '';
+  if (nm.length >= 2 && co) ks.push('nc:' + nm.join(' ') + '@' + co);
+  return ks;
 };
 """
 
@@ -3984,7 +3989,7 @@ seqs.forEach(function(s){ seqByKey[s.contact_key] = s; const e = String(s.email 
 const stageOf = {}; stageRows.forEach(function(s){ stageOf[s.run_id + '|' + s.dedupe_key] = s; });
 const runName = {}; runs.forEach(function(r){ runName[r.run_id] = [r.role, r.location].filter(Boolean).join(' · '); });
 const byPerson = {};
-people.forEach(function(c){ const k = personKey(c); if (k) (byPerson[k] = byPerson[k] || []).push(c); });
+people.forEach(function(c){ personKeys(c).forEach(function(k){ (byPerson[k] = byPerson[k] || []).push(c); }); });
 const seen = {};
 const cards = people.filter(function(c){ if (String(c.run_id) !== runId || seen[c.dedupe_key]) return false; seen[c.dedupe_key] = 1; return true; }).map(function(c){
   const s = seqByKey[c.dedupe_key];
@@ -3997,8 +4002,9 @@ const cards = people.filter(function(c){ if (String(c.run_id) !== runId || seen[
   let stage = auto;
   if (m.stage === 'not_fit' || m.stage === 'hired' || m.stage === 'interview') stage = m.stage;
   else if (m.stage && RANK[m.stage] > RANK[auto]) stage = m.stage;
-  const pk = personKey(c);
-  const others = (byPerson[pk] || []).filter(function(o){ return String(o.run_id) !== runId; });
+  const oseen = {};
+  const others = [];
+  personKeys(c).forEach(function(k){ (byPerson[k] || []).forEach(function(o){ if (String(o.run_id) !== runId && !oseen[o.run_id]) { oseen[o.run_id] = 1; others.push(o); } }); });
   const em = String(c.email || '').toLowerCase();
   const last = em && seqByEmail[em] && seqByEmail[em].contact_key !== c.dedupe_key ? seqByEmail[em] : null;
   const recent = last && now - t(last.started_at) < days * 864e5;

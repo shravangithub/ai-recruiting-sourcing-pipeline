@@ -1065,3 +1065,17 @@ test('R30: a search keeps its brief for the board, and the board knows the team'
   const saved = r.writes.settings.find((x) => x.key.startsWith('run:'));
   assert.equal(JSON.parse(saved.value).criteria.must, 'B2B SaaS'); assert.equal(JSON.parse(saved.value).brief, 'PM in Bangalore');
 });
+
+test('R30: the same profile link in two searches is the same person, first names alone are not', async () => {
+  const [r] = await runNode('Board Reply', [{}], {
+    'App Gate': [{ body: { run_id: '2' } }],
+    'Load Board Runs': [{ run_id: '1', role: 'Software Engineer', status: 'done', started_at: '2026-10-01' }, { run_id: '2', role: 'Software Engineer', status: 'done', started_at: '2026-10-20' }],
+    'Load Board People': [
+      { run_id: '1', dedupe_key: 'a1', name: 'Ravi Shankar', profile_url: 'https://www.hackerearth.com/@ravi_shank/' },
+      { run_id: '2', dedupe_key: 'a2', name: 'Ravi Shankar', profile_url: 'https://hackerearth.com/@ravi_shank' },
+      { run_id: '1', dedupe_key: 'b1', name: 'Akshay', profile_url: 'https://app.apollo.io/people/111' },
+      { run_id: '2', dedupe_key: 'b2', name: 'Akshay', profile_url: 'https://app.apollo.io/people/222' }],
+    'Load Board Stages': [{}], 'Load Board Events': [{}], 'Load Board Sequences': [{}], 'Load Board Settings': [{}] });
+  const c = Object.fromEntries(r.response.cards.map((k) => [k.dedupe_key, k]));
+  assert.equal(c.a2.other_roles.length, 1); assert.equal(c.b2.other_roles.length, 0);
+});
