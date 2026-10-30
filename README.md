@@ -67,6 +67,9 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.5: run it without worrying** (see [`RELEASES/v1.5.md`](RELEASES/v1.5.md)): a Health page that says what
+  is stuck and how to fix it (searches, follow-up and first-email jobs, sending limits, bounces,
+  channels), a Monday email report for admins, and a backend map ([`docs/BACKEND.md`](docs/BACKEND.md)).
 - **v1.4: more places to find people, all free** (see [`RELEASES/v1.4.md`](RELEASES/v1.4.md)): research
   papers (industry researchers via OpenAlex), speakers & experts (Sessionize, Google Developer Experts,
   Microsoft MVPs, AWS Heroes), a veterans-only search, target companies with a Map view, and past

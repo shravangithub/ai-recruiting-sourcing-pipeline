@@ -219,6 +219,14 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .hist{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;font-size:13px;padding:7px 0;border-top:1px solid var(--line2)}
 .bfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pulse{display:flex;flex-direction:column;gap:12px}
+.hrow{display:grid;grid-template-columns:14px minmax(0,1fr);gap:12px;padding:14px 20px;border-bottom:1px solid var(--line2)}
+.hrow:last-child{border-bottom:0}
+.hrow .d{width:10px;height:10px;border-radius:5px;margin-top:6px;background:#22A45D}
+.hrow.warn .d{background:#E0A526}.hrow.bad .d{background:#D9534F}
+.hrow b{font-size:15px}.hrow p{margin:2px 0 0;font-size:13.5px;color:var(--muted);line-height:1.5}
+.hrow .fix{margin-top:4px;font-size:13.5px;color:var(--ink)}
+.hdot{display:inline-block;width:7px;height:7px;border-radius:4px;margin-left:6px;vertical-align:2px;background:#E0A526}
+.hdot.bad{background:#D9534F}
 .opt{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 10px;border-radius:10px;background:var(--ground);border:0;font-family:inherit;color:var(--ink);text-align:left;cursor:pointer;width:100%}
 .opt .tog{flex:none}
 .past{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:#F1F5FA}
@@ -273,6 +281,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
     <button data-go="home">Home</button>
     <button data-go="lists">Shortlists</button>
     <button data-go="outreach">Outreach</button>
+    <button data-go="health">Health<span id="hDot" class="hdot hide"></span></button>
     <button data-go="settings">Settings</button>
   </nav>
   <button type="button" class="cmdbtn hide" id="cmdBtn"><span class="kbd">/</span>Jump to a role, a person, or an action</button>
@@ -359,6 +368,15 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
   </section>
 
   <!-- settings -->
+  <section id="v-health" class="hide" style="display:flex;flex-direction:column;gap:18px;max-width:980px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><h1 style="font-size:30px;font-weight:800;margin:0">Health</h1><span id="hlSum" class="muted"></span><button type="button" class="btn" id="hlRefresh" style="height:36px;margin-left:auto">Check again</button></div>
+    <div class="card" id="hlChecks" style="padding:6px 0"></div>
+    <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:2px"><b style="font-size:16px">Weekly report</b><span class="muted" style="font-size:13px" id="rpWho">Every Monday at 9:17, last week's numbers by email to admins.</span></div>
+        <button type="button" class="tog" id="rpOn" aria-pressed="true" aria-label="Weekly report email" style="margin-left:auto"><i></i></button><button type="button" class="btn" id="rpPreview" style="height:36px">Preview this week</button></div>
+      <div id="rpBox" class="hide" style="border:1px solid var(--line);border-radius:10px;padding:16px;max-height:560px;overflow:auto;background:#fff"></div>
+    </div>
+  </section>
   <section id="v-settings" class="hide" style="display:flex;flex-direction:column;gap:18px">
     <h1 style="font-size:30px;font-weight:800">Settings</h1>
     <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="services">Connected services</button></div>
@@ -576,6 +594,7 @@ function fetchAuth(action, data){
 el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; showAuth('login'); };
 
 function start(){
+  setTimeout(function(){ call('health').then(function(j){ if (j.ok) setHealthDot(j.overall); }).catch(function(){}); }, 1500);
   call('me').then(function(j){ if (j.ok && j.user) ME.companies = j.user.companies || []; }).catch(function(){});
   el('cmdBtn').classList.remove('hide');
   el('v-gate').classList.add('hide'); ['app','nav','logout','who'].forEach(function(id){ el(id).classList.remove('hide'); });
@@ -590,7 +609,7 @@ function start(){
 // ---------- navigation ----------
 function go(v){
   if (v === 'search') { B.newRole = true; B.nb = null; v = 'board'; }
-  ['board','home','search','run','list','lists','outreach','settings'].forEach(function(k){ el('v-'+k).classList.toggle('hide', k !== v); });
+  ['board','home','search','run','list','lists','outreach','settings','health'].forEach(function(k){ el('v-'+k).classList.toggle('hide', k !== v); });
   if (v !== 'board') { el('bDrawer').classList.add('hide'); clearTimeout(B.poll); }
   el('app').classList.toggle('wide', v === 'board');
   [].forEach.call(document.querySelectorAll('#nav button'), function(b){ b.classList.toggle('on', b.dataset.go === v || (v==='list' && b.dataset.go==='lists') || ((v==='run' || v==='search') && b.dataset.go==='board')); });
@@ -601,7 +620,8 @@ function go(v){
   if (v === 'home') loadHome();
   if (v === 'board') loadBoard(B.runId);
   if (v === 'settings') openSettings(S.stab || 'account');
-  if (v === 'search' || v === 'home' || v === 'settings' || v === 'board') history.replaceState(null,'',location.pathname+location.search);
+  if (v === 'health') loadHealth();
+  if (v === 'search' || v === 'home' || v === 'settings' || v === 'board' || v === 'health') history.replaceState(null,'',location.pathname+location.search);
   window.scrollTo(0,0);
 }
 document.addEventListener('click', function(e){ var t = e.target.closest('[data-go]'); if (t) { e.preventDefault(); go(t.dataset.go); } });
@@ -1368,6 +1388,28 @@ document.addEventListener('keydown', function(e){
   var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
   e.preventDefault(); cmdOpen();
 });
+
+// ---------- health ----------
+function loadHealth(){
+  el('hlChecks').innerHTML = '<div class="think" style="padding:16px 20px"><span class="spin"></span>Checking…</div>';
+  call('health').then(function(j){
+    if (!j.ok) { toast(j.error || 'Could not check.'); return; }
+    var n = { ok: 0, warn: 0, bad: 0 }; j.checks.forEach(function(c){ n[c.status]++; });
+    el('hlSum').textContent = j.overall === 'ok' ? 'Everything is running.' : (n.bad ? n.bad + ' need' + (n.bad === 1 ? 's' : '') + ' attention' : '') + (n.bad && n.warn ? ', ' : '') + (n.warn ? n.warn + ' to check' : '');
+    el('hlChecks').innerHTML = j.checks.map(function(c){ return '<div class="hrow '+esc(c.status)+'"><span class="d" aria-label="'+esc(c.status === 'ok' ? 'fine' : (c.status === 'warn' ? 'check' : 'needs attention'))+'"></span><div><b>'+esc(c.title)+'</b><p>'+esc(c.detail)+'</p>'+(c.fix ? '<div class="fix">'+esc(c.fix)+'</div>' : '')+'</div></div>'; }).join('');
+    setHealthDot(j.overall);
+    var on = !!j.weekly_report; el('rpOn').classList.toggle('on', on); el('rpOn').setAttribute('aria-pressed', on ? 'true' : 'false'); el('rpOn').disabled = !(ME && ME.role === 'admin');
+    el('rpWho').textContent = (on ? 'On. ' : 'Off. ') + 'Every Monday at 9:17, last week’s numbers by email to ' + (j.recipients.length ? j.recipients.join(', ') : 'the admins') + '.';
+  }).catch(function(e){ if (e.message !== 'locked') toast(e.message); });
+}
+function setHealthDot(o){ var d = el('hDot'); d.classList.toggle('hide', o === 'ok' || !o); d.classList.toggle('bad', o === 'bad'); }
+el('hlRefresh').onclick = loadHealth;
+el('rpOn').onclick = function(){ var on = !this.classList.contains('on'), b = this; b.disabled = true;
+  call('save_report', { on: on }).then(function(j){ b.disabled = false; if (!j.ok) { toast(j.error || 'Could not save.'); return; } loadHealth(); toast(on ? 'Weekly report on.' : 'Weekly report off.'); }).catch(function(){ b.disabled = false; }); };
+el('rpPreview').onclick = function(){ var box = el('rpBox'), b = this; b.disabled = true; box.classList.remove('hide'); box.innerHTML = '<div class="think"><span class="spin"></span>Putting this week together…</div>';
+  call('weekly_preview').then(function(j){ b.disabled = false; if (!j.ok) { box.textContent = j.error || 'Could not build the report.'; return; }
+    // the report is our own HTML (escaped on the server); shown inside the page as the email would look
+    box.innerHTML = '<div class="muted" style="font-size:12px;margin-bottom:10px">Subject: '+esc(j.subject)+'</div>' + j.html; }).catch(function(){ b.disabled = false; }); };
 
 // ---------- home ----------
 function ago(v){ var d = new Date(v); if (isNaN(d)) return ''; var s = Math.round((Date.now()-d.getTime())/1000);

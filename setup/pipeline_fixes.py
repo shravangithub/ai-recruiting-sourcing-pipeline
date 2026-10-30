@@ -4796,3 +4796,239 @@ def apply_round33(nodes, conns):
     conns["Wait For All Sources"]["main"][0] = [{"node": "Tag Google Links", "type": "main", "index": 0}]
     conns["Tag Google Links"] = {"main": [[{"node": "Merge Pages", "type": "main", "index": 0}]]}
     return nodes, conns
+
+
+# ======================================================================
+# Round 34: run it without worrying.
+# - Health: one page that says, in plain words, whether searches finish,
+#   follow-ups and first emails are being sent on schedule (heartbeats),
+#   sending is inside limits, sources return people and nothing is stuck.
+# - Weekly report: every Monday morning each admin gets last week's numbers
+#   by email (switch it off in Health). The same report can be previewed in
+#   the app.
+# One "Insights" step reads the tables once and serves all three.
+# ======================================================================
+HEARTBEAT_JS = r"""
+// This scheduled job ran: the Health page shows when, so a stopped scheduler is noticed.
+return [{ json: { key: 'hb:%s', value: new Date().toISOString() } }];
+"""
+
+INSIGHTS_JS = r"""
+// Health checks, the weekly report preview, and the Monday email, from one read of the tables.
+let g = null; try { g = $('App Gate').first().json; } catch (e) { g = null; }
+const mode = g ? g.route : 'weekly';
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const sets = {}; rows('Load Report Settings').forEach(function(r){ if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });
+const runs = rows('Load Report Runs').filter(function(r){ return r.run_id; });
+const people = rows('Load Report People').filter(function(r){ return r.dedupe_key; });
+const seqs = rows('Load Report Sequences').filter(function(r){ return r.contact_key; });
+const users = rows('Load Report Users').filter(function(r){ return r.email; });
+const events = rows('Load Report Events').filter(function(r){ return r.at; });
+const NOW = Date.now(), H = 3600000, D = 24 * H;
+const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
+const ago = function(ms){ if (!ms) return 'never'; const s = (NOW - ms) / 1000; if (s < 90) return 'just now'; if (s < 5400) return Math.round(s / 60) + ' min ago'; if (s < 36 * 3600) return Math.round(s / 3600) + ' h ago'; const dd = Math.round(s / 86400); return dd === 1 ? 'yesterday' : dd + ' days ago'; };
+const IST = function(ms){ return new Date(ms + 5.5 * H); };
+const fmtDay = function(ms){ const d = IST(ms); return d.getUTCDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]; };
+const esc = function(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+const reportOn = sets.weekly_report !== 'false';
+const admins = users.filter(function(u){ return u.role === 'admin' && u.status !== 'disabled'; });
+
+// ---------- health ----------
+const checks = [];
+const add = function(id, status, title, detail, fix){ checks.push({ id: id, status: status, title: title, detail: detail, fix: fix || '' }); };
+// searches
+const week = runs.filter(function(r){ return NOW - t(r.started_at) < 7 * D; });
+const stalled = runs.filter(function(r){ return r.status === 'running' && NOW - t(r.started_at) > 20 * 60000; });
+const done = week.filter(function(r){ return r.status === 'done'; });
+const durs = done.map(function(r){ return (t(r.finished_at) - t(r.started_at)) / 60000; }).filter(function(m){ return m > 0 && m < 120; });
+const avgMin = durs.length ? Math.round(10 * durs.reduce(function(a, b){ return a + b; }, 0) / durs.length) / 10 : 0;
+if (stalled.length) add('searches', 'bad', stalled.length + ' search' + (stalled.length > 1 ? 'es' : '') + ' stuck', stalled.slice(0, 3).map(function(r){ return (r.role || 'Search') + ' (started ' + ago(t(r.started_at)) + ')'; }).join(', '),
+  'Open n8n, Executions, and look at the failed run. Usually a service ran out of credits or a connection expired.');
+else if (!runs.length) add('searches', 'warn', 'No searches yet', 'Nothing has been searched in this workspace.', 'Start one from the Board.');
+else add('searches', 'ok', 'Searches finish', done.length + ' finished this week' + (avgMin ? ', ' + avgMin + ' min on average' : '') + '. Last one ' + ago(Math.max.apply(null, runs.map(function(r){ return t(r.started_at); }))) + '.');
+// schedulers
+const beat = function(id, key, title, what){
+  const at = t(sets[key]);
+  if (!at) add(id, 'warn', title + ': no signal yet', 'This shows once the workflow is published and the job has run.', 'Publish the workflow in n8n. The job runs every 15 minutes.');
+  else if (NOW - at < 40 * 60000) add(id, 'ok', title + ' run', what + ' Last ran ' + ago(at) + '.');
+  else if (NOW - at < 3 * H) add(id, 'warn', title + ' late', 'Last ran ' + ago(at) + '. It should run every 15 minutes.', 'Check that n8n is running and the workflow is published.');
+  else add(id, 'bad', title + ' stopped', 'Last ran ' + ago(at) + '. Emails are not going out.', 'Start n8n (or wake the computer it runs on) and check the workflow is published.');
+};
+beat('followups', 'hb:followups', 'Follow-ups', 'Sends the day 2, 4, 5 and 7 emails.');
+beat('outreach', 'hb:outreach', 'First emails', 'Sends the first email to people you approve.');
+// sending
+const cap = Number(sets.daily_cap) || 50;
+const istNow = IST(NOW), dayStart = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - 5.5 * H;
+const sentToday = seqs.filter(function(s){ return t(s.last_sent_at) >= dayStart; }).length;
+const active = seqs.filter(function(s){ return s.status === 'active'; });
+const hm = function(v, d){ const m = /^(\d\d):(\d\d)$/.exec(String(v || d)); return m ? (+m[1]) * 60 + (+m[2]) : 0; };
+const nowMin = istNow.getUTCHours() * 60 + istNow.getUTCMinutes(), wd = istNow.getUTCDay();
+const inWindow = nowMin >= hm(sets.window_start, '09:30') && nowMin < hm(sets.window_end, '18:30') && !(sets.weekdays_only !== 'false' && (wd === 0 || wd === 6));
+const late = active.filter(function(s){ return t(s.next_due_at) && NOW - t(s.next_due_at) > 2 * H; });
+if (late.length && inWindow) add('late', 'warn', late.length + ' follow-up' + (late.length > 1 ? 's' : '') + ' overdue', 'Due more than 2 hours ago and still waiting, inside your sending hours.', sentToday >= cap ? 'The daily limit (' + cap + ') is reached. Raise it in Settings, Sending, or wait for tomorrow.' : 'Check the follow-up job above and the Gmail connection in n8n.');
+add('sending', sentToday >= cap ? 'warn' : 'ok', 'Sending', sentToday + ' of ' + cap + ' emails sent today, ' + active.length + ' people in follow-up. Hours ' + (sets.window_start || '09:30') + '–' + (sets.window_end || '18:30') + (sets.weekdays_only !== 'false' ? ', weekdays' : '') + '.',
+  sentToday >= cap ? 'The daily limit is reached; the rest go tomorrow.' : '');
+const recentErr = seqs.filter(function(s){ return (s.status === 'bounced' || s.last_error) && NOW - t(s.last_sent_at || s.started_at) < 7 * D; });
+if (recentErr.length) add('bounces', recentErr.length >= 3 ? 'bad' : 'warn', recentErr.length + ' email' + (recentErr.length > 1 ? 's' : '') + ' bounced or failed this week', recentErr.slice(0, 3).map(function(s){ return (s.first_name || s.email || '') + (s.last_error ? ': ' + String(s.last_error).slice(0, 60) : ''); }).join('; '),
+  'Bad addresses hurt your sender reputation. Check where these emails came from before approving more from that source.');
+// sources
+const last = {};
+runs.filter(function(r){ return r.status === 'done' && r.by_source; }).forEach(function(r){ String(r.by_source).split('·').forEach(function(p){ const m = p.trim().match(/^(.+?)\s+(\d+)$/); if (m && +m[2] > 0) { m[1].split(' + ').forEach(function(s){ s = s.trim(); if (t(r.finished_at || r.started_at) > (last[s] || 0)) last[s] = t(r.finished_at || r.started_at); }); } }); });
+const tried = {};
+week.forEach(function(r){ String(r.sources || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(s){ tried[s] = (tried[s] || 0) + 1; }); });
+const ALIAS = { 'Google / Open Web': 'Open Web', 'Github': 'GitHub' };
+const dry = Object.keys(tried).filter(function(s){ const k = ALIAS[s] || s; return tried[s] >= 2 && (!last[k] || NOW - last[k] > 7 * D); });
+const lastFound = Math.max.apply(null, [0].concat(Object.keys(last).map(function(k){ return last[k]; })));
+const recentDone = runs.filter(function(r){ return r.status === 'done'; }).sort(function(a, b){ return t(b.started_at) - t(a.started_at); }).slice(0, 3);
+if (recentDone.length === 3 && recentDone.every(function(r){ return !(Number(r.count) > 0); })) add('sources', 'bad', 'The last 3 searches found nobody', 'Google search or the AI may have run out of credits.', 'Check your Serper and OpenAI balances, then search again.');
+else if (dry.length) add('sources', 'warn', 'Some channels found nobody this week', dry.join(', ') + ' were picked but returned no people.', 'Untick them for these roles, or broaden the brief.');
+else add('sources', runs.length ? 'ok' : 'warn', 'Channels return people', Object.keys(last).length ? Object.keys(last).sort(function(a, b){ return last[b] - last[a]; }).slice(0, 6).map(function(k){ return k + ' ' + ago(last[k]); }).join(', ') : 'No results yet.');
+// settings
+if (!sets.signature) add('signature', 'warn', 'No email signature', 'Emails go out with the default sign-off.', 'Add yours in Settings, Sending.');
+const admCount = admins.length;
+if (admCount < 2 && users.length > 1) add('admins', 'warn', 'Only one admin', 'If that person is away, nobody can change settings or reset passwords.', 'Make a second teammate an admin in Settings, Team.');
+const overall = checks.some(function(c){ return c.status === 'bad'; }) ? 'bad' : (checks.some(function(c){ return c.status === 'warn'; }) ? 'warn' : 'ok');
+const ORDER = { bad: 0, warn: 1, ok: 2 };
+checks.sort(function(a, b){ return ORDER[a.status] - ORDER[b.status]; });
+
+// ---------- weekly report ----------
+const from = NOW - 7 * D;
+const inWk = function(v){ return t(v) >= from; };
+const wkRuns = runs.filter(function(r){ return inWk(r.started_at); });
+const wkRunIds = {}; wkRuns.forEach(function(r){ wkRunIds[String(r.run_id)] = r; });
+const wkPeople = people.filter(function(p){ return wkRunIds[String(p.run_id)]; });
+const strong = wkPeople.filter(function(p){ return Number(p.fit_score) >= 8; }).length;
+const started = seqs.filter(function(s){ return inWk(s.started_at); });
+const replied = seqs.filter(function(s){ return s.status === 'replied' && inWk(s.updatedAt || s.last_sent_at); });
+const moved = function(stage){ return events.filter(function(e){ return e.kind === 'stage' && e.to_stage === stage && inWk(e.at); }).length; };
+const allStarted = seqs.length, allReplied = seqs.filter(function(s){ return s.status === 'replied'; }).length;
+const rate = allStarted ? Math.round(100 * allReplied / allStarted) : 0;
+const byRole = {};
+wkRuns.forEach(function(r){ const k = [r.role, r.location].filter(Boolean).join(', ') || 'Search'; const x = byRole[k] = byRole[k] || { found: 0, strong: 0, searches: 0 }; x.searches++; });
+wkPeople.forEach(function(p){ const r = wkRunIds[String(p.run_id)]; const k = [r.role, r.location].filter(Boolean).join(', ') || 'Search'; byRole[k].found++; if (Number(p.fit_score) >= 8) byRole[k].strong++; });
+const bySrc = {};
+wkPeople.forEach(function(p){ const s = String(p.source || 'Other').split(' + ')[0]; const x = bySrc[s] = bySrc[s] || { found: 0, strong: 0 }; x.found++; if (Number(p.fit_score) >= 8) x.strong++; });
+const byPerson = {};
+events.filter(function(e){ return inWk(e.at) && e.by; }).forEach(function(e){ const x = byPerson[e.by] = byPerson[e.by] || { moves: 0, notes: 0, replies: 0 }; if (e.kind === 'stage') x.moves++; else if (e.kind === 'email') x.replies++; else x.notes++; });
+const waiting = seqs.filter(function(s){ return s.status === 'replied'; }).length;
+const range = fmtDay(from) + ' – ' + fmtDay(NOW);
+const kpis = [[wkRuns.length, 'searches'], [wkPeople.length, 'people found'], [strong, 'strong matches'], [started.length, 'first emails'], [replied.length, 'replies'], [moved('interview'), 'moved to interview'], [moved('hired'), 'hired']];
+const subject = 'Weekly hiring report, ' + range + ': ' + wkPeople.length + ' found, ' + replied.length + ' repl' + (replied.length === 1 ? 'y' : 'ies');
+const cell = 'padding:6px 10px;border-bottom:1px solid #EFEFF1;text-align:left;font-size:13px';
+const table = function(head, body){ return body.length ? '<table style="border-collapse:collapse;width:100%;margin:6px 0 18px">' + '<tr>' + head.map(function(h){ return '<th style="' + cell + ';color:#5F6168;font-weight:600">' + esc(h) + '</th>'; }).join('') + '</tr>' + body.map(function(r){ return '<tr>' + r.map(function(c){ return '<td style="' + cell + '">' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' : '<p style="color:#5F6168;font-size:13px">Nothing this week.</p>'; };
+const h2 = function(x){ return '<h2 style="font:700 15px Arial,sans-serif;margin:18px 0 4px;color:#1F2024">' + esc(x) + '</h2>'; };
+const html = '<div style="font-family:Arial,sans-serif;color:#1F2024;max-width:640px">' +
+  '<p style="font-size:13px;color:#5F6168;margin:0 0 4px">' + esc(range) + '</p>' +
+  '<h1 style="font:800 20px Arial,sans-serif;margin:0 0 14px">Your hiring week</h1>' +
+  '<table style="border-collapse:separate;border-spacing:6px;margin:0 -6px 8px"><tr>' + kpis.map(function(k){ return '<td style="background:#F5F5F6;border-radius:8px;padding:10px 12px;min-width:70px"><div style="font:800 20px Arial,sans-serif">' + k[0] + '</div><div style="font-size:12px;color:#5F6168">' + esc(k[1]) + '</div></td>'; }).join('') + '</tr></table>' +
+  '<p style="font-size:13px;margin:0 0 4px">Reply rate so far: <b>' + rate + '%</b> of ' + allStarted + ' people emailed.' + (waiting ? ' <b>' + waiting + '</b> repl' + (waiting === 1 ? 'y is' : 'ies are') + ' waiting for an answer.' : '') + '</p>' +
+  h2('By role') + table(['Role', 'Searches', 'Found', 'Strong'], Object.keys(byRole).sort(function(a, b){ return byRole[b].found - byRole[a].found; }).map(function(k){ return [k, byRole[k].searches, byRole[k].found, byRole[k].strong]; })) +
+  h2('Best channels') + table(['Channel', 'Found', 'Strong'], Object.keys(bySrc).sort(function(a, b){ return bySrc[b].strong - bySrc[a].strong || bySrc[b].found - bySrc[a].found; }).slice(0, 8).map(function(k){ return [k.replace('Google / Open Web', 'Open web'), bySrc[k].found, bySrc[k].strong]; })) +
+  h2('Team') + table(['Person', 'Moves', 'Notes', 'Replies sent'], Object.keys(byPerson).sort(function(a, b){ return byPerson[b].moves - byPerson[a].moves; }).map(function(k){ return [k, byPerson[k].moves, byPerson[k].notes, byPerson[k].replies]; })) +
+  h2('Health') + '<p style="font-size:13px;margin:0">' + checks.filter(function(c){ return c.status !== 'ok'; }).map(function(c){ return (c.status === 'bad' ? 'Needs attention: ' : 'Check: ') + esc(c.title) + '.'; }).join('<br>') + (overall === 'ok' ? 'Everything is running.' : '') + '</p>' +
+  '<p style="font-size:12px;color:#9C9DA3;margin-top:20px">Sent every Monday to workspace admins. Switch it off on the Health page in the app.</p></div>';
+
+if (mode === 'health') return [{ json: { _to: 'app', response: { ok: true, overall: overall, checks: checks, weekly_report: reportOn, recipients: admins.map(function(u){ return u.name; }),
+  numbers: { searches_week: wkRuns.length, people: people.length, in_followup: active.length, sent_today: sentToday, cap: cap } } } }];
+if (mode === 'weekly_preview') return [{ json: { _to: 'app', response: { ok: true, subject: subject, html: html, on: reportOn, recipients: admins.map(function(u){ return u.name; }) } } }];
+// Monday email: only when switched on, and only if anything happened
+if (!reportOn || (!wkRuns.length && !started.length && !replied.length)) return [];
+return admins.filter(function(u){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email); }).map(function(u){ return { json: { _to: 'mail', to: u.email, subject: subject, html: html } }; });
+"""
+
+GATE_R34_JS = r"""
+if (action === 'save_report') {
+  if (!isAdmin) return reply({ ok: false, error: 'Only an admin can do that.' });
+  W.settings.push({ key: 'weekly_report', value: body.on ? 'true' : 'false' });
+  log(me, body.on ? 'switched the weekly report on' : 'switched the weekly report off', '');
+  return reply({ ok: true, on: !!body.on });
+}
+"""
+
+
+def apply_round34(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round34 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    gcred = json.loads(json.dumps(N["Send Outreach Email"]["credentials"]))
+    upsert = json.loads(json.dumps(N["Save Settings"]["parameters"]))
+
+    # 1. heartbeats from the two 15-minute jobs
+    taken = [n["position"] for n in nodes]
+
+    def free(x, y):
+        for dy in [0, -160, 160, -320, 320, -480, 480, -640, 640]:
+            for dx in [0, -220, -440]:
+                a, b = [x + dx, y + dy], [x + dx + 220, y + dy]
+                if all(abs(q[0] - c[0]) >= 180 or abs(q[1] - c[1]) >= 110 for q in taken for c in (a, b)):
+                    taken.extend([a, b])
+                    return a, b
+        raise AssertionError("round34: no free spot near %s,%s" % (x, y))
+
+    for trig, key, nm in [("Follow-up Schedule", "followups", "Follow-up Heartbeat"), ("Outreach Schedule", "outreach", "Outreach Heartbeat")]:
+        tx, ty = N[trig]["position"]
+        a, b = free(tx, ty - 160)
+        n = _node(nm, "n8n-nodes-base.code", 2, a, {"jsCode": HEARTBEAT_JS % key})
+        sv = _node(nm.replace("Heartbeat", "Beat Saved"), "n8n-nodes-base.dataTable", 1.1, b, json.loads(json.dumps(upsert)), onError="continueRegularOutput")
+        new += [n, sv]
+        # first in the list, so it runs before the job's own steps (v1 order)
+        conns[trig]["main"][0].insert(0, {"node": nm, "type": "main", "index": 0})
+        link(nm, sv["name"])
+
+    # 2. insights: shared reads, one code step, then app or email
+    bx, by = N["Load Past Runs"]["position"]
+    y = by + 220
+    loads = [("Load Report Settings", "app_settings"), ("Load Report Runs", "app_runs"), ("Load Report People", "app_candidates"),
+             ("Load Report Sequences", SEQ_TABLE), ("Load Report Users", "app_users"), ("Load Report Events", "app_events")]
+    for i, (nm, table) in enumerate(loads):
+        ld = _node(nm, "n8n-nodes-base.dataTable", 1.1, [bx + 220 * i, y], {"resource": "row", "operation": "get", "dataTableId": _dt_ref(table), "returnAll": True},
+                   alwaysOutputData=True, onError="continueRegularOutput")
+        ld["executeOnce"] = True
+        new.append(ld)
+        if i:
+            link(loads[i - 1][0], nm)
+    ins = _node("Insights", "n8n-nodes-base.code", 2, [bx + 220 * len(loads), y], {"jsCode": INSIGHTS_JS})
+    ins["executeOnce"] = True
+    new.append(ins)
+    link(loads[-1][0], "Insights")
+    iff = _node("Insights To App?", "n8n-nodes-base.if", 2.2, [bx + 220 * (len(loads) + 1), y], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2},
+                       "conditions": [{"id": "to-app", "leftValue": "={{ $json._to }}", "rightValue": "app", "operator": {"type": "string", "operation": "equals"}}],
+                       "combinator": "and"}, "looseTypeValidation": True, "options": {}})
+    new.append(iff)
+    link("Insights", "Insights To App?")
+    link("Insights To App?", "App Reply", 0)
+    mail = _node("Send Weekly Report", "n8n-nodes-base.gmail", 2.1, [bx + 220 * (len(loads) + 2), y + 120], {
+        "sendTo": "={{ $json.to }}", "subject": "={{ $json.subject }}", "emailType": "html", "message": "={{ $json.html }}",
+        "options": {"appendAttribution": False}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    new.append(mail)
+    link("Insights To App?", "Send Weekly Report", 1)
+    sch = _node("Weekly Report Schedule", "n8n-nodes-base.scheduleTrigger", 1.2, [bx - 240, y + 120], {
+        "rule": {"interval": [{"field": "cronExpression", "expression": "17 9 * * 1"}]}})
+    new.append(sch)
+    link("Weekly Report Schedule", loads[0][0])
+
+    # 3. the app: two read routes and the on/off switch
+    R("App Gate", "// -- routes with their own steps --", GATE_R34_JS.lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'kit', 'past_people'];", "'kit', 'past_people', 'health', 'weekly_preview'];")
+    routes = routes_in + ["health", "weekly_preview"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    link("App Route", loads[0][0], routes.index("health"))
+    link("App Route", loads[0][0], routes.index("weekly_preview"))
+    nodes.extend(new)
+    return nodes, conns, routes

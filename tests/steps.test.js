@@ -1265,3 +1265,55 @@ test('R33: the employer named in the search line is kept as the current company'
   assert.match(require('./harness').NODES['Combine No Apollo'].parameters.jsCode, /current_company: cand\.current_company \|\| ''/);
   assert.match(require('./harness').NODES['Combine Enrichment'].parameters.jsCode, /let current_company = String\(cand\.current_company/);
 });
+
+const insights = (route, data = {}) => runNode('Insights', [{}], Object.assign({
+  'Load Report Settings': [{}], 'Load Report Runs': [{}], 'Load Report People': [{}], 'Load Report Sequences': [{}], 'Load Report Users': [{}], 'Load Report Events': [{}] },
+  route ? { 'App Gate': [{ route }] } : {}, data));
+const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+
+test('R34: health says in plain words what is wrong and how to fix it', async () => {
+  const [h] = await insights('health', {
+    'Load Report Settings': [{ key: 'hb:followups', value: ago(10) }, { key: 'hb:outreach', value: ago(400) }, { key: 'daily_cap', value: '2' }],
+    'Load Report Runs': [{ run_id: '1', role: 'PM', status: 'running', started_at: ago(45) }, { run_id: '2', role: 'SRE', status: 'done', started_at: ago(100), finished_at: ago(98), count: 20, by_source: 'LinkedIn 12 · GitHub 8', sources: 'LinkedIn, GitHub' }],
+    'Load Report Sequences': [{ contact_key: 'a', status: 'active', last_sent_at: ago(5) }, { contact_key: 'b', status: 'bounced', last_sent_at: ago(60), last_error: 'Address not found', first_name: 'Ravi' }, { contact_key: 'c', status: 'active', last_sent_at: ago(3) }],
+    'Load Report Users': [{ email: 'k@x.example', name: 'Kumar', role: 'admin' }, { email: 'p@x.example', name: 'Priya', role: 'recruiter' }] });
+  const r = h.response, by = Object.fromEntries(r.checks.map((c) => [c.id, c]));
+  assert.equal(h._to, 'app'); assert.equal(r.overall, 'bad');
+  assert.equal(by.searches.status, 'bad'); assert.match(by.searches.detail, /PM \(started 45 min ago\)/);
+  assert.equal(by.followups.status, 'ok'); assert.equal(by.outreach.status, 'bad'); assert.match(by.outreach.fix, /Start n8n/);
+  assert.equal(by.sending.status, 'warn'); assert.match(by.sending.detail, /3 of 2 emails sent today, 2 people in follow-up/);
+  assert.equal(by.bounces.status, 'warn'); assert.match(by.bounces.detail, /Ravi: Address not found/);
+  assert.equal(by.signature.status, 'warn'); assert.equal(by.admins.status, 'warn');
+  assert.deepEqual(r.checks.map((c) => c.status).slice(0, 2), ['bad', 'bad'], 'worst first');
+  assert.deepEqual(r.recipients, ['Kumar']); assert.equal(r.weekly_report, true);
+});
+
+test('R34: the weekly report goes to admins on Monday, only when on and when something happened', async () => {
+  const data = { 'Load Report Runs': [{ run_id: '2', role: 'SRE', location: 'Pune', status: 'done', started_at: ago(600), finished_at: ago(590), count: 2, by_source: 'LinkedIn 2' }],
+    'Load Report People': [{ run_id: '2', dedupe_key: 'a', fit_score: 9, source: 'LinkedIn' }, { run_id: '2', dedupe_key: 'b', fit_score: 5, source: 'GitHub' }],
+    'Load Report Sequences': [{ contact_key: 'a', status: 'replied', started_at: ago(500), updatedAt: ago(30) }],
+    'Load Report Events': [{ at: ago(20), kind: 'stage', to_stage: 'interview', by: 'Priya' }],
+    'Load Report Users': [{ email: 'k@x.example', name: 'Kumar', role: 'admin' }, { email: 'p@x.example', name: 'Priya', role: 'recruiter' }, { email: 'o@x.example', name: 'Old', role: 'admin', status: 'disabled' }] };
+  const mails = await insights(null, data);
+  assert.deepEqual(mails.map((m) => m.to), ['k@x.example'], 'active admins only');
+  assert.match(mails[0].subject, /2 found, 1 reply/);
+  assert.match(mails[0].html, /SRE, Pune/); assert.match(mails[0].html, /moved to interview/); assert.match(mails[0].html, /Priya/);
+  assert.ok(!/TalentRubric/.test(mails[0].html));
+  assert.deepEqual(await insights(null, Object.assign({}, data, { 'Load Report Settings': [{ key: 'weekly_report', value: 'false' }] })), [], 'switched off');
+  assert.deepEqual(await insights(null, { 'Load Report Users': data['Load Report Users'] }), [], 'quiet week: no email');
+  const [pv] = await insights('weekly_preview', data);
+  assert.equal(pv._to, 'app'); assert.equal(pv.response.html, mails[0].html);
+});
+
+test('R34: heartbeats, the report switch, and the routes', async () => {
+  const [hb] = await runNode('Follow-up Heartbeat', [{}]);
+  assert.equal(hb.key, 'hb:followups'); assert.ok(Date.now() - new Date(hb.value) < 5000);
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const off = await gate29({ action: 'save_report', token: s.token, on: false }, ctx);
+  assert.deepEqual(off.writes.settings[0], { key: 'weekly_report', value: 'false' });
+  assert.equal((await gate29({ action: 'health', token: s.token }, ctx)).route, 'health');
+  assert.equal((await gate29({ action: 'weekly_preview', token: s.token }, ctx)).route, 'weekly_preview');
+  const W = require('./harness').WF.connections;
+  assert.deepEqual(W['Insights To App?'].main.map((o) => o.map((c) => c.node)), [['App Reply'], ['Send Weekly Report']]);
+  assert.ok(W['Follow-up Schedule'].main[0].some((c) => c.node === 'Follow-up Heartbeat'));
+});
