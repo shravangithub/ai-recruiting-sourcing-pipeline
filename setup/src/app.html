@@ -191,7 +191,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .bm{font-size:12px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--okbg);color:var(--ok)}
 .bm.md{background:var(--warnbg);color:var(--warn)}.bm.lo{background:#F1F1F3;color:var(--muted)}
 .btag{font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;background:#F1F1F3;color:var(--char)}
-.bdup{font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px;background:#E8EEFB;color:#1D4ED8}
+.bdup{font-size:11.5px;font-weight:700;padding:2px 0;background:transparent;color:#1D4ED8}
 .bwarn{font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px;background:var(--warnbg);color:var(--warn)}
 .bbad{font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px;background:var(--badbg);color:var(--bad)}
 .bown{margin-left:auto;width:22px;height:22px;border-radius:11px;background:#5F6168;color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
@@ -229,7 +229,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .map td.z{background:#F5F5F6}
 .map td b{font:800 15px Manrope,sans-serif;margin-right:6px}
 .map .who{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
-.map .who button{border:0;background:#E8EEF7;color:#1F2A44;border-radius:5px;font:600 11px Inter,sans-serif;padding:2px 6px;cursor:pointer}
+.map .who{gap:2px 10px}.map .who button{border:0;background:transparent;color:#1D4ED8;font:600 12px Inter,sans-serif;padding:1px 0;cursor:pointer}.map .who button:hover{text-decoration:underline}
 .mapwrap{flex:1 1 auto;min-width:0;background:#EFEFF1;border-radius:14px;padding:14px;overflow-x:auto}
 .pk{display:flex;flex-direction:column;gap:1px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;min-width:120px}
 .pk b{font:800 19px Manrope,sans-serif}.pk span{font-size:12px;color:var(--muted)}
@@ -933,7 +933,7 @@ function bCard(c){
   if (c.contacted) tags.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">'+(c.contacted.recent?'Emailed ':'Contacted ')+'for '+esc(c.contacted.role||'another role')+', '+esc(ago(c.contacted.at))+'</span>');
   (c.other_roles||[]).slice(0,1).forEach(function(o){ tags.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
   if (c.overdue) tags.push('<span class="bwarn">Waiting 2+ days</span>');
-  if (c.open_to_work) tags.push('<span class="bdup" style="background:var(--okbg);color:var(--ok)">Open to work</span>');
+  if (c.open_to_work) tags.push('<span class="bdup" style="color:var(--ok)">Open to work</span>');
   if (c.opens && c.opens.count) tags.push('<span class="btag">Opened '+c.opens.count+'×</span>');
   if (c.stage === 'followup' && c.sequence) tags.push('<span class="btag">'+esc(String(c.sequence.status_text||'').replace(/^Contacted · /,'').slice(0,34))+'</span>');
   if (!c.email && ['found','shortlisted'].indexOf(c.stage) !== -1) tags.push('<span class="btag">No email yet</span>');
@@ -1229,7 +1229,7 @@ function openCard(key, keep){
   var links = [['Profile',c.profile_url],['LinkedIn',c.linkedin],['GitHub',c.github],['CV',c.resume_link]].filter(function(l){ return /^https?:\/\//.test(l[1]||''); }).map(function(l){ return '<a href="'+esc(l[1])+'" target="_blank" rel="noopener">'+l[0]+'</a>'; }).join('&ensp;');
   var warn = [];
   if (c.warm) warn.push('<span class="bwarm">'+esc(c.warm)+'. Ask for an intro.</span>');
-  if (c.open_to_work) warn.push('<span class="bdup" style="background:var(--okbg);color:var(--ok)">Open to work</span>');
+  if (c.open_to_work) warn.push('<span class="bdup" style="color:var(--ok)">Open to work</span>');
   if (c.opens && c.opens.count) warn.push('<span class="btag">Opened '+c.opens.count+'×, last '+esc(ago(c.opens.last))+'</span>');
   (c.other_roles||[]).forEach(function(o){ warn.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
   if (c.contacted) warn.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">Emailed for '+esc(c.contacted.role||'another role')+' '+esc(ago(c.contacted.at))+(c.contacted.recent?'. A second email will be held.':'')+'</span>');
