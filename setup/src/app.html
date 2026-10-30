@@ -23,7 +23,7 @@ nav button.on{background:#4A4A4E;color:#fff}
 .hdr-r button{border:1px solid #5F6168;background:transparent;color:#D4D4D8;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px}
 main{max-width:1280px;margin:0 auto;padding:36px 28px 120px;display:flex;flex-direction:column;gap:24px}
 .card{background:#fff;border:1px solid var(--line);border-radius:16px}
-.lbl{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl{font-size:12.5px;font-weight:600;color:var(--muted);margin:0}
 .muted{color:var(--muted)}
 .row2{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border-radius:10px;border:1px solid #D4D4D8;background:#fff;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;color:var(--ink)}
@@ -153,13 +153,39 @@ tr.cand:hover td{background:#FAFAFB}
 @media (max-width:640px){.frow{grid-template-columns:1fr}}
 main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .bwrap{display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:8px}
-.bcol{flex:1 1 200px;min-width:190px;max-width:290px;display:flex;flex-direction:column;gap:10px;background:#EDEDEF;border-radius:14px;padding:12px;min-height:200px}
+.bcol{flex:1 1 210px;min-width:200px;max-width:300px;display:flex;flex-direction:column;gap:8px;background:#EFEFF1;border-radius:14px;padding:10px;min-height:220px;border-top:3px solid var(--tone,#C8C9CE);scroll-margin-left:24px}
+.bcol.flash{box-shadow:0 0 0 2px var(--tone,#9C9DA3)}
+.bempty{font-size:12.5px;line-height:1.5;color:#7A7B82;padding:14px 10px;border:1.5px dashed #D4D4D8;border-radius:10px;text-align:center}
+/* the pipeline rail */
+.rail{display:flex;gap:3px;width:100%;height:58px}
+.rail button{flex:var(--g,1) 1 0;min-width:72px;border:0;padding:8px 12px;background:var(--tone);color:var(--fg,#fff);font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:0;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,0 100%,10px 50%)}
+.rail button:first-child{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,0 100%);border-radius:10px 0 0 10px}
+.rail button:last-child{clip-path:polygon(0 0,100% 0,100% 100%,0 100%,10px 50%);border-radius:0 10px 10px 0}
+.rail button b{font:800 20px/1.1 Manrope,sans-serif}
+.rail button span{font-size:12px;opacity:.85;white-space:nowrap}
+.rail button:not(:first-child){padding-left:20px}
+.rail button:hover{filter:brightness(1.08)}
+.rail button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.stats{display:flex;flex-wrap:wrap;gap:4px 22px;align-items:baseline;font-size:13px;color:var(--muted)}
+.stats b{font:800 16px Manrope,sans-serif;color:var(--ink);margin-right:4px}
 .bcol.drop{outline:2px dashed var(--red);outline-offset:-4px;background:#FFF8F8}
-.bcolh{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--char);padding:2px 4px}
+.bcolh{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:var(--char);padding:4px 4px 2px}
 .bcolh .n{margin-left:auto;font-weight:600;color:var(--muted)}
-.bcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:5px;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
-.bcard:hover{border-color:#9C9DA3}
-.bcard.on{border:1.5px solid var(--red)}
+.bcard{background:#fff;border:1px solid transparent;border-radius:10px;padding:10px;display:grid;grid-template-columns:30px minmax(0,1fr) 32px;grid-template-areas:'av name ring' 'sub sub sub' 'tags tags tags';gap:6px 8px;align-items:center;cursor:grab;text-align:left;font:inherit;color:inherit;width:100%;box-shadow:0 1px 0 rgba(31,32,36,.06)}
+.bcard:hover{border-color:#C8C9CE}
+.bcard.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.bcard:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.cav{grid-area:av;position:relative;width:30px;height:30px;border-radius:15px;background:var(--ground);color:var(--char);font:700 12px Inter,sans-serif;display:flex;align-items:center;justify-content:center}
+.cav .bown{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;font-size:9px;border:2px solid #fff;margin:0}
+.cbody{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cname{grid-area:name;font-size:14px;font-weight:700;line-height:1.25;min-width:0}
+.csub{grid-area:sub;font-size:12px;color:var(--muted);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ctags{grid-area:tags;display:flex;gap:4px;flex-wrap:wrap}.ctags span{white-space:nowrap}.ctags:empty{display:none}
+.ring{grid-area:ring;--c:var(--ok);width:32px;height:32px;border-radius:16px;background:conic-gradient(var(--c) calc(var(--p)*1%),#E4E4E7 0);display:flex;align-items:center;justify-content:center;font:800 11px Manrope,sans-serif;color:var(--ink);position:relative}
+.ring::before{content:"";position:absolute;inset:3px;border-radius:50%;background:#fff}
+.ring i{position:relative;font-style:normal}
+.ring.md{--c:#D69A2D}.ring.lo{--c:#9C9DA3}
+.ring.big{width:52px;height:52px;border-radius:26px;font-size:15px}.ring.big::before{inset:4px}
 .bcard .r{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bcard b{font-size:14px}
 .bm{font-size:12px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--okbg);color:var(--ok)}
@@ -180,14 +206,20 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .chn:not(.on){color:#9C9DA3}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:#fff;border-left:1px solid var(--line);box-shadow:-16px 0 40px rgba(31,32,36,.12);z-index:8;display:flex;flex-direction:column;overflow-y:auto}
 .drawer .dh{padding:20px 22px 14px;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:8px}
-.drawer .db{padding:16px 22px 28px;display:flex;flex-direction:column;gap:14px}
+.drawer .db{padding:16px 22px 28px;display:flex;flex-direction:column;gap:16px;flex:1}
+.dtabs{display:flex;gap:2px;margin:4px -6px -14px;padding:0 6px}
+.dtabs button{border:0;background:transparent;font:600 13px Inter,sans-serif;color:var(--muted);padding:10px 10px 11px;border-bottom:2px solid transparent;cursor:pointer;display:flex;gap:6px;align-items:center}
+.dtabs button.on{color:var(--ink);border-bottom-color:var(--red)}
+.dtabs button i{font-style:normal;width:7px;height:7px;border-radius:4px;background:var(--ok)}
+.dfoot{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line2);padding:12px 22px;display:flex;gap:8px;flex-wrap:wrap;box-shadow:0 -8px 20px rgba(31,32,36,.05)}
+.dfoot .btn{height:40px}
 .hist{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;font-size:13px;padding:7px 0;border-top:1px solid var(--line2)}
 .bfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.pulse{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+.pulse{display:flex;flex-direction:column;gap:12px}
 .pk{display:flex;flex-direction:column;gap:1px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;min-width:120px}
 .pk b{font:800 19px Manrope,sans-serif}.pk span{font-size:12px;color:var(--muted)}
-.fc{flex:1 1 360px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:12px;background:var(--char);color:#fff}
-.fc .btn{height:34px;background:var(--red);border-color:var(--red);color:#fff;margin-left:auto}
+.fc{flex:0 1 560px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:12px;background:var(--char);color:#fff}
+.fc .btn{white-space:nowrap;flex:none;height:34px;background:var(--red);border-color:var(--red);color:#fff;margin-left:auto}
 .bwarm{font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px;background:#FDF0E3;color:#9A4A00}
 .ghost{border:1.5px dashed #9C9DA3;background:transparent;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .ghost:hover{border-color:var(--red)}
@@ -852,6 +884,8 @@ function openList(id){
 // ---------- board ----------
 var B = { runId: null, data: null, filter: 'all', open: null, newRole: false, nb: null, poll: null, srcSel: null };
 var COLS = [['found','Found'],['shortlisted','Shortlisted'],['approved','Approved'],['followup','In follow-up'],['replied','Replied'],['interview','Interview'],['hired','Hired']];
+var TONE = { found:['#D4D4D8','#3A3A3C'], shortlisted:['#9C9DA3','#fff'], approved:['#6E6F75','#fff'], followup:['#3A3A3C','#fff'], replied:['#16794A','#fff'], interview:['#BF1E2D','#fff'], hired:['#8F1621','#fff'], not_fit:['#C8C9CE','#3A3A3C'] };
+var EMPTY = { found:'New people land here as a search scores them.', shortlisted:'Drag strong people here. The ranking learns from it.', approved:'Approved people get their first email within 15 minutes.', followup:'People getting follow-ups on days 2, 4, 5 and 7 show here.', replied:'Replies show up here by themselves.', interview:'Move people here once a call is booked.', hired:'Your hires end up here.' };
 var STAGE_NAME = { found:'Found', shortlisted:'Shortlisted', approved:'Approved', followup:'In follow-up', replied:'Replied', interview:'Interview', hired:'Hired', not_fit:'Not a fit' };
 function bList(v){ return (Array.isArray(v) ? v : String(v||'').split(',')).map(function(x){ return String(x).trim(); }).filter(Boolean); }
 function loadBoard(runId){
@@ -876,20 +910,22 @@ function bVisible(c){
 }
 function bCard(c){
   var p = bPct(c), tags = [];
-  tags.push('<span class="btag">'+esc(c.source||'web')+'</span>');
+  if (c.warm) tags.push('<span class="bwarm" title="'+esc(c.warm)+'">Warm intro via '+esc(String(c.warm).split(' ')[0])+'</span>');
+  if (c.flag) tags.push('<span class="bbad">'+esc(c.flag === 'bounced' ? 'Bounced' : 'Stopped')+'</span>');
+  if (c.contacted) tags.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">'+(c.contacted.recent?'Emailed ':'Contacted ')+'for '+esc(c.contacted.role||'another role')+', '+esc(ago(c.contacted.at))+'</span>');
   (c.other_roles||[]).slice(0,1).forEach(function(o){ tags.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
-  if (c.contacted) tags.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">'+(c.contacted.recent?'Emailed ':'Contacted ')+'for '+esc(c.contacted.role||'another role')+' · '+esc(ago(c.contacted.at))+'</span>');
   if (c.overdue) tags.push('<span class="bwarn">Waiting 2+ days</span>');
-  if (c.warm) tags.push('<span class="bwarm" title="'+esc(c.warm)+'">Warm · '+esc(String(c.warm).split(' ')[0])+'</span>');
   if (c.open_to_work) tags.push('<span class="bdup" style="background:var(--okbg);color:var(--ok)">Open to work</span>');
   if (c.opens && c.opens.count) tags.push('<span class="btag">Opened '+c.opens.count+'×</span>');
-  if (c.flag) tags.push('<span class="bbad">'+esc(c.flag === 'bounced' ? 'Bounced' : 'Stopped')+'</span>');
   if (c.stage === 'followup' && c.sequence) tags.push('<span class="btag">'+esc(String(c.sequence.status_text||'').replace(/^Contacted · /,'').slice(0,34))+'</span>');
   if (!c.email && ['found','shortlisted'].indexOf(c.stage) !== -1) tags.push('<span class="btag">No email yet</span>');
-  return '<button type="button" class="bcard'+(B.open===c.dedupe_key?' on':'')+'" draggable="true" data-card="'+esc(c.dedupe_key)+'">'+
-    '<span class="r"><b>'+esc(c.name)+'</b><span class="bm '+(p>=80?'':(p>=60?'md':'lo'))+'">'+p+'%</span>'+(c.owner?'<span class="bown" title="'+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
-    '<span class="muted" style="font-size:12px">'+esc([c.title,c.company].filter(Boolean).join(' · ').slice(0,70))+'</span>'+
-    '<span class="r">'+tags.join('')+'</span></button>';
+  tags.push('<span class="btag">'+esc(String(c.source||'web').replace('Google / Open Web','Open web'))+'</span>');
+  var shown = tags.slice(0,2).join('') + (tags.length > 2 ? '<span class="btag" title="'+esc(tags.slice(2).map(function(t){ return t.replace(/<[^>]+>/g,''); }).join(', '))+'">+'+(tags.length-2)+'</span>' : '');
+  var sub = c.title && c.company ? c.title + ' at ' + c.company : (c.title || c.company || '');
+  return '<button type="button" class="bcard'+(B.open===c.dedupe_key?' on':'')+'" draggable="true" data-card="'+esc(c.dedupe_key)+'" aria-label="'+esc(c.name+', '+p+'% match')+'">'+
+    '<span class="cav">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
+    '<span class="cname">'+esc(c.name)+'</span><span class="csub">'+esc(sub.slice(0,90))+'</span><span class="ctags">'+shown+'</span>'+
+    '<span class="ring '+(p>=80?'':(p>=60?'md':'lo'))+'" style="--p:'+p+'" title="'+p+'% match"><i>'+p+'</i></span></button>';
 }
 function renderBoard(){
   var j = B.data || { roles: [], cards: [] }, run = j.run || {};
@@ -910,10 +946,11 @@ function renderBoard(){
     var ghost = '';
     if (col[0]==='shortlisted' && list.length >= 2 && !B.newRole && run.status !== 'running') ghost = '<button type="button" class="ghost" id="bLike"><b style="font-size:13px">Find more like these '+list.length+'</b><span class="muted" style="font-size:12px">Searches again using their titles and companies: '+esc(lookalike(list).companies.slice(0,3).join(', ') || 'similar profiles')+'</span></button>';
     if (col[0]==='interview' && list.length) extra += '<div class="win"><b style="font-size:13px">'+list.length+' in interviews</b><span style="color:#D4D4D8">From a brief to a conversation. Open a card for interview questions.</span></div>';
-    html += '<section class="bcol" data-col="'+col[0]+'" aria-label="'+esc(col[1])+'"'+(col[0]==='replied'?' style="background:#E7F4EC"':'')+'><div class="bcolh">'+head+'</div>'+extra+list.slice(0,60).map(bCard).join('')+ghost+(list.length>60?'<span class="muted" style="font-size:12px">+ '+(list.length-60)+' more</span>':'')+'</section>';
+    var empty = !list.length && !(col[0]==='found' && run.status==='running') ? '<div class="bempty">'+esc(EMPTY[col[0]]||'')+'</div>' : '';
+    html += '<section class="bcol" data-col="'+col[0]+'" aria-label="'+esc(col[1])+'" style="--tone:'+TONE[col[0]][0]+(col[0]==='replied' && list.length?';background:#E9F5EE':'')+'"><div class="bcolh">'+head+'</div>'+extra+empty+list.slice(0,60).map(bCard).join('')+ghost+(list.length>60?'<span class="muted" style="font-size:12px">+ '+(list.length-60)+' more</span>':'')+'</section>';
   });
   if (B.showOut) { var out = cards.filter(function(c){ return c.stage === 'not_fit'; });
-    html += '<section class="bcol" data-col="not_fit" aria-label="Not a fit"><div class="bcolh">Not a fit<span class="n">'+out.length+'</span></div>'+out.map(bCard).join('')+'</section>'; }
+    html += '<section class="bcol" data-col="not_fit" aria-label="Not a fit" style="--tone:#C8C9CE"><div class="bcolh">Not a fit<span class="n">'+out.length+'</span></div>'+out.map(bCard).join('')+'</section>'; }
   el('bWrap').innerHTML = html;
   if (B.open) openCard(B.open, true);
 }
@@ -930,11 +967,16 @@ function renderPulse(cards){
   var best = Object.keys(bySrc).sort(function(a,b){ return bySrc[b].good - bySrc[a].good; })[0];
   var ready = all.filter(function(c){ return c.stage === 'shortlisted' && c.email && !c.approved && !(c.contacted && c.contacted.recent); });
   var r = (rate !== null && contacted.length >= 5) ? rate : (team || 12), exp = Math.round(ready.length * r / 100);
-  var k = [[days ? days + (days === 1 ? ' day' : ' days') : '—', 'open'], [rate === null ? '—' : rate + '%', 'reply rate' + (team ? ' · team ' + team + '%' : '')], [best ? esc(best.replace('Google / Open Web','Open web')) : '—', 'best channel' + (best ? ' · ' + bySrc[best].good + ' good' : '')]];
-  if (j.best_time) k.push([esc(j.best_time), 'when replies come in']);
-  pe.innerHTML = k.map(function(x){ return '<div class="pk"><b>'+x[0]+'</b><span>'+esc(x[1])+'</span></div>'; }).join('') +
+  var cnt = {}; all.forEach(function(c){ if (!(c.snoozed && c.stage !== 'not_fit')) cnt[c.stage] = (cnt[c.stage]||0) + 1; });
+  var rail = '<nav class="rail" aria-label="Pipeline">'+COLS.map(function(col){ var n = cnt[col[0]]||0;
+    return '<button type="button" data-rail="'+col[0]+'" style="--tone:'+TONE[col[0]][0]+';--fg:'+TONE[col[0]][1]+';--g:'+(1 + Math.sqrt(n))+'"><b>'+n+'</b><span>'+esc(col[1])+'</span></button>'; }).join('')+'</nav>';
+  var st = ['<span><b>'+(days||'—')+'</b>'+(days === 1 ? 'day open' : 'days open')+'</span>',
+    '<span><b>'+(rate === null ? '—' : rate + '%')+'</b>reply rate'+(team ? ', your team averages '+team+'%' : '')+'</span>',
+    best ? '<span><b>'+esc(best.replace('Google / Open Web','Open web'))+'</b>finds the most good people ('+bySrc[best].good+')</span>' : '',
+    j.best_time ? '<span>Replies usually arrive <b style="font-size:14px;margin:0">'+esc(j.best_time)+'</b></span>' : ''].filter(Boolean).join('');
+  pe.innerHTML = rail + '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;width:100%"><div class="stats" style="flex:1 1 420px">'+st+'</div>' +
     (ready.length ? '<div class="fc"><span style="font-size:13px;line-height:1.45">Approve the <b>'+ready.length+'</b> shortlisted with emails and you can expect about <b>'+Math.max(1, exp)+'</b> '+(Math.max(1,exp) === 1 ? 'reply' : 'replies')+' within 7 days<span style="color:#BDBEC3"> · at '+r+'% '+(rate !== null && contacted.length >= 5 ? 'this role\'s' : 'your team\'s')+' reply rate</span></span><button type="button" class="btn" id="bApproveAll">Approve '+ready.length+'</button></div>'
-      : '<div class="fc" style="background:var(--ground);color:var(--ink)"><span style="font-size:13px">Shortlist people with an email and the forecast of replies shows up here.</span></div>');
+      : '<div class="fc" style="background:#fff;color:var(--muted);border:1.5px dashed #D4D4D8;flex:0 1 420px"><span style="font-size:13px">Shortlist people who have an email to see how many replies to expect.</span></div>') + '</div>';
 }
 function lookalike(list){
   var cos = {}, titles = {};
@@ -1068,7 +1110,10 @@ el('bWrap').addEventListener('click', function(e){
   if (e.target.closest('#bEdit')) { rerun(true); return; }
   if ((t = e.target.closest('[data-card]'))) { openCard(t.dataset.card); }
 });
-el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) approveAll(b); });
+el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) { approveAll(b); return; }
+  var r = e.target.closest('[data-rail]'); if (!r) return; var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
+  col.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
+  col.classList.add('flash'); setTimeout(function(){ col.classList.remove('flash'); }, 1200); });
 el('bFilters').onclick = function(e){ var b = e.target.closest('[data-bf]'); if (!b) return; if (b.dataset.bf === 'out') B.showOut = !B.showOut; else B.filter = b.dataset.bf; renderBoard(); };
 el('bRole').onchange = function(){ B.newRole = false; B.nb = null; B.srcSel = null; B.open = null; el('bDrawer').classList.add('hide'); loadBoard(this.value); };
 el('bNew').onclick = function(){ B.newRole = true; B.nb = null; renderBoard(); setTimeout(function(){ if (el('nbBrief')) el('nbBrief').focus(); }, 30); };
@@ -1103,36 +1148,44 @@ function approveCard(c, force){
 // ----- the card drawer -----
 function openCard(key, keep){
   var c = cardOf(key); if (!c) { el('bDrawer').classList.add('hide'); return; }
+  if (!keep || B.tabFor !== key) { B.tabFor = key; B.tab = (c.stage === 'replied' && c.sequence && c.sequence.thread_id) ? 'reply' : 'overview'; }
   if (!keep) B.open = key;
   [].forEach.call(document.querySelectorAll('.bcard'), function(x){ x.classList.toggle('on', x.dataset.card === key); });
   var team = ((B.data||{}).team||[]), hist = ((B.data||{}).history||[]).filter(function(h){ return h.dedupe_key === key; });
-  var links = [['Profile',c.profile_url],['LinkedIn',c.linkedin],['GitHub',c.github],['CV',c.resume_link]].filter(function(l){ return /^https?:\/\//.test(l[1]||''); }).map(function(l){ return '<a href="'+esc(l[1])+'" target="_blank" rel="noopener">'+l[0]+'</a>'; }).join(' · ');
+  var links = [['Profile',c.profile_url],['LinkedIn',c.linkedin],['GitHub',c.github],['CV',c.resume_link]].filter(function(l){ return /^https?:\/\//.test(l[1]||''); }).map(function(l){ return '<a href="'+esc(l[1])+'" target="_blank" rel="noopener">'+l[0]+'</a>'; }).join('&ensp;');
   var warn = [];
-  (c.other_roles||[]).forEach(function(o){ warn.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
-  if (c.contacted) warn.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">Emailed for '+esc(c.contacted.role||'another role')+' '+esc(ago(c.contacted.at))+(c.contacted.recent?' · the sender will hold a second email':'')+'</span>');
-  if (c.warm) warn.push('<span class="bwarm">'+esc(c.warm)+' · ask for an intro</span>');
+  if (c.warm) warn.push('<span class="bwarm">'+esc(c.warm)+'. Ask for an intro.</span>');
   if (c.open_to_work) warn.push('<span class="bdup" style="background:var(--okbg);color:var(--ok)">Open to work</span>');
-  if (c.opens && c.opens.count) warn.push('<span class="btag">Opened '+c.opens.count+'× · last '+esc(ago(c.opens.last))+'</span>');
-  var p = bPct(c);
-  el('bDrawer').innerHTML = '<div class="dh"><div style="display:flex;align-items:flex-start;gap:12px"><span class="av" style="width:48px;height:48px;font-size:15px">'+esc(initials(c.name))+'</span><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><h2 style="font-size:22px">'+esc(c.name)+'</h2><span class="muted" style="font-size:13px">'+esc([c.title,c.company,c.location].filter(Boolean).join(' · '))+'</span></div><button type="button" class="ic" id="dClose" aria-label="Close" style="margin-left:auto">×</button></div>'+
-    '<div class="chips"><span class="m '+(p>=80?'hi':(p>=60?'md':'lo'))+'">'+p+'% match</span><span class="btag">'+esc(c.source||'')+'</span>'+warn.join('')+'</div></div>'+
-    '<div class="db">'+
+  if (c.opens && c.opens.count) warn.push('<span class="btag">Opened '+c.opens.count+'×, last '+esc(ago(c.opens.last))+'</span>');
+  (c.other_roles||[]).forEach(function(o){ warn.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
+  if (c.contacted) warn.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">Emailed for '+esc(c.contacted.role||'another role')+' '+esc(ago(c.contacted.at))+(c.contacted.recent?'. A second email will be held.':'')+'</span>');
+  var p = bPct(c), first = esc(String(c.name||'they').split(' ')[0]);
+  var hasReply = c.stage === 'replied' && c.sequence && c.sequence.thread_id, hasKit = ['interview','replied','hired'].indexOf(c.stage) !== -1;
+  var tabs = [['overview','Overview'], hasReply ? ['reply','Reply'] : null, hasKit ? ['interview','Interview'] : null, ['history','History' + (hist.length ? ' ' + hist.length : '')]].filter(Boolean);
+  if (!tabs.some(function(t){ return t[0] === B.tab; })) B.tab = 'overview';
+  var body = '';
+  if (B.tab === 'overview') body =
+    (warn.length ? '<div class="chips">'+warn.join('')+'</div>' : '')+
+    '<div><span class="lbl">Why '+first+' matches</span><p style="margin:6px 0;line-height:1.55">'+esc(c.summary||'')+'</p>'+whyPanel(c)+'</div>'+
+    (c.sequence ? '<div style="font-size:13.5px;padding:10px 12px;border-radius:10px;background:var(--ground)"><b>Outreach.</b> '+esc(c.sequence.status_text||c.sequence.status)+(c.sequence.next_due_at && c.sequence.status==='active' ? '. Next email '+esc(new Date(c.sequence.next_due_at).toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})) : '')+'</div>' : '')+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Stage</span><select id="dStage">'+Object.keys(STAGE_NAME).map(function(k){ return '<option value="'+k+'"'+(c.stage===k?' selected':'')+'>'+STAGE_NAME[k]+'</option>'; }).join('')+'</select></label>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Owner</span><select id="dOwner"><option value="">Nobody</option>'+team.map(function(n){ return '<option'+(c.owner===n?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select></label></div>'+
-    '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Note</span><textarea id="dNote" rows="3" placeholder="What did you learn? Visible to the team.">'+esc(c.note)+'</textarea></label>'+
+    '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Note for the team</span><textarea id="dNote" rows="3" placeholder="What did you learn?">'+esc(c.note)+'</textarea></label>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Not now, bring back on</span><input id="dSnooze" type="date" value="'+esc(c.snooze_until)+'" style="max-width:200px"></label>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn dark" id="dSave">Save</button>'+(c.email && !c.approved && ['found','shortlisted'].indexOf(c.stage)!==-1 ? '<button type="button" class="btn pri" id="dApprove">Approve for outreach</button>' : '')+'</div>'+
-    replyPanel(c) + kitPanel(c) +
-    (c.sequence ? '<div class="card" style="padding:12px 14px;font-size:13px"><b>Outreach</b><br>'+esc(c.sequence.status_text||c.sequence.status)+(c.sequence.next_due_at && c.sequence.status==='active' ? '<br><span class="muted">Next: '+esc(new Date(c.sequence.next_due_at).toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))+'</span>' : '')+'</div>' : '')+
-    '<div><span class="lbl">Why '+esc(String(c.name||'they').split(' ')[0])+' matches</span><p style="margin:6px 0">'+esc(c.summary||'')+'</p>'+whyPanel(c)+'</div>'+
-    '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">('+esc(c.contact_source||'')+')</span>':'No email found yet')+'</p><p style="margin:4px 0 0">'+(links||'')+'</p></div>'+
-    '<div><span class="lbl">History</span>'+(hist.length ? hist.map(function(h){ return '<div class="hist"><span><b>'+esc(h.by||'')+'</b> '+esc(h.kind==='stage' ? 'moved to ' + (STAGE_NAME[h.to_stage]||h.to_stage) : h.detail)+'</span><span class="muted" style="font-size:12px">'+esc(ago(h.at))+'</span></div>'; }).join('') : '<p class="muted" style="margin:4px 0 0;font-size:13px">No changes yet.</p>')+'</div>'+
-    '</div>';
+    '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">(from '+esc(c.contact_source||'search')+')</span>':'No email found yet')+'</p>'+(links?'<p style="margin:4px 0 0">'+links+'</p>':'')+'</div>';
+  else if (B.tab === 'reply') body = replyPanel(c);
+  else if (B.tab === 'interview') body = kitPanel(c);
+  else body = hist.length ? hist.map(function(h){ return '<div class="hist"><span><b>'+esc(h.by||'')+'</b> '+esc(h.kind==='stage' ? 'moved them to ' + (STAGE_NAME[h.to_stage]||h.to_stage) : h.detail)+'</span><span class="muted" style="font-size:12px">'+esc(ago(h.at))+'</span></div>'; }).join('') : '<p class="muted" style="margin:0">Nobody has changed anything yet. Stage moves, notes and replies show here.</p>';
+  var foot = B.tab === 'overview' ? '<button type="button" class="btn dark" id="dSave">Save</button>'+(c.email && !c.approved && ['found','shortlisted'].indexOf(c.stage)!==-1 ? '<button type="button" class="btn pri" id="dApprove">Approve for outreach</button>' : '')+(hasReply ? '<button type="button" class="btn" data-dt="reply">Read their reply</button>' : '') : '';
+  el('bDrawer').innerHTML = '<div class="dh"><div style="display:flex;align-items:center;gap:14px"><span class="ring big '+(p>=80?'':(p>=60?'md':'lo'))+'" style="--p:'+p+'" title="'+p+'% match"><i>'+p+'%</i></span><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><h2 style="font-size:22px;margin:0">'+esc(c.name)+'</h2><span class="muted" style="font-size:13px">'+esc([c.title && c.company ? c.title + ' at ' + c.company : (c.title||c.company||''), c.location].filter(Boolean).join(', '))+'</span><span style="font-size:12px;color:var(--muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:'+TONE[c.stage][0]+';margin-right:6px"></span>'+esc(STAGE_NAME[c.stage]||'')+(c.owner?', owned by '+esc(c.owner):'')+', found on '+esc(String(c.source||'the web').replace('Google / Open Web','the open web'))+'</span></div><button type="button" class="ic" id="dClose" aria-label="Close" style="margin-left:auto;align-self:flex-start">×</button></div>'+
+    '<div class="dtabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" aria-selected="'+(B.tab===t[0])+'" class="'+(B.tab===t[0]?'on':'')+'" data-dt="'+t[0]+'">'+esc(t[1])+(t[0]==='reply' && !RD[c.dedupe_key] ? '<i aria-label="new"></i>' : '')+'</button>'; }).join('')+'</div></div>'+
+    '<div class="db">'+body+'</div>'+(foot ? '<div class="dfoot">'+foot+'</div>' : '');
   el('bDrawer').classList.remove('hide');
 }
 el('bDrawer').addEventListener('click', function(e){
   var c = cardOf(B.open); if (!c) return;
   if (e.target.closest('#dClose')) { B.open = null; el('bDrawer').classList.add('hide'); renderBoard(); return; }
+  var dt = e.target.closest('[data-dt]'); if (dt) { B.tab = dt.dataset.dt; openCard(c.dedupe_key, true); el('bDrawer').scrollTop = 0; return; }
   if (e.target.closest('#dSave')) {
     var st = el('dStage').value;
     if (st === 'approved' && !c.approved) { approveCard(c); return; }
@@ -1189,7 +1242,7 @@ function sendReply(c, btn){
 function kitPanel(c){
   if (['interview','replied','hired'].indexOf(c.stage) === -1) return '';
   var k = KIT[c.dedupe_key];
-  if (!k) return '<div><button type="button" class="btn" id="dKit">Interview questions for '+esc(String(c.name).split(' ')[0])+'</button></div>';
+  if (!k) return '<div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start"><p style="margin:0;line-height:1.55">Five questions that test this role\'s must-haves and what '+esc(String(c.name).split(' ')[0])+'\'s profile doesn\'t show yet, each with what a strong answer sounds like, plus a scorecard.</p><button type="button" class="btn pri" id="dKit">Write interview questions</button></div>';
   if (k.busy) return '<div class="card" style="padding:12px 14px"><div class="think"><span class="spin"></span>Writing questions that test the must-haves…</div></div>';
   if (k.error) return '<div class="card" style="padding:12px 14px;font-size:13px">'+esc(k.error)+' <button type="button" class="btn" id="dKit" style="height:32px">Try again</button></div>';
   return '<div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px"><b>Interview questions</b>'+
@@ -1230,6 +1283,7 @@ el('cmdIn').addEventListener('keydown', function(e){
 el('cmdList').addEventListener('click', function(e){ var b = e.target.closest('[data-ci]'); if (!b) return; var it = CMD.items[+b.dataset.ci]; cmdClose(); if (it) it.f(); });
 el('cmdk').addEventListener('click', function(e){ if (e.target === el('cmdk')) cmdClose(); });
 document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && B.open && el('cmdk').classList.contains('hide')) { B.open = null; el('bDrawer').classList.add('hide'); renderBoard(); return; }
   if (e.key !== '/' || !TOKEN || e.metaKey || e.ctrlKey) return;
   var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
   e.preventDefault(); cmdOpen();
