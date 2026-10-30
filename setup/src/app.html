@@ -379,7 +379,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
   </section>
   <section id="v-settings" class="hide" style="display:flex;flex-direction:column;gap:18px">
     <h1 style="font-size:30px;font-weight:800">Settings</h1>
-    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="services">Connected services</button></div>
+    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="telegram">Telegram</button><button data-st="services">Connected services</button></div>
     <div class="card panel" data-sp="account">
       <div class="frow"><div><b>Name</b></div><div id="acName"></div></div>
       <div class="frow"><div><b>Email</b></div><div id="acEmail"></div></div>
@@ -410,6 +410,12 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default. The same public address makes apply pages reachable.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
       <div class="frow"><div><b>Follow-up schedule</b></div><div class="muted" style="font-size:14px">Days 2, 4, 5 and 7, in the same Gmail thread. Stops on reply or bounce. <a href="#" data-go="outreach">Edit the wording →</a></div></div>
       <div style="display:flex;gap:10px;align-items:center"><button class="btn pri" type="button" id="snSave">Save sending settings</button><span id="snMsg" class="muted" style="font-size:13px"></span></div>
+    </div>
+    <div class="card panel hide" data-sp="telegram">
+      <h2 style="font-size:20px;margin:0 0 4px">Telegram</h2>
+      <p class="muted" style="margin:0 0 14px;font-size:14px">Search, shortlist and answer candidates from your phone. The bot talks to this workspace from inside n8n, so it works even without a public address.</p>
+      <div class="frow" id="tgMine"><div><b>Your phone</b><div class="help" id="tgMineHelp">Connect your Telegram to use the bot.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:480px"><button type="button" class="btn" id="tgConnect" style="height:38px;align-self:flex-start">Connect Telegram</button><div id="tgCode" class="hide" style="padding:12px 14px;border-radius:10px;background:var(--ground);font-size:14px;line-height:1.5"></div></div></div>
+      <div class="frow" id="tgAdmin"><div><b>The bot</b><div class="help">Admins only. In Telegram, open BotFather, send /newbot, and paste the token it gives you here. One bot serves the whole team.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:480px"><input id="tgTok" type="password" placeholder="123456789:AAH…" autocomplete="off"><input id="tgBot" type="text" placeholder="Bot username, e.g. acme_sourcing_bot (optional)"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn" id="tgSave" style="height:38px">Save</button><button type="button" class="btn" id="tgRemove" style="height:38px">Remove bot</button><span id="tgMsg" class="muted" style="font-size:13px"></span></div><div id="tgStatus" class="muted" style="font-size:13px"></div></div></div>
     </div>
     <div class="card panel hide" data-sp="services">
       <p class="muted" style="margin:0;font-size:14px">The services your n8n uses, and when each one last worked in a search. Keys and passwords stay in n8n's credential store; to change one, open n8n → Credentials.</p>
@@ -1474,7 +1480,27 @@ function openSettings(tab){
   if (tab==='team') loadTeam();
   if (tab==='sending') loadSending();
   if (tab==='services') loadServices();
+  if (tab==='telegram') loadTelegram();
 }
+function loadTelegram(){
+  var admin = ME.role === 'admin'; el('tgAdmin').classList.toggle('hide', !admin); el('tgCode').classList.add('hide');
+  call('telegram_status').then(function(j){ if (!j.ok) return;
+    el('tgMineHelp').textContent = !j.has_token ? 'An admin needs to add the bot first.' : (j.me_linked ? 'Connected. Open the bot in Telegram and send "help".' : 'Connect your Telegram to use the bot.');
+    el('tgConnect').disabled = !j.has_token; el('tgConnect').textContent = j.me_linked ? 'Connect another phone' : 'Connect Telegram';
+    el('tgTok').value = ''; el('tgTok').placeholder = j.has_token ? 'Saved. Paste a new token to replace it.' : '123456789:AAH…'; el('tgBot').value = j.bot || '';
+    var lp = j.last_poll ? ago(j.last_poll.split(' error:')[0]) : 'never';
+    el('tgStatus').textContent = (j.has_token ? 'Last checked Telegram: ' + lp + (/ error:/.test(j.last_poll||'') ? ' (' + j.last_poll.split(' error:')[1].trim() + ')' : '') + '. ' : '') + (j.linked.length ? 'Connected: ' + j.linked.join(', ') + '.' : 'Nobody is connected yet.');
+  }).catch(function(){});
+}
+el('tgConnect').onclick = function(){ var b = this; b.disabled = true;
+  call('telegram_code').then(function(j){ b.disabled = false; if (!j.ok) { toast(j.error || 'Could not make a code.'); return; }
+    el('tgCode').classList.remove('hide');
+    el('tgCode').innerHTML = '1. Open Telegram and find <b>' + (j.bot ? '@' + esc(j.bot) : 'the team’s bot (ask your admin for its name)') + '</b>.' + (j.bot ? ' <a href="https://t.me/' + esc(j.bot) + '" target="_blank" rel="noopener">Open it</a>.' : '') +
+      '<br>2. Send it this message:<br><code style="font-size:16px;font-weight:700;letter-spacing:.04em">/start ' + esc(j.code) + '</code><br><span class="muted">The code works for ' + j.minutes + ' minutes. It may take up to half a minute to reply.</span>'; }).catch(function(){ b.disabled = false; }); };
+el('tgSave').onclick = function(){ var tok = el('tgTok').value.trim(), body = { bot: el('tgBot').value }; if (tok) body.bot_token = tok; el('tgMsg').textContent = 'Saving…';
+  call('telegram_settings', body).then(function(j){ el('tgMsg').textContent = j.ok ? 'Saved.' : j.error; if (j.ok) loadTelegram(); }).catch(function(e){ el('tgMsg').textContent = e.message; }); };
+el('tgRemove').onclick = function(){ if (!confirm('Remove the bot? Nobody will be able to use it until a token is added again.')) return;
+  call('telegram_settings', { bot_token: '', bot: '' }).then(function(j){ el('tgMsg').textContent = j.ok ? 'Removed.' : j.error; loadTelegram(); }).catch(function(){}); };
 el('sTabs').onclick = function(e){ var b=e.target.closest('[data-st]'); if (b) openSettings(b.dataset.st); };
 el('acCosSave').onclick = function(){ el('acCosMsg').textContent='Saving…'; call('save_profile', { companies: el('acCos').value }).then(function(j){ if (j.ok) { ME.companies = j.companies; el('acCosMsg').textContent='Saved.'; } else el('acCosMsg').textContent=j.error; }).catch(function(){}); };
 el('acSave').onclick = function(){ var b=this; el('acMsg').textContent='Saving…';

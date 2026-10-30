@@ -5251,3 +5251,342 @@ def apply_round35(nodes, conns):
       "team_reply_rate: teamRate, best_time: bestTime, viewers: viewers, apply: { open: !!applyCfg.open, intro: applyCfg.intro || '', applied: applied }, public_url: sets.public_url || '' } } }];")
     nodes.extend(new)
     return nodes, conns
+
+
+# ======================================================================
+# Round 36: Telegram, for recruiters on the go.
+# The bot is a client of the app's own API: every message becomes the same
+# API calls the app makes, as the linked teammate. Nothing is duplicated.
+# - No public address needed: n8n polls Telegram every 30 s (long polling).
+# - Only linked teammates can use it: each person gets a one-time code in
+#   Settings and sends "/start CODE" to the bot.
+# - Describe a role to start a search; the top 5 arrive when it finishes.
+#   Then "more", "shortlist 1 3", "not fit 2", "approve 1", "roles", "status".
+# - Replies from candidates are pushed with a drafted answer: "send R1",
+#   "send R1: your own words", or "later R1".
+# ======================================================================
+TG_POLL_URL = r"""
+// Where to ask Telegram for new messages. No bot token saved: nothing to do.
+const sets = {}; $('Load TG Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });
+const token = String(sets.telegram_token || '').trim();
+if (!/^\d{6,}:[A-Za-z0-9_-]{20,}$/.test(token)) return [];
+const offset = parseInt(sets['tg:offset'], 10) || 0;
+return [{ json: { url: 'https://api.telegram.org/bot' + token + '/getUpdates?timeout=20&allowed_updates=%5B%22message%22%5D' + (offset ? '&offset=' + offset : '') } }];
+"""
+
+TG_OFFSET = r"""
+// Remember where we are in Telegram's queue, and that the poll ran.
+const j = $json || {};
+const ups = Array.isArray(j.result) ? j.result : [];
+const out = [{ json: { key: 'tg:lastpoll', value: new Date().toISOString() + (j.ok === false || j.error ? ' error: ' + String(j.description || (j.error && j.error.message) || j.error || 'unknown').slice(0, 120) : '') } }];
+if (ups.length) out.push({ json: { key: 'tg:offset', value: String(Math.max.apply(null, ups.map(function(u){ return Number(u.update_id) || 0; })) + 1) } });
+return out;
+"""
+
+TG_JOBS = r"""
+// Turn new Telegram messages, finished searches and candidate replies into jobs.
+// A job = who it's for, up to two API calls (a, then b), and how to answer.
+const sets = {}; $('Load TG Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = rows('Load TG Runs').filter(function(r){ return r.run_id; });
+const seqs = rows('Load TG Sequences').filter(function(r){ return r.contact_key; });
+const upd = ($('Telegram Updates').first().json || {});
+const ups = Array.isArray(upd.result) ? upd.result : [];
+const token = String(sets.telegram_token || '').trim(), svc = String(sets.service_key || '');
+const API = String(sets.self_url || 'http://localhost:5678').replace(/\/+$/, '') + '/webhook/sourcing-app-api';
+const NOW = Date.now();
+const J = function(v){ try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
+const linked = {}; Object.keys(sets).forEach(function(k){ if (k.indexOf('tg:') === 0 && /^tg:\d+$/.test(k)) { const v = J(sets[k]); if (v.email) linked[k.slice(3)] = v; } });
+const jobs = [];
+const job = function(chat, who, kind, a, extra){ jobs.push(Object.assign({ chat: String(chat), who: who || null, kind: kind, api: API, token: token, a: a || null, b: null, writes: [], text: '' }, extra || {})); return jobs[jobs.length - 1]; };
+const call = function(action, body, who){ return Object.assign({ action: action, service_key: svc, as_email: who ? who.email : '' }, body || {}); };
+const HELP = 'What I can do:\n' +
+  '• Describe a role to start a search, e.g. "Product manager in Bangalore, 5-8 years, B2B SaaS"\n' +
+  '• roles - your open roles\n• top - the best people on the current role\n• more - the next 5\n' +
+  '• shortlist 1 3 / not fit 2 / approve 1 - act on the numbered list\n' +
+  '• status - is everything running\n' +
+  '• When a candidate replies, I send the reply with a draft: send R1, send R1: your words, or later R1';
+// ---- messages from people ----
+ups.forEach(function(u){
+  const m = u.message; if (!m || !m.chat || !m.text) return;
+  const chat = String(m.chat.id), text = String(m.text).trim(), low = text.toLowerCase();
+  const who = linked[chat] || null;
+  const st = J(sets['tg:' + chat + ':state']);
+  if (!svc) { job(chat, who, 'say', null, { text: 'Open the app once in a browser first, then try again.' }); return; }
+  const start = low.match(/^\/start(?:\s+([a-z0-9]{4,12}))?$/i);
+  if (start) {
+    if (who) { job(chat, who, 'say', null, { text: 'You are already connected as ' + who.name + '.\n\n' + HELP }); return; }
+    const code = String(start[1] || '').toUpperCase();
+    const lk = code ? J(sets['tglink:' + code]) : {};
+    if (!code || !lk.email || Number(lk.exp) < NOW) { job(chat, null, 'say', null, { text: 'This bot is private. In the app, open Settings and press "Connect Telegram" to get a code, then send: /start CODE' }); return; }
+    job(chat, lk, 'say', null, { text: 'Connected as ' + lk.name + '. ' + HELP, writes: [{ key: 'tg:' + chat, value: JSON.stringify({ email: lk.email, name: lk.name, role: lk.role || 'recruiter', since: new Date().toISOString() }) }, { key: 'tglink:' + code, value: '' }] });
+    return;
+  }
+  if (!who) { job(chat, null, 'say', null, { text: 'This bot is private. In the app, open Settings and press "Connect Telegram" to get a code, then send: /start CODE' }); return; }
+  if (/^\/?help$/.test(low) || /^(hi|hello|hey)$/.test(low)) { job(chat, who, 'say', null, { text: HELP }); return; }
+  if (/^\/?roles?$/.test(low)) { job(chat, who, 'roles', call('board', { run_id: '' }, who)); return; }
+  if (/^\/?status$/.test(low)) { job(chat, who, 'status', call('health', {}, who)); return; }
+  let mm;
+  if ((mm = low.match(/^\/?(top|best|more|next)(?:\s+(\d+))?$/))) {
+    if (!st.run_id) { job(chat, who, 'say', null, { text: 'No role yet. Describe one, or send "roles" and reply with its number.' }); return; }
+    const off = (mm[1] === 'more' || mm[1] === 'next') ? (Number(st.offset) || 0) : 0;
+    job(chat, who, 'top', call('board', { run_id: st.run_id }, who), { offset: off, n: Math.min(10, Math.max(1, parseInt(mm[2], 10) || 5)) }); return;
+  }
+  if ((mm = low.match(/^\/?(?:role|open|use|switch)\s+(\d+)$/))) {
+    const r = (st.roles || [])[Number(mm[1]) - 1];
+    if (!r) { job(chat, who, 'say', null, { text: 'Send "roles" first, then the number.' }); return; }
+    job(chat, who, 'top', call('board', { run_id: r.run_id }, who), { offset: 0, n: 5, switch_to: r }); return;
+  }
+  if ((mm = low.match(/^\/?(shortlist|not\s*fit|approve|pass)\s+([\d\s,]+)$/))) {
+    const nums = mm[2].split(/[\s,]+/).map(function(x){ return parseInt(x, 10); }).filter(function(x){ return x > 0; });
+    const list = st.list || [];
+    if (!st.run_id || !list.length) { job(chat, who, 'say', null, { text: 'Send "top" first, then use the numbers.' }); return; }
+    const what = mm[1].replace(/\s+/g, '');
+    nums.forEach(function(n){
+      const c = list[n - 1];
+      if (!c) { job(chat, who, 'say', null, { text: 'There is no number ' + n + ' on the list.' }); return; }
+      if (what === 'approve') {
+        if (!c.email) { job(chat, who, 'say', null, { text: c.name + ' has no email yet, so they can’t be approved.' }); return; }
+        job(chat, who, 'approve', call('approve', { run_id: st.run_id, keys: [c.k] }, who), { card: c, run_id: st.run_id, b: call('update_card', { card: { run_id: st.run_id, dedupe_key: c.k, name: c.name, stage: 'approved', owner: '', note: '', snooze_until: '' }, prev: { stage: c.stage } }, who) });
+      } else {
+        const stage = what === 'shortlist' ? 'shortlisted' : 'not_fit';
+        job(chat, who, 'move', call('update_card', { card: { run_id: st.run_id, dedupe_key: c.k, name: c.name, stage: stage, owner: '', note: '', snooze_until: '' }, prev: { stage: c.stage } }, who),
+          { card: c, stage: stage, b: call('feedback', { run_id: st.run_id, dedupe_key: c.k, vote: stage === 'shortlisted' ? 'up' : 'down' }, who) });
+      }
+    });
+    return;
+  }
+  if ((mm = text.match(/^\/?(send|later|skip)\s+r(\d+)(?:\s*[:\-]\s*([\s\S]+))?$/i))) {
+    const d = J(sets['tg:draft:R' + mm[2]]);
+    if (!d.reply_to) { job(chat, who, 'say', null, { text: 'I don’t have a draft R' + mm[2] + ' any more.' }); return; }
+    if (mm[1].toLowerCase() === 'send') job(chat, who, 'send', call('send_reply', { message_id: d.reply_to, text: String(mm[3] || d.draft).trim(), run_id: d.run_id, dedupe_key: d.dedupe_key, name: d.name }, who), { draft: d, id: 'R' + mm[2] });
+    else { const until = new Date(NOW + 90 * 864e5).toISOString().slice(0, 10);
+      job(chat, who, 'later', call('update_card', { card: { run_id: d.run_id, dedupe_key: d.dedupe_key, name: d.name, stage: d.stage || 'replied', owner: '', note: '', snooze_until: until }, prev: { stage: d.stage || 'replied' } }, who), { draft: d, id: 'R' + mm[2], until: until }); }
+    return;
+  }
+  const brief = text.replace(/^\/?(find|search|hire|hiring)\s*[:\-]?\s*/i, '');
+  if (brief.length >= 15) { job(chat, who, 'find', call('intake', { brief: brief, answers: {} }, who), { brief: brief }); return; }
+  job(chat, who, 'say', null, { text: 'Not sure what you mean. ' + HELP });
+});
+// ---- searches started here that have finished ----
+Object.keys(sets).forEach(function(k){
+  if (k.indexOf('tg:run:') !== 0) return;
+  const v = J(sets[k]); if (!v.chat || v.reported) return;
+  const run = runs.find(function(r){ return String(r.run_id) === k.slice(7); }); if (!run) return;
+  if (run.status === 'done' || run.status === 'stopped' || run.status === 'failed') job(v.chat, linked[v.chat] || null, 'finished', call('board', { run_id: k.slice(7) }, linked[v.chat] || null), { run_id: k.slice(7), key: k, n: 5, offset: 0 });
+});
+// ---- candidates who replied, pushed to every linked person ----
+const chats = Object.keys(linked);
+if (chats.length) {
+  const since = sets['tg:replies_since'];
+  if (!since) jobs.push({ chat: '', kind: 'mark', api: API, token: token, writes: [{ key: 'tg:replies_since', value: new Date().toISOString() }], text: '' });
+  else {
+    const admin = chats.map(function(c){ return linked[c]; }).sort(function(a, b){ return (b.role === 'admin') - (a.role === 'admin'); })[0];
+    seqs.filter(function(q){ return q.status === 'replied' && q.thread_id && String(q.updatedAt || q.last_sent_at || '') > since; })
+      .sort(function(a, b){ return String(a.updatedAt || '').localeCompare(String(b.updatedAt || '')); }).slice(0, 5)
+      .forEach(function(q){ job('', admin, 'reply', call('thread', { thread_id: q.thread_id, name: q.first_name || q.email, context: { role: q.role || '', location: q.location || '' } }, admin), { seq: q, chats: chats }); });
+  }
+}
+return jobs.map(function(x){ return { json: x }; });
+"""
+
+TG_STEP_B = r"""
+// What the first call said, and whether a second one is needed.
+const jobs = $('TG Jobs').all().map(function(i){ return i.json; });
+const res = $input.all().map(function(i){ return i.json || {}; });
+return jobs.map(function(x, i){
+  const r = res[i] || {}; x.ra = r;
+  if (x.kind === 'find' && r.ok) {
+    const c = r.criteria || {};
+    const EXP = ['0-2 years', '3-5 years', '5-8 years', '8+ years'];
+    x.b = Object.assign({ action: 'search', service_key: x.a.service_key, as_email: x.a.as_email }, { brief: x.brief, criteria: {
+      role: c.role || '', similar: 'Yes', experience: EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any', must: (c.must || []).join(', '), nice: (c.nice || []).join(', '),
+      city: c.city || '', region: c.region || (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', veteran: c.veteran ? 'Yes' : '',
+      exclude: (c.exclude || []).join(', '), education: 'Any', sources: (r.sources || []).length ? r.sources : ['LinkedIn'],
+      rubric: (r.rubric || []).map(function(q){ return '- ' + q.criterion + ' (weight ' + (q.weight || 1) + '): ' + (q.how || ''); }).join('\n'), jd_text: '' } });
+  }
+  if (!x.b) x.b = { action: 'ping', service_key: (x.a || {}).service_key || '', as_email: (x.a || {}).as_email || '' };
+  return { json: x };
+});
+"""
+
+TG_COMPOSE = r"""
+// Turn each job's answers into Telegram messages and what to remember.
+const jobs = $('TG Step B').all().map(function(i){ return i.json; });
+const res = $input.all().map(function(i){ return i.json || {}; });
+const sets = {}; $('Load TG Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });
+const J = function(v){ try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
+const msgs = {}, writes = [];
+const say = function(chat, t){ if (!chat) return; (msgs[chat] = msgs[chat] || []).push(t); };
+const state = {}; const stOf = function(chat){ if (!state[chat]) state[chat] = J(sets['tg:' + chat + ':state']); return state[chat]; };
+const pct = function(c){ return Math.max(5, Math.min(98, Math.round((Number(c.fit_score) || 0) * 10))); };
+const roleName = function(run){ return [run.role, run.location].filter(Boolean).join(', ') || 'this role'; };
+const listOut = function(chat, r, offset, n, head){
+  const cards = (r.cards || []).filter(function(c){ return c.stage !== 'not_fit' && !c.snoozed; }).sort(function(a, b){ return pct(b) - pct(a); });
+  const slice = cards.slice(offset, offset + n);
+  if (!slice.length) { say(chat, offset ? 'That’s everyone on this role.' : 'Nobody on this role yet.'); return; }
+  const st = stOf(chat); st.run_id = String((r.run || {}).run_id || st.run_id || ''); st.role = roleName(r.run || {}); st.offset = offset + slice.length;
+  st.list = (offset ? st.list || [] : []).slice(0, offset).concat(slice.map(function(c){ return { k: c.dedupe_key, name: c.name, stage: c.stage, email: !!c.email }; }));
+  const lines = slice.map(function(c, i){ const why = String(c.summary || '').split(/(?<=[.!?])\s+/)[0].slice(0, 140); const link = c.linkedin || c.profile_url || '';
+    return (offset + i + 1) + '. ' + c.name + ' · ' + pct(c) + '%' + (c.stage !== 'found' ? ' · ' + c.stage.replace('_', ' ') : '') + '\n' + [c.title, c.company].filter(Boolean).join(' at ') + (why ? '\n' + why : '') + (link ? '\n' + link : ''); });
+  say(chat, (head || st.role) + '\n\n' + lines.join('\n\n') + '\n\nshortlist 1 3 · not fit 2 · approve 1 · more');
+};
+let draftN = parseInt(sets['tg:draft_n'], 10) || 0;
+jobs.forEach(function(x, i){
+  const a = x.ra || {}, b = res[i] || {};
+  (x.writes || []).forEach(function(w){ writes.push(w); });
+  if (x.kind === 'say' || x.kind === 'mark') { if (x.text) say(x.chat, x.text); return; }
+  const fail = function(r){ return r && r.ok === false ? (r.error || (r.auth ? 'Your account is no longer active.' : 'Something went wrong.')) : (r && r.error ? 'Could not reach the app.' : ''); };
+  if (x.kind === 'roles') { if (fail(a)) return say(x.chat, fail(a));
+    const roles = (a.roles || []).slice(0, 8); if (!roles.length) return say(x.chat, 'No roles yet. Describe one to start a search.');
+    const st = stOf(x.chat); st.roles = roles.map(function(r){ return { run_id: String(r.run_id), role: r.role, location: r.location }; });
+    return say(x.chat, 'Your roles:\n' + roles.map(function(r, k){ return (k + 1) + '. ' + roleName(r) + (r.status === 'running' ? ' (searching)' : ' · ' + (r.count || 0) + ' found'); }).join('\n') + '\n\nSend "role 2" to switch, then "top".'); }
+  if (x.kind === 'status') { if (fail(a)) return say(x.chat, fail(a));
+    const bad = (a.checks || []).filter(function(c){ return c.status !== 'ok'; });
+    return say(x.chat, bad.length ? bad.map(function(c){ return (c.status === 'bad' ? '⚠ ' : '• ') + c.title + (c.fix ? '\n' + c.fix : ''); }).join('\n\n') : 'Everything is running.'); }
+  if (x.kind === 'top') { if (fail(a)) return say(x.chat, fail(a)); if (x.switch_to) stOf(x.chat).run_id = x.switch_to.run_id; return listOut(x.chat, a, x.offset, x.n); }
+  if (x.kind === 'finished') { writes.push({ key: x.key, value: JSON.stringify({ chat: x.chat, reported: true }) }); if (fail(a)) return;
+    const run = a.run || {}; const st = stOf(x.chat); st.run_id = x.run_id;
+    return listOut(x.chat, a, 0, x.n, 'Done: ' + roleName(run) + ' · ' + ((a.cards || []).length) + ' people found. Top ' + Math.min(x.n, (a.cards || []).length) + ':'); }
+  if (x.kind === 'find') { if (fail(a)) return say(x.chat, fail(a)); if (fail(b)) return say(x.chat, fail(b));
+    const c = a.criteria || {}; const st = stOf(x.chat); st.run_id = String(b.run_id); st.role = [c.role, c.city].filter(Boolean).join(', '); st.list = []; st.offset = 0;
+    writes.push({ key: 'tg:run:' + b.run_id, value: JSON.stringify({ chat: x.chat }) });
+    return say(x.chat, 'Got it: ' + [c.role, c.city, c.experience && c.experience !== 'Any' ? c.experience : ''].filter(Boolean).join(', ') + '.' + ((c.must || []).length ? '\nMust: ' + c.must.join(', ') : '') + ((c.nice || []).length ? '\nNice: ' + c.nice.join(', ') : '') +
+      '\nSearching ' + (a.sources || []).length + ' channels. I’ll send the top 5 when it’s done, usually in a few minutes.'); }
+  if (x.kind === 'move') { if (fail(a)) return say(x.chat, fail(a)); const st = stOf(x.chat); (st.list || []).forEach(function(c){ if (c.k === x.card.k) c.stage = x.stage; });
+    return say(x.chat, x.card.name + ' → ' + (x.stage === 'shortlisted' ? 'Shortlisted. The ranking learns from this.' : 'Not a fit.')); }
+  if (x.kind === 'approve') { if (fail(a)) return say(x.chat, fail(a)); const st = stOf(x.chat); (st.list || []).forEach(function(c){ if (c.k === x.card.k) c.stage = 'approved'; });
+    return say(x.chat, x.card.name + ' approved. First email within 15 minutes, inside your sending hours.'); }
+  if (x.kind === 'send') { if (fail(a)) return say(x.chat, fail(a)); writes.push({ key: 'tg:draft:' + x.id, value: '' }); return say(x.chat, 'Sent to ' + x.draft.name + ' from your Gmail.'); }
+  if (x.kind === 'later') { if (fail(a)) return say(x.chat, fail(a)); writes.push({ key: 'tg:draft:' + x.id, value: '' }); return say(x.chat, x.draft.name + ' is parked until ' + x.until + '.'); }
+  if (x.kind === 'reply') {
+    const q = x.seq || {}; writes.push({ key: 'tg:replies_since', value: String(q.updatedAt || q.last_sent_at || new Date().toISOString()) });
+    if (fail(a) || !a.message) return;
+    draftN += 1; const id = 'R' + draftN;
+    writes.push({ key: 'tg:draft:' + id, value: JSON.stringify({ reply_to: a.reply_to, draft: a.draft || '', run_id: '', dedupe_key: q.contact_key, name: q.first_name || q.email, stage: 'replied' }) });
+    const sn = { keen: 'Keen', question: 'Has a question', not_now: 'Not now', no: 'Not interested' }[a.sentiment] || 'Replied';
+    const txt = (q.first_name || q.email) + ' replied' + (q.role ? ' (' + q.role + ')' : '') + ' · ' + sn + '\n\n“' + String(a.message.text || '').slice(0, 500) + '”' +
+      (a.draft ? '\n\nDraft ' + id + ':\n' + String(a.draft).slice(0, 900) : '') + ((a.slots || []).length ? '\n\nFree: ' + a.slots.map(function(s){ return s.label; }).join(' / ') : '') +
+      '\n\nsend ' + id + ' · send ' + id + ': your own words · later ' + id;
+    (x.chats || []).forEach(function(c){ say(c, txt); });
+  }
+});
+if (draftN !== (parseInt(sets['tg:draft_n'], 10) || 0)) writes.push({ key: 'tg:draft_n', value: String(draftN) });
+Object.keys(state).forEach(function(chat){ writes.push({ key: 'tg:' + chat + ':state', value: JSON.stringify(state[chat]).slice(0, 12000) }); });
+const token = (jobs[0] || {}).token || '';
+const out = [];
+Object.keys(msgs).forEach(function(chat){ out.push({ json: { to: 'tg', chat_id: chat, text: msgs[chat].join('\n\n').slice(0, 4000), url: 'https://api.telegram.org/bot' + token + '/sendMessage' } }); });
+writes.forEach(function(w){ out.push({ json: { to: 'db', key: w.key, value: w.value } }); });
+return out;
+"""
+
+GATE_R36_JS = r"""
+// -- Telegram: the bot token (admin), a one-time code to link an account, and the state --
+if (action === 'telegram_settings') {
+  if (!isAdmin) return reply({ ok: false, error: 'Only an admin can do that.' });
+  const t = String(body.bot_token || '').trim();
+  if (t && !/^\d{6,}:[A-Za-z0-9_-]{20,}$/.test(t)) return reply({ ok: false, error: 'That doesn’t look like a bot token from BotFather.' });
+  if (body.bot_token !== undefined) W.settings.push({ key: 'telegram_token', value: t });
+  if (body.bot !== undefined) W.settings.push({ key: 'telegram_bot', value: String(body.bot || '').replace(/^@/, '').trim().slice(0, 64) });
+  log(me, t ? 'connected a Telegram bot' : 'removed the Telegram bot', '');
+  return reply({ ok: true });
+}
+if (action === 'telegram_code') {
+  if (!settings.telegram_token) return reply({ ok: false, error: 'An admin needs to add the bot token first (Settings, Telegram).' });
+  const code = rand.slice(50, 56).toUpperCase();
+  W.settings.push({ key: 'tglink:' + code, value: JSON.stringify({ email: me.email, name: me.name, role: me.role, exp: now.getTime() + 15 * 60000 }) });
+  return reply({ ok: true, code: code, bot: settings.telegram_bot || '', minutes: 15 });
+}
+if (action === 'telegram_status') {
+  const chats = Object.keys(settings).filter(function(k){ return /^tg:\d+$/.test(k); }).map(function(k){ try { return JSON.parse(settings[k]); } catch (e) { return null; } }).filter(Boolean);
+  return reply({ ok: true, has_token: !!settings.telegram_token, bot: settings.telegram_bot || '', last_poll: settings['tg:lastpoll'] || '', linked: chats.map(function(c){ return c.name; }), me_linked: chats.some(function(c){ return c.email === me.email; }) });
+}
+"""
+
+
+def apply_round36(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round36 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    def load(name, table, pos):
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, {"resource": "row", "operation": "get", "dataTableId": _dt_ref(table), "returnAll": True},
+                  alwaysOutputData=True, onError="continueRegularOutput")
+        n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def code(name, js, pos, once=True):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def http(name, pos, params, **extra):
+        n = _node(name, "n8n-nodes-base.httpRequest", 4.2, pos, params, onError="continueRegularOutput", **extra)
+        new.append(n)
+        return n
+
+    upsert = json.loads(json.dumps(N["Save Settings"]["parameters"]))
+    top = min(n["position"][1] for n in nodes)
+    x0, y = -144, top - 400
+    new.append(_node("Telegram Poll", "n8n-nodes-base.scheduleTrigger", 1.2, [x0, y], {"rule": {"interval": [{"field": "seconds", "secondsInterval": 30}]}}))
+    load("Load TG Settings", "app_settings", [x0 + 220, y])
+    code("TG Poll URL", TG_POLL_URL, [x0 + 440, y])
+    http("Telegram Updates", [x0 + 660, y], {"url": "={{ $json.url }}", "options": {"timeout": 30000}})
+    # the offset first (above), so an overlapping poll never repeats a message
+    code("TG Offset", TG_OFFSET, [x0 + 880, y - 160])
+    so = _node("Save TG Offset", "n8n-nodes-base.dataTable", 1.1, [x0 + 1100, y - 160], json.loads(json.dumps(upsert)), onError="continueRegularOutput")
+    new.append(so)
+    load("Load TG Runs", "app_runs", [x0 + 880, y]); load("Load TG Sequences", SEQ_TABLE, [x0 + 1100, y])
+    code("TG Jobs", TG_JOBS, [x0 + 1320, y])
+    http("TG Call A", [x0 + 1540, y], {"method": "POST", "url": "={{ $json.api }}", "sendBody": True, "specifyBody": "json",
+         "jsonBody": "={{ JSON.stringify($json.a || { action: 'ping', service_key: '', as_email: '' }) }}", "options": {"timeout": 60000}})
+    code("TG Step B", TG_STEP_B, [x0 + 1760, y])
+    http("TG Call B", [x0 + 1980, y], {"method": "POST", "url": "={{ $json.api }}", "sendBody": True, "specifyBody": "json",
+         "jsonBody": "={{ JSON.stringify($json.b) }}", "options": {"timeout": 60000}})
+    code("TG Compose", TG_COMPOSE, [x0 + 2200, y])
+    # what to remember goes first (above), then the messages
+    st = _node("TG To Save?", "n8n-nodes-base.if", 2.2, [x0 + 2420, y], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2},
+                       "conditions": [{"id": "tg-db", "leftValue": "={{ $json.to }}", "rightValue": "db", "operator": {"type": "string", "operation": "equals"}}],
+                       "combinator": "and"}, "looseTypeValidation": True, "options": {}})
+    new.append(st)
+    sv = _node("Save TG State", "n8n-nodes-base.dataTable", 1.1, [x0 + 2640, y - 160], json.loads(json.dumps(upsert)), onError="continueRegularOutput")
+    new.append(sv)
+    http("Telegram Send", [x0 + 2640, y], {"method": "POST", "url": "={{ $json.url }}", "sendBody": True, "specifyBody": "json",
+         "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text, disable_web_page_preview: true }) }}", "options": {"timeout": 20000}})
+    for a, b in [("Telegram Poll", "Load TG Settings"), ("Load TG Settings", "TG Poll URL"), ("TG Poll URL", "Telegram Updates"), ("Telegram Updates", "TG Offset"), ("TG Offset", "Save TG Offset"),
+                 ("Telegram Updates", "Load TG Runs"), ("Load TG Runs", "Load TG Sequences"), ("Load TG Sequences", "TG Jobs"), ("TG Jobs", "TG Call A"), ("TG Call A", "TG Step B"),
+                 ("TG Step B", "TG Call B"), ("TG Call B", "TG Compose"), ("TG Compose", "TG To Save?")]:
+        link(a, b)
+    link("TG To Save?", "Save TG State", 0)
+    link("TG To Save?", "Telegram Send", 1)
+
+    # the gate: a service key for the bot, and the Telegram actions
+    # a key only n8n knows, minted when the workspace is created or someone signs in
+    R("App Gate", "  saveUser(u); log(u, 'created the workspace', '');",
+      "  saveUser(u); log(u, 'created the workspace', ''); mintServiceKey();")
+    R("App Gate", "  saveUser(Object.assign({}, u, { last_login: now.toISOString() })); log(u, 'signed in', '');",
+      "  saveUser(Object.assign({}, u, { last_login: now.toISOString() })); log(u, 'signed in', ''); mintServiceKey();")
+    R("App Gate", "const tempPassword = function(){",
+      "// the Telegram bot inside n8n calls this API as a linked teammate, with a key only n8n knows\n"
+      "const mintServiceKey = function(){ if (!settings.service_key && rand) W.settings.push({ key: 'service_key', value: pbkdf2hex('svc:' + rand, 'service', 1).slice(0, 48) }); };\n"
+      "const tempPassword = function(){")
+    R("App Gate", "const me = sess && new Date(sess.expires_at) > now ? users.find(function(u){ return u.email === sess.email && u.status === 'active'; }) : null;",
+      "const viaBot = body.service_key && settings.service_key && String(body.service_key) === settings.service_key ? users.find(function(u){ return u.email === em(body.as_email) && u.status === 'active'; }) : null;\n"
+      "const me = viaBot || (sess && new Date(sess.expires_at) > now ? users.find(function(u){ return u.email === sess.email && u.status === 'active'; }) : null);")
+    R("App Gate", "// -- routes with their own steps --", GATE_R36_JS.lstrip() + "\n// -- routes with their own steps --")
+    nodes.extend(new)
+    return nodes, conns, routes_in

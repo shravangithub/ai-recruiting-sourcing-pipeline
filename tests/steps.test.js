@@ -1364,3 +1364,105 @@ test('R35: the team opens or closes the apply page per role', async () => {
   const W = require('./harness').WF.connections;
   assert.deepEqual(W['Apply OK?'].main.map((o) => o.map((c) => c.node)), [['Apply Agent'], ['Apply Answer']]);
 });
+
+const TOK = '123456789:AAHfakeTokenForTestsOnly_abcdefghijk';
+const tgSets = (extra = []) => [{ key: 'telegram_token', value: TOK }, { key: 'service_key', value: 'svc-key' }].concat(extra);
+const linkedK = { key: 'tg:777', value: JSON.stringify({ email: 'kumar@x.example', name: 'Kumar', role: 'admin' }) };
+const msg = (chat, text, id) => ({ update_id: id || 1, message: { chat: { id: chat }, text } });
+const jobs = (ups, sets, runs = [{}], seqs = [{}]) => runNode('TG Jobs', [{}], { 'Load TG Settings': sets, 'Telegram Updates': [{ ok: true, result: ups }], 'Load TG Runs': runs, 'Load TG Sequences': seqs });
+
+test('R36: the bot only polls Telegram with a saved token, and remembers where it got to', async () => {
+  assert.deepEqual(await runNode('TG Poll URL', [{}], { 'Load TG Settings': [{ key: 'telegram_token', value: 'nope' }] }), []);
+  const [u] = await runNode('TG Poll URL', [{}], { 'Load TG Settings': tgSets([{ key: 'tg:offset', value: '41' }]) });
+  assert.equal(u.url, 'https://api.telegram.org/bot' + TOK + '/getUpdates?timeout=20&allowed_updates=%5B%22message%22%5D&offset=41');
+  const o = await runNode('TG Offset', [{ ok: true, result: [msg(1, 'hi', 40), msg(1, 'x', 42)] }]);
+  assert.equal(o[0].key, 'tg:lastpoll'); assert.deepEqual(o[1], { key: 'tg:offset', value: '43' });
+  const e = await runNode('TG Offset', [{ ok: false, description: 'Unauthorized' }]);
+  assert.match(e[0].value, /error: Unauthorized/); assert.equal(e.length, 1);
+});
+
+test('R36: strangers are turned away, a code links a teammate, and plain text starts a search', async () => {
+  const sets = tgSets([{ key: 'tglink:AB12CD', value: JSON.stringify({ email: 'priya@x.example', name: 'Priya', role: 'recruiter', exp: Date.now() + 60000 }) }]);
+  const j1 = await jobs([msg(555, 'roles')], sets);
+  assert.equal(j1[0].kind, 'say'); assert.match(j1[0].text, /private/);
+  const j2 = await jobs([msg(555, '/start ab12cd')], sets);
+  assert.match(j2[0].text, /Connected as Priya/); assert.equal(j2[0].writes[0].key, 'tg:555'); assert.equal(j2[0].writes[1].value, '');
+  assert.match((await jobs([msg(555, '/start ZZZZZZ')], sets))[0].text, /private/);
+  const j3 = await jobs([msg(777, 'Product manager in Bangalore, 5-8 years, B2B SaaS and pricing')], tgSets([linkedK]));
+  assert.equal(j3[0].kind, 'find'); assert.equal(j3[0].a.action, 'intake'); assert.equal(j3[0].a.as_email, 'kumar@x.example'); assert.equal(j3[0].a.service_key, 'svc-key');
+  assert.equal((await jobs([msg(777, 'roles')], tgSets([linkedK])))[0].a.action, 'board');
+  assert.equal((await jobs([msg(777, 'status')], tgSets([linkedK])))[0].a.action, 'health');
+  assert.match((await jobs([msg(777, 'top')], tgSets([linkedK])))[0].text, /No role yet/);
+  assert.match((await jobs([msg(777, 'ok')], tgSets([linkedK])))[0].text, /Not sure/);
+});
+
+test('R36: numbered commands act on the last list, and drafts can be sent or parked', async () => {
+  const st = { key: 'tg:777:state', value: JSON.stringify({ run_id: '42', list: [{ k: 'a', name: 'Asha Nair', stage: 'found', email: true }, { k: 'b', name: 'Raj', stage: 'found', email: false }], offset: 2 }) };
+  const sets = tgSets([linkedK, st, { key: 'tg:replies_since', value: '2026-10-30T00:00:00Z' }, { key: 'tg:draft:R3', value: JSON.stringify({ reply_to: 'm9', draft: 'Hi Rohan', run_id: '42', dedupe_key: 'r', name: 'Rohan', stage: 'replied' }) }]);
+  const j = await jobs([msg(777, 'shortlist 1 2')], sets);
+  assert.equal(j.length, 2); assert.equal(j[0].a.action, 'update_card'); assert.equal(j[0].a.card.stage, 'shortlisted'); assert.equal(j[0].b.action, 'feedback'); assert.equal(j[0].b.vote, 'up');
+  const ap = await jobs([msg(777, 'approve 1 2')], sets);
+  assert.equal(ap[0].a.action, 'approve'); assert.deepEqual(ap[0].a.keys, ['a']); assert.equal(ap[0].b.action, 'update_card'); assert.match(ap[1].text, /no email/);
+  const nf = await jobs([msg(777, 'not fit 2')], sets); assert.equal(nf[0].a.card.stage, 'not_fit');
+  const more = await jobs([msg(777, 'more')], sets); assert.equal(more[0].offset, 2); assert.equal(more[0].a.run_id, '42');
+  const s1 = await jobs([msg(777, 'send R3')], sets); assert.equal(s1[0].a.action, 'send_reply'); assert.equal(s1[0].a.text, 'Hi Rohan'); assert.equal(s1[0].a.message_id, 'm9');
+  const s2 = await jobs([msg(777, 'send r3: Tuesday 11 works, see you then')], sets); assert.equal(s2[0].a.text, 'Tuesday 11 works, see you then');
+  const l = await jobs([msg(777, 'later R3')], sets); assert.equal(l[0].a.action, 'update_card'); assert.ok(l[0].a.card.snooze_until > '2026');
+  assert.match((await jobs([msg(777, 'send R9')], sets))[0].text, /don’t have a draft/);
+});
+
+test('R36: finished searches and new replies are pushed without being asked', async () => {
+  const sets = tgSets([linkedK, { key: 'tg:run:55', value: JSON.stringify({ chat: '777' }) }, { key: 'tg:run:56', value: JSON.stringify({ chat: '777', reported: true }) }, { key: 'tg:replies_since', value: '2026-10-29T00:00:00Z' }]);
+  const j = await jobs([], sets, [{ run_id: '55', status: 'done' }, { run_id: '56', status: 'done' }],
+    [{ contact_key: 'r', status: 'replied', thread_id: 't1', first_name: 'Rohan', role: 'PM', updatedAt: '2026-10-30T05:00:00Z' }, { contact_key: 'old', status: 'replied', thread_id: 't0', updatedAt: '2026-10-28T05:00:00Z' }, { contact_key: 'x', status: 'active', thread_id: 't2' }]);
+  const fin = j.filter((x) => x.kind === 'finished'), rep = j.filter((x) => x.kind === 'reply');
+  assert.equal(fin.length, 1); assert.equal(fin[0].a.run_id, '55'); assert.equal(fin[0].chat, '777');
+  assert.equal(rep.length, 1); assert.equal(rep[0].a.action, 'thread'); assert.equal(rep[0].a.thread_id, 't1'); assert.deepEqual(rep[0].chats, ['777']);
+  const first = await jobs([], tgSets([linkedK]), [{}], [{ contact_key: 'r', status: 'replied', thread_id: 't1', updatedAt: '2026-10-30T05:00:00Z' }]);
+  assert.equal(first.length, 1); assert.equal(first[0].kind, 'mark'); assert.equal(first[0].writes[0].key, 'tg:replies_since', 'first run only sets the watermark');
+});
+
+test('R36: answers are composed into messages and state, in plain text', async () => {
+  const find = { chat: '777', who: {}, kind: 'find', api: 'x', token: TOK, brief: 'PM in Bangalore', a: { action: 'intake', service_key: 'svc-key', as_email: 'k@x' }, b: null, writes: [] };
+  const [sb] = await runNode('TG Step B', [{ ok: true, criteria: { role: 'Product Manager', city: 'Bangalore', experience: '5-8 years', must: ['B2B SaaS'], nice: [] }, sources: ['LinkedIn', 'Topmate'] }], { 'TG Jobs': [find] });
+  assert.equal(sb.b.action, 'search'); assert.equal(sb.b.criteria.must, 'B2B SaaS'); assert.deepEqual(sb.b.criteria.sources, ['LinkedIn', 'Topmate']); assert.equal(sb.b.as_email, 'k@x');
+  const cards = [{ dedupe_key: 'a', name: 'Asha Nair', fit_score: 9, title: 'Senior PM', company: 'Kitebase', summary: 'Owns pricing. More.', email: 'a@x', stage: 'found', linkedin: 'https://linkedin.com/in/asha' },
+    { dedupe_key: 'b', name: 'Raj', fit_score: 6, stage: 'not_fit' }, { dedupe_key: 'c', name: 'Neha K', fit_score: 7, stage: 'found' }];
+  const top = { chat: '777', kind: 'top', api: 'x', token: TOK, offset: 0, n: 5, ra: { ok: true, run: { run_id: '42', role: 'PM', location: 'Bangalore' }, cards }, b: { action: 'ping' }, writes: [] };
+  const out = await runNode('TG Compose', [{ ok: true }, { ok: true }], { 'TG Step B': [Object.assign({}, sb, { ra: sb.ra, b: sb.b }), top], 'Load TG Settings': tgSets([linkedK]) }, {});
+  const tg = out.filter((o) => o.to === 'tg'), db = out.filter((o) => o.to === 'db');
+  assert.equal(tg.length, 1); assert.equal(tg[0].chat_id, '777'); assert.equal(tg[0].url, 'https://api.telegram.org/bot' + TOK + '/sendMessage');
+  assert.match(tg[0].text, /Got it: Product Manager, Bangalore, 5-8 years\./); assert.match(tg[0].text, /1\. Asha Nair · 90%\nSenior PM at Kitebase\nOwns pricing\.\nhttps:\/\/linkedin\.com\/in\/asha/);
+  assert.ok(!/Raj/.test(tg[0].text), 'not-a-fit people are left out'); assert.match(tg[0].text, /2\. Neha K/);
+  const state = JSON.parse(db.find((d) => d.key === 'tg:777:state').value);
+  assert.equal(state.run_id, '42'); assert.deepEqual(state.list.map((c) => c.k), ['a', 'c']); assert.equal(state.offset, 2);
+  assert.ok(db.some((d) => d.key === 'tg:run:' + sb.ra.run_id || d.key.indexOf('tg:run:') === 0));
+  const reply = { chat: '', kind: 'reply', api: 'x', token: TOK, chats: ['777', '888'], seq: { contact_key: 'r', first_name: 'Rohan', role: 'PM', updatedAt: '2026-10-30T05:00:00Z' },
+    ra: { ok: true, message: { text: 'Happy to talk' }, draft: 'Great, Tuesday?', sentiment: 'keen', reply_to: 'm9', slots: [{ label: 'Tue 3 Nov, 11:00' }] }, b: { action: 'ping' }, writes: [] };
+  const o2 = await runNode('TG Compose', [{ ok: true }], { 'TG Step B': [reply], 'Load TG Settings': tgSets([linkedK, { key: 'tg:draft_n', value: '2' }]) });
+  const t2 = o2.filter((o) => o.to === 'tg');
+  assert.equal(t2.length, 2); assert.match(t2[0].text, /Rohan replied \(PM\) · Keen\n\n“Happy to talk”\n\nDraft R3:\nGreat, Tuesday\?\n\nFree: Tue 3 Nov, 11:00\n\nsend R3/);
+  const d3 = JSON.parse(o2.find((o) => o.key === 'tg:draft:R3').value); assert.equal(d3.reply_to, 'm9');
+  assert.equal(o2.find((o) => o.key === 'tg:replies_since').value, '2026-10-30T05:00:00Z'); assert.equal(o2.find((o) => o.key === 'tg:draft_n').value, '3');
+});
+
+test('R36: the gate gives out link codes, keeps the token with admins, and trusts the bot only with the service key', async () => {
+  const { admin, r } = await signUp();
+  assert.ok(r.writes.settings.some((s) => s.key === 'service_key' && s.value.length === 48), 'a service key is minted on first use');
+  const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  assert.match((await gate29({ action: 'telegram_settings', token: s.token, bot_token: 'nope' }, ctx)).response.error, /BotFather/);
+  const set = await gate29({ action: 'telegram_settings', token: s.token, bot_token: TOK, bot: '@sourcing_bot' }, ctx);
+  assert.equal(set.response.ok, true); assert.deepEqual(set.writes.settings.map((w) => w.key), ['telegram_token', 'telegram_bot']); assert.equal(set.writes.settings[1].value, 'sourcing_bot');
+  const rec = live('rec@example.com', 'd'.repeat(32)); const recU = { email: 'rec@example.com', name: 'Priya', role: 'recruiter', status: 'active' };
+  assert.match((await gate29({ action: 'telegram_settings', token: rec.token, bot_token: TOK }, { users: [admin, recU], sessions: [s, rec] })).response.error, /Only an admin/);
+  const noTok = await gate29({ action: 'telegram_code', token: s.token }, ctx);
+  assert.match(noTok.response.error, /bot token first/);
+  const code = await gate29({ action: 'telegram_code', token: s.token }, Object.assign({ settings: [{ key: 'telegram_token', value: TOK }, { key: 'telegram_bot', value: 'sourcing_bot' }] }, ctx));
+  assert.match(code.response.code, /^[0-9A-F]{6}$/); assert.equal(code.response.bot, 'sourcing_bot'); assert.equal(code.writes.settings.find((w) => w.key === 'tglink:' + code.response.code).value.includes('admin@example.com'), true);
+  const st = await gate29({ action: 'telegram_status', token: s.token }, Object.assign({ settings: [{ key: 'telegram_token', value: TOK }, { key: 'tg:777', value: JSON.stringify({ email: 'admin@example.com', name: 'Kumar' }) }, { key: 'tg:lastpoll', value: '2026-10-30T20:00:00Z' }] }, ctx));
+  assert.deepEqual(st.response.linked, ['Kumar']); assert.equal(st.response.me_linked, true); assert.equal(st.response.has_token, true);
+  const viaBot = await gate29({ action: 'board', service_key: 'svc-key', as_email: 'Admin@Example.com', run_id: '1' }, { users: [admin], settings: [{ key: 'service_key', value: 'svc-key' }] });
+  assert.equal(viaBot.route, 'board');
+  const wrongKey = await gate29({ action: 'board', service_key: 'nope', as_email: 'admin@example.com' }, { users: [admin], settings: [{ key: 'service_key', value: 'svc-key' }] });
+  assert.equal(wrongKey.response.auth, 'need_login');
+});
