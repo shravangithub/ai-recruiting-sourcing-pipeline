@@ -6879,8 +6879,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1396,
-    1480
+    976,
+    1400
    ]
   },
   {
@@ -6922,8 +6922,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    1616,
-    1480
+    1196,
+    1400
    ],
    "onError": "continueRegularOutput"
   },
@@ -6936,8 +6936,8 @@
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
-    1396,
-    1600
+    976,
+    1520
    ]
   },
   {
@@ -6964,8 +6964,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    1616,
-    1600
+    1196,
+    1520
    ],
    "onError": "continueRegularOutput"
   },
@@ -7137,8 +7137,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    224,
-    424
+    -400,
+    584
    ],
    "alwaysOutputData": true,
    "onError": "continueRegularOutput",
@@ -7160,8 +7160,8 @@
    "type": "n8n-nodes-base.dataTable",
    "typeVersion": 1.1,
    "position": [
-    448,
-    424
+    -180,
+    584
    ],
    "alwaysOutputData": true,
    "onError": "continueRegularOutput",

@@ -4093,14 +4093,14 @@ def apply_round30(nodes, conns):
     R("App Gate", "weekdays_only: s.weekdays_only === false ? 'false' : 'true' };",
       "weekdays_only: s.weekdays_only === false ? 'false' : 'true', recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))) };")
     R("App Gate", "{ daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false' }", "{ daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false', recontact_days: Number(vals.recontact_days) }")
-    wy = gy - 640 + 4 * 120
+    wy = gy - 240
     for i, (kind, table, op, keys) in enumerate([("stages", "app_stages", "upsert", ["run_id", "dedupe_key"]), ("events", "app_events", "insert", [])]):
         nm = kind.capitalize() + " Writes"
-        code(nm, WRITES_JS % (kind, kind), [gx + 220, wy + i * 120])
+        code(nm, WRITES_JS % (kind, kind), [gx - 200, wy + i * 120])
         extra = {"columns": _automap(), "options": {}}
         if keys:
             extra.update({"matchType": "allConditions", "filters": {"conditions": [{"keyName": k, "condition": "eq", "keyValue": "={{ $json.%s }}" % k} for k in keys]}})
-        dt("Save " + kind.capitalize(), op, table, [gx + 440, wy + i * 120], extra, onError="continueRegularOutput")
+        dt("Save " + kind.capitalize(), op, table, [gx + 20, wy + i * 120], extra, onError="continueRegularOutput")
         link(nm, "Save " + kind.capitalize())
     gl = conns["App Gate"]["main"][0]
     i = [c["node"] for c in gl].index("App Route")
@@ -4128,9 +4128,9 @@ def apply_round30(nodes, conns):
 
     # 4. never email the same person twice across roles
     os_ = N["Outreach Schedule"]; ox, oy = os_["position"]
-    rc = dt("Load Recent Contacts", "get", SEQ_TABLE, [ox + 224, oy - 200], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    rc = dt("Load Recent Contacts", "get", SEQ_TABLE, [ox - 400, oy - 40], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
     rc["executeOnce"] = True
-    cs = dt("Load Contact Settings", "get", "app_settings", [ox + 448, oy - 200], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    cs = dt("Load Contact Settings", "get", "app_settings", [ox - 180, oy - 40], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
     cs["executeOnce"] = True
     conns["Outreach Schedule"]["main"][0].insert(0, {"node": "Load Recent Contacts", "type": "main", "index": 0})
     link("Load Recent Contacts", "Load Contact Settings")
