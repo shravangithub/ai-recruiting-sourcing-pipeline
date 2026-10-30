@@ -67,6 +67,11 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.3: a smarter Board** (see [`RELEASES/v1.3.md`](RELEASES/v1.3.md)): read a candidate's reply and
+  draft an answer with your free calendar slots, send it from Gmail in the same thread; interview
+  questions and a scorecard per person; a pulse and reply forecast per role; "what if" counts for each
+  must-have; find more people like your shortlist; warm intros through teammates' past companies; who
+  else is on the board; a `/` command bar; no repeat emails within 90 days; optional open tracking.
 - **v1.2: a team workspace** (see [`RELEASES/v1.2.md`](RELEASES/v1.2.md)):
   - **Team logins**: each person signs in with their own email and password. Roles are *admin*
     (manages the team, sending settings and follow-up emails) and *recruiter* (searches, reviews,

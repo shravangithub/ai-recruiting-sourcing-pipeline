@@ -7211,7 +7211,9 @@
     1836,
     3820
    ],
-   "onError": "continueRegularOutput"
+   "onError": "continueRegularOutput",
+   "disabled": true,
+   "notes": "Connect a Google Calendar credential here, then enable this node to offer free slots in reply drafts."
   },
   {
    "parameters": {

@@ -4370,6 +4370,10 @@ def apply_round31(nodes, conns, routes_in):
         "authentication": "predefinedCredentialType", "nodeCredentialType": "googleCalendarOAuth2Api", "sendBody": True, "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ timeMin: $now.toISO(), timeMax: $now.plus({ days: 10 }).toISO(), timeZone: 'Asia/Kolkata', items: [{ id: 'primary' }] }) }}",
         "options": {"timeout": 20000}}, onError="continueRegularOutput")
+    # Off until a Google Calendar credential is connected (then switch it on);
+    # while off, the draft simply asks the candidate for times.
+    fb["disabled"] = True
+    fb["notes"] = "Connect a Google Calendar credential here, then enable this node to offer free slots in reply drafts."
     new.append(fb)
     code("Draft Prompt", DRAFT_PROMPT, [bx + 440, y])
     ai("Draft Agent", [bx + 660, y])
