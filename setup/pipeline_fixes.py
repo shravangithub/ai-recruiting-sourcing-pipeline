@@ -3906,3 +3906,236 @@ def apply_round29(nodes, conns):
 
     nodes.extend(new)
     return nodes, conns
+
+
+# ======================================================================
+# Round 30: the Board. Every person on a shortlist has one stage
+# (found, shortlisted, approved, follow-up, replied, interview, hired,
+# not a fit), an owner, a note and an optional "not now until" date. Each
+# change is kept in a history. Stages that the pipeline already knows
+# (approved, in follow-up, replied) are filled in automatically.
+# The same person across roles is recognised (LinkedIn link, email, or name
+# plus company), and the first-email sender never emails someone who was
+# contacted for any role in the last 90 days (Settings can change the days).
+# ======================================================================
+STAGE_COLUMNS = [("run_id", "string"), ("dedupe_key", "string"), ("stage", "string"), ("owner", "string"), ("note", "string"),
+                 ("snooze_until", "string"), ("updated_at", "date"), ("updated_by", "string")]
+EVENT_COLUMNS = [("at", "date"), ("run_id", "string"), ("dedupe_key", "string"), ("person", "string"), ("kind", "string"),
+                 ("from_stage", "string"), ("to_stage", "string"), ("detail", "string"), ("by", "string")]
+STAGES = ["found", "shortlisted", "approved", "followup", "replied", "interview", "hired", "not_fit"]
+
+PERSON_KEY_JS = r"""
+// The same person across roles: LinkedIn link first, then email, then name + company.
+const personKey = function(c){
+  const li = String(c.linkedin || (/linkedin\.com\/in\//i.test(c.profile_url || '') ? c.profile_url : '') || '').toLowerCase()
+    .replace(/^https?:\/\//, '').replace(/^[a-z]{2,3}\.linkedin\.com/, 'linkedin.com').replace(/^www\./, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+  if (li.indexOf('linkedin.com/in/') === 0) return 'li:' + li.slice(16);
+  const em = String(c.email || '').toLowerCase().trim();
+  if (em.indexOf('@') > 0) return 'em:' + em;
+  const nm = String(c.name || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).join(' ');
+  const co = String(c.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return nm && co ? 'nc:' + nm + '@' + co : '';
+};
+"""
+
+GATE_CARD_JS = r"""
+// -- a card on the board: stage, owner, note, "not now until" --
+const STAGES = %s;
+if (action === 'update_card') {
+  const c = body.card || {};
+  const runId = String(c.run_id || ''), key = String(c.dedupe_key || '');
+  if (!runId || !key) return reply({ ok: false, error: 'Which person?' });
+  const stage = STAGES.indexOf(c.stage) !== -1 ? c.stage : 'found';
+  const snooze = /^\d{4}-\d{2}-\d{2}$/.test(String(c.snooze_until || '')) ? String(c.snooze_until) : '';
+  const row = { run_id: runId, dedupe_key: key, stage: stage, owner: String(c.owner || '').slice(0, 120), note: String(c.note || '').slice(0, 2000),
+    snooze_until: snooze, updated_at: now.toISOString(), updated_by: me.name };
+  W.stages.push(row);
+  const ev = function(kind, from, to, detail){ W.events.push({ at: now.toISOString(), run_id: runId, dedupe_key: key, person: String(c.name || '').slice(0, 120),
+    kind: kind, from_stage: from || '', to_stage: to || '', detail: String(detail || '').slice(0, 500), by: me.name }); };
+  const prev = body.prev || {};
+  if (prev.stage !== stage) ev('stage', prev.stage, stage, '');
+  if ((prev.owner || '') !== row.owner) ev('owner', '', '', row.owner ? 'owner: ' + row.owner : 'owner removed');
+  if ((prev.note || '') !== row.note && row.note) ev('note', '', '', row.note);
+  if ((prev.snooze_until || '') !== snooze && snooze) ev('snooze', '', '', 'not now until ' + snooze);
+  return reply({ ok: true, card: row });
+}
+"""
+
+BOARD_REPLY = PERSON_KEY_JS + r"""
+// One role as a board: every person with their stage, owner, note, history,
+// and whether they appear in other roles or were contacted recently.
+const g = $('App Gate').first().json;
+const b = g.body || {};
+const all = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = all('Load Board Runs').filter(function(r){ return r.run_id; }).sort(function(a, x){ return String(x.started_at).localeCompare(String(a.started_at)); });
+const people = all('Load Board People').filter(function(c){ return c.dedupe_key && c.run_id; });
+const stageRows = all('Load Board Stages').filter(function(s){ return s.dedupe_key; });
+const events = all('Load Board Events').filter(function(e){ return e.at; });
+const seqs = all('Load Board Sequences').filter(function(s){ return s.contact_key; });
+const sets = {}; all('Load Board Settings').forEach(function(r){ if (r.key) sets[r.key] = r.value; });
+const days = parseInt(sets.recontact_days, 10) > 0 ? parseInt(sets.recontact_days, 10) : 90;
+const runId = String(b.run_id || (runs.find(function(r){ return r.status === 'done'; }) || runs[0] || {}).run_id || '');
+const run = runs.find(function(r){ return String(r.run_id) === runId; }) || {};
+const RANK = { found: 0, shortlisted: 1, approved: 2, followup: 3, replied: 4, interview: 5, hired: 6, not_fit: -1 };
+const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
+const now = Date.now();
+const seqByKey = {}, seqByEmail = {};
+seqs.forEach(function(s){ seqByKey[s.contact_key] = s; const e = String(s.email || '').toLowerCase(); if (e && (!seqByEmail[e] || t(s.started_at) > t(seqByEmail[e].started_at))) seqByEmail[e] = s; });
+const stageOf = {}; stageRows.forEach(function(s){ stageOf[s.run_id + '|' + s.dedupe_key] = s; });
+const runName = {}; runs.forEach(function(r){ runName[r.run_id] = [r.role, r.location].filter(Boolean).join(' · '); });
+const byPerson = {};
+people.forEach(function(c){ const k = personKey(c); if (k) (byPerson[k] = byPerson[k] || []).push(c); });
+const seen = {};
+const cards = people.filter(function(c){ if (String(c.run_id) !== runId || seen[c.dedupe_key]) return false; seen[c.dedupe_key] = 1; return true; }).map(function(c){
+  const s = seqByKey[c.dedupe_key];
+  let auto = 'found', flag = '';
+  if (s) { auto = s.status === 'replied' ? 'replied' : 'followup'; if (s.status === 'stopped') flag = /bounc/i.test(s.status_text || '') ? 'bounced' : 'stopped'; }
+  else if (c.approved === true || c.approved === 'true') auto = 'approved';
+  else if (c.feedback === 'up') auto = 'shortlisted';
+  else if (c.feedback === 'down') auto = 'not_fit';
+  const m = stageOf[runId + '|' + c.dedupe_key] || {};
+  let stage = auto;
+  if (m.stage === 'not_fit' || m.stage === 'hired' || m.stage === 'interview') stage = m.stage;
+  else if (m.stage && RANK[m.stage] > RANK[auto]) stage = m.stage;
+  const pk = personKey(c);
+  const others = (byPerson[pk] || []).filter(function(o){ return String(o.run_id) !== runId; });
+  const em = String(c.email || '').toLowerCase();
+  const last = em && seqByEmail[em] && seqByEmail[em].contact_key !== c.dedupe_key ? seqByEmail[em] : null;
+  const recent = last && now - t(last.started_at) < days * 864e5;
+  const o = { dedupe_key: c.dedupe_key, name: c.name, title: c.title, company: c.company, location: c.location, location_review: c.location_review,
+    fit_score: c.fit_score, confidence: c.confidence, experience_check: c.experience_check, summary: c.summary, key_skills: c.key_skills,
+    email: c.email, contact_source: c.contact_source, source: c.source, profile_url: c.profile_url, linkedin: c.linkedin, github: c.github,
+    resume_link: c.resume_link, feedback: c.feedback || '', approved: c.approved === true || c.approved === 'true',
+    stage: stage, auto_stage: auto, flag: flag, owner: m.owner || '', note: m.note || '', snooze_until: m.snooze_until || '',
+    stage_since: m.updated_at || (s && s.last_sent_at) || '', sequence: s ? { step: s.step, status: s.status, status_text: s.status_text, next_due_at: s.next_due_at, last_sent_at: s.last_sent_at } : null,
+    other_roles: others.map(function(x){ return { run_id: x.run_id, role: runName[x.run_id] || 'another role' }; }).slice(0, 3),
+    contacted: last ? { role: last.role, at: last.started_at, status: last.status, recent: !!recent } : null };
+  o.overdue = stage === 'shortlisted' && !o.approved && o.stage_since && now - t(o.stage_since) > 2 * 864e5;
+  o.snoozed = o.snooze_until && t(o.snooze_until) > now;
+  return o;
+});
+const hist = events.filter(function(e){ return String(e.run_id) === runId; }).sort(function(a, x){ return t(x.at) - t(a.at); }).slice(0, 60)
+  .map(function(e){ return { at: e.at, dedupe_key: e.dedupe_key, person: e.person, kind: e.kind, from_stage: e.from_stage, to_stage: e.to_stage, detail: e.detail, by: e.by }; });
+const roles = runs.filter(function(r){ return r.status === 'done' || r.status === 'running'; }).slice(0, 30).map(function(r){
+  return { run_id: String(r.run_id), role: r.role, location: r.location, status: r.status, count: r.count, started_at: r.started_at }; });
+let saved = {}; try { saved = JSON.parse(sets['run:' + runId] || '{}'); } catch (e) { saved = {}; }
+return [{ json: { response: { ok: true, run: run, roles: roles, cards: cards, history: hist, recontact_days: days, team: g.team || [],
+  criteria: saved.criteria || null, brief: saved.brief || '' } } }];
+"""
+
+FILTER_RECENT_JS = r"""
+// Never email the same person twice: skip anyone already emailed for any role in
+// the last N days (Settings → Sending, default 90), and send one email per address per run.
+const sets = {};
+try { $('Load Contact Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = r.value; }); } catch (e) {}
+const days = parseInt(sets.recontact_days, 10) > 0 ? parseInt(sets.recontact_days, 10) : 90;
+const recent = {};
+try { $('Load Recent Contacts').all().forEach(function(i){ const s = i.json || {}; const e = String(s.email || '').toLowerCase().trim();
+  if (e && Date.now() - new Date(s.started_at || 0).getTime() < days * 864e5) recent[e] = true; }); } catch (e) {}
+const batch = {};
+const ok = function(r){ const e = String(r['Email'] || '').toLowerCase().trim(); if (!e || recent[e] || batch[e]) return false; batch[e] = true; return true; };
+"""
+
+
+def apply_round30(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round30 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    def dt(name, op, table, pos, extra=None, **kw):
+        p = {"resource": "row", "operation": op, "dataTableId": _dt_ref(table)}
+        p.update(extra or {})
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, p, **kw)
+        new.append(n)
+        return n
+
+    def code(name, js, pos, once=False):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    # 1. two more tables, ensured with the others
+    gx, gy = N["App Gate"]["position"]
+    e1 = _dt_ensure("Ensure App Stages", "app_stages", STAGE_COLUMNS, [gx - 220, gy + 660]); new.append(e1)
+    e2 = _dt_ensure("Ensure App Events", "app_events", EVENT_COLUMNS, [gx - 220, gy + 820]); new.append(e2)
+    nxt = conns["Ensure App Activity"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Load App Users"], nxt
+    conns["Ensure App Activity"]["main"][0] = [{"node": "Ensure App Stages", "type": "main", "index": 0}]
+    link("Ensure App Stages", "Ensure App Events"); link("Ensure App Events", "Load App Users")
+
+    # 2. the gate saves card changes and their history
+    R("App Gate", "const W = { users: [], sessions: [], activity: [], settings: [] };",
+      "const W = { users: [], sessions: [], activity: [], settings: [], stages: [], events: [] };")
+    R("App Gate", "// -- routes with their own steps --", (GATE_CARD_JS % json.dumps(STAGES)).lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'templates', 'save_templates', 'dashboard'];", "'templates', 'save_templates', 'dashboard', 'board'];")
+    # each search keeps its full brief, so the board can show and re-run it
+    R("App Gate", "if (action === 'search') { const c = body.criteria || {}; log(me, 'started a search', [c.role, c.city].filter(Boolean).join(' · ')); }",
+      "if (action === 'search') { const c = body.criteria || {}; log(me, 'started a search', [c.role, c.city].filter(Boolean).join(' · '));\n"
+      "  W.settings.push({ key: 'run:' + $execution.id, value: JSON.stringify({ criteria: c, brief: String(body.brief || '').slice(0, 4000), by: me.name }).slice(0, 12000) }); }")
+    R("App Gate", "return out(action, { body: body, user: pub(me), users_count: users.length });",
+      "return out(action, { body: body, user: pub(me), users_count: users.length, team: users.filter(function(u){ return u.status === 'active'; }).map(function(u){ return u.name; }) });")
+    R("App Gate", "const SETTING_KEYS = ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only'];",
+      "const SETTING_KEYS = ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days'];")
+    R("App Gate", "daily_cap: Number(settings.daily_cap) || 50, weekdays_only: settings.weekdays_only !== 'false' }; };",
+      "daily_cap: Number(settings.daily_cap) || 50, weekdays_only: settings.weekdays_only !== 'false', recontact_days: Number(settings.recontact_days) || 90 }; };")
+    R("App Gate", "weekdays_only: s.weekdays_only === false ? 'false' : 'true' };",
+      "weekdays_only: s.weekdays_only === false ? 'false' : 'true', recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))) };")
+    R("App Gate", "{ daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false' }", "{ daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false', recontact_days: Number(vals.recontact_days) }")
+    wy = gy - 640 + 4 * 120
+    for i, (kind, table, op, keys) in enumerate([("stages", "app_stages", "upsert", ["run_id", "dedupe_key"]), ("events", "app_events", "insert", [])]):
+        nm = kind.capitalize() + " Writes"
+        code(nm, WRITES_JS % (kind, kind), [gx + 220, wy + i * 120])
+        extra = {"columns": _automap(), "options": {}}
+        if keys:
+            extra.update({"matchType": "allConditions", "filters": {"conditions": [{"keyName": k, "condition": "eq", "keyValue": "={{ $json.%s }}" % k} for k in keys]}})
+        dt("Save " + kind.capitalize(), op, table, [gx + 440, wy + i * 120], extra, onError="continueRegularOutput")
+        link(nm, "Save " + kind.capitalize())
+    gl = conns["App Gate"]["main"][0]
+    i = [c["node"] for c in gl].index("App Route")
+    gl[i:i] = [{"node": "Stages Writes", "type": "main", "index": 0}, {"node": "Events Writes", "type": "main", "index": 0}]
+
+    # 3. the board route
+    routes = APP_ROUTES_29 + ["board"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    bx, by = N["Load Dash Runs"]["position"]
+    by += 200
+    loads = [("Load Board Runs", "app_runs"), ("Load Board People", "app_candidates"), ("Load Board Stages", "app_stages"),
+             ("Load Board Events", "app_events"), ("Load Board Sequences", SEQ_TABLE), ("Load Board Settings", "app_settings")]
+    for i, (nm, table) in enumerate(loads):
+        n = dt(nm, "get", table, [bx + i * 220, by], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+        n["executeOnce"] = True
+        if i:
+            link(loads[i - 1][0], nm)
+    code("Board Reply", BOARD_REPLY, [bx + len(loads) * 220, by], once=True)
+    link(loads[-1][0], "Board Reply"); link("Board Reply", "App Reply")
+    link("App Route", loads[0][0], routes.index("board"))
+
+    # 4. never email the same person twice across roles
+    os_ = N["Outreach Schedule"]; ox, oy = os_["position"]
+    rc = dt("Load Recent Contacts", "get", SEQ_TABLE, [ox + 224, oy - 200], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    rc["executeOnce"] = True
+    cs = dt("Load Contact Settings", "get", "app_settings", [ox + 448, oy - 200], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    cs["executeOnce"] = True
+    conns["Outreach Schedule"]["main"][0].insert(0, {"node": "Load Recent Contacts", "type": "main", "index": 0})
+    link("Load Recent Contacts", "Load Contact Settings")
+    R("Filter Outreach Queue", "return $input.all().filter(function(i){", FILTER_RECENT_JS.lstrip() + "return $input.all().filter(function(i){")
+    R("Filter Outreach Queue", "  return ready && notContacted && hasEmail && notLow;\n});", "  return ready && notContacted && hasEmail && notLow && ok(r);\n});")
+
+    nodes.extend(new)
+    return nodes, conns, routes
