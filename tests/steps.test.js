@@ -948,7 +948,7 @@ test('R29: sending settings are checked, saved and used by the follow-ups', asyn
   assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '19:00', window_end: '09:00', daily_cap: 50 } }, ctx)).response.error, /sending window/);
   assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '09:00', window_end: '18:00', daily_cap: 999 } }, ctx)).response.error, /between 1 and 200/);
   const ok = await gate29({ action: 'save_settings', token: s.token, settings: { signature: 'Kumar\nTalent team', window_start: '10:00', window_end: '17:00', daily_cap: 2, weekdays_only: true } }, ctx);
-  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days']);
+  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days', 'open_tracking', 'public_url']);
   const [w] = await runNode('Settings Writes', [{}], { 'App Gate': [ok] });
   assert.equal(w.key, 'signature');
   const got = await gate29({ action: 'settings', token: s.token }, Object.assign({ settings: ok.writes.settings }, ctx));
@@ -1078,4 +1078,88 @@ test('R30: the same profile link in two searches is the same person, first names
     'Load Board Stages': [{}], 'Load Board Events': [{}], 'Load Board Sequences': [{}], 'Load Board Settings': [{}] });
   const c = Object.fromEntries(r.response.cards.map((k) => [k.dedupe_key, k]));
   assert.equal(c.a2.other_roles.length, 1); assert.equal(c.b2.other_roles.length, 0);
+});
+
+// ------------------------------------------------------------ Round 31: the smart layer
+const b64 = (s) => Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+test('R31: a reply is read from the Gmail thread, with three free slots from the calendar', async () => {
+  at('2026-10-30T11:00:00');
+  const thread = { messages: [
+    { id: 'm1', snippet: 'Hi Rohan', payload: { headers: [{ name: 'From', value: 'Kumar <kumar@talentco.example>' }], mimeType: 'text/plain', body: { data: b64('Hi Rohan, quick chat?') } } },
+    { id: 'm2', snippet: 'Happy to talk', payload: { headers: [{ name: 'From', value: 'Rohan <rohan@x.example>' }, { name: 'Date', value: 'Fri, 30 Oct 2026 10:42:00 +0530' }], mimeType: 'multipart/alternative',
+      parts: [{ mimeType: 'text/plain', body: { data: b64('Happy to talk, Tuesday works. What is the team size?\n\nOn Tue, 27 Oct 2026 Kumar wrote:\n> Hi Rohan') } }] } }] };
+  const busy = { calendars: { primary: { busy: [{ start: '2026-11-02T04:30:00Z', end: '2026-11-02T06:00:00Z' }] } } };
+  const [p] = await runNode('Draft Prompt', [{}], { 'App Gate': [{ body: { thread_id: 't1', name: 'Rohan', context: { role: 'Product Manager', location: 'Bangalore' } } }], 'App Thread': [thread], 'App FreeBusy': [busy] });
+  assert.equal(p.last.id, 'm2'); assert.equal(p.last.text, 'Happy to talk, Tuesday works. What is the team size?', 'quoted text removed');
+  assert.equal(p.calendar, true); assert.equal(p.slots.length, 3);
+  assert.ok(p.slots.every((s) => !/Sat|Sun/.test(s.label)), 'weekdays only');
+  assert.ok(!p.slots.some((s) => s.label.startsWith('Mon 2 Nov, 10:00')), 'busy time skipped');
+  assert.match(p.prompt, /FREE SLOTS: .*IST/);
+  const [none] = await runNode('Draft Prompt', [{}], { 'App Gate': [{ body: {} }], 'App Thread': [thread], 'App FreeBusy': [{ error: 'no credentials' }] });
+  assert.equal(none.calendar, false); assert.equal(none.slots.length, 0); assert.match(none.prompt, /ask for their availability/);
+  const [d] = await runNode('Draft Reply', [aiOutput(JSON.stringify({ sentiment: 'keen', summary: 'Keen, asks team size', reply: 'Great to hear from you…' }))], { 'Draft Prompt': [p] });
+  assert.equal(d.response.sentiment, 'keen'); assert.equal(d.response.reply_to, 'm2'); assert.equal(d.response.slots.length, 3);
+  Settings.now = () => Date.now();
+});
+
+test('R31: replies are sent as plain paragraphs, and logged on the card', async () => {
+  const [r] = await runNode('Reply Body', [{}], { 'App Gate': [{ body: { message_id: 'm2', text: 'Hi Rohan,\n\nTuesday 11:00? <b>bold</b>' } }] });
+  assert.equal(r.html, '<p>Hi Rohan,</p><p>Tuesday 11:00? &lt;b&gt;bold&lt;/b&gt;</p>');
+  assert.equal((await runNode('Reply Sent', [{ id: 'abc' }]))[0].response.ok, true);
+  assert.equal((await runNode('Reply Sent', [{ error: { message: 'bad' } }]))[0].response.ok, false);
+  const { admin } = await signUp(); const s = live('admin@example.com');
+  const g = await gate29({ action: 'send_reply', token: s.token, message_id: 'm2', text: 'Tuesday works', run_id: '9', dedupe_key: 'r', name: 'Rohan' }, { users: [admin], sessions: [s] });
+  assert.equal(g.route, 'send_reply'); assert.equal(g.writes.events[0].kind, 'email');
+  assert.equal((await gate29({ action: 'send_reply', token: s.token, text: '' }, { users: [admin], sessions: [s] })).route, 'reply');
+});
+
+test('R31: interview kit, profile companies, presence and open-tracking settings', async () => {
+  const [k] = await runNode('Kit Reply', [aiOutput(JSON.stringify({ questions: [{ q: 'Tell me about a pricing change you led.', listen_for: 'numbers', competency: 'Pricing' }], scorecard: [{ competency: 'Pricing', weight: 5 }] }))]);
+  assert.equal(k.response.questions.length, 1); assert.equal(k.response.scorecard[0].weight, 3);
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const pr = await gate29({ action: 'save_profile', token: s.token, companies: 'Kitebase, Northwind SaaS' }, ctx);
+  assert.deepEqual(JSON.parse(pr.writes.settings[0].value).companies, ['Kitebase', 'Northwind SaaS']);
+  const me = await gate29({ action: 'me', token: s.token }, Object.assign({ settings: pr.writes.settings }, ctx));
+  assert.deepEqual(me.response.user.companies, ['Kitebase', 'Northwind SaaS']);
+  const bd = await gate29({ action: 'board', token: s.token, run_id: '9' }, ctx);
+  assert.equal(bd.route, 'board'); assert.equal(JSON.parse(bd.writes.settings[0].value).run, '9');
+  const base = { window_start: '09:30', window_end: '18:30', daily_cap: 50 };
+  assert.match((await gate29({ action: 'save_settings', token: s.token, settings: Object.assign({ open_tracking: true }, base) }, ctx)).response.error, /public https address/);
+  const ok = await gate29({ action: 'save_settings', token: s.token, settings: Object.assign({ open_tracking: true, public_url: 'https://n8n.talentco.example/' }, base) }, ctx);
+  assert.equal(ok.response.settings.public_url, 'https://n8n.talentco.example');
+});
+
+test('R31: when open tracking is on, emails carry a 1x1 image; when off, nothing is added', async () => {
+  const row = { 'Send Email?': 'TRUE', 'Outreach Status': '', Email: 'a@x.example', Confidence: 'High', 'Dedupe Key': 'k 1' };
+  const off = await runNode('Filter Outreach Queue', [row], { 'Load Recent Contacts': [{}], 'Load Contact Settings': [{}] });
+  assert.equal(off[0]._pixel, '');
+  const on = await runNode('Filter Outreach Queue', [row], { 'Load Recent Contacts': [{}], 'Load Contact Settings': [{ key: 'open_tracking', value: 'true' }, { key: 'public_url', value: 'https://n8n.talentco.example' }] });
+  assert.equal(on[0]._pixel, '<img src="https://n8n.talentco.example/webhook/sourcing-open?k=k%201&s=1" width="1" height="1" alt="">');
+  const msg = require('./harness').NODES['Send Outreach Email'].parameters.message;
+  assert.ok(msg.endsWith("{{ $json._pixel || '' }}"));
+  at('2026-10-28T11:00:00');
+  const [d] = await runNode('Due Follow-ups', [{}], { 'Load Sequences': [seqRow()], 'Load Templates': [{}], 'Load Seq Settings': [{ key: 'open_tracking', value: 'true' }, { key: 'public_url', value: 'https://n8n.talentco.example' }] });
+  assert.match(d.html, /sourcing-open\?k=k1&s=2/);
+  Settings.now = () => Date.now();
+  const [o] = await runNode('Open Row', [{}], { 'Open Pixel': [{ query: { k: 'k1', s: '2' } }] });
+  assert.equal(o.contact_key, 'k1'); assert.equal(o.step, 2);
+});
+
+test('R31: the board adds warm connections, open-to-work, opens, who else is here and when replies come', async () => {
+  const now = new Date().toISOString();
+  const [r] = await runNode('Board Reply', [{}], {
+    'App Gate': [{ body: { run_id: '2' }, user: { email: 'kumar@x.example' } }],
+    'Load Board Runs': [{ run_id: '2', role: 'PM', status: 'done', started_at: now }],
+    'Load Board People': [{ run_id: '2', dedupe_key: 'a', name: 'Ira Bhatt', company: 'Kitebase Inc', summary: 'Open to work, PM at Kitebase.' }, { run_id: '2', dedupe_key: 'b', name: 'Rohan M', company: 'Meridian' }],
+    'Load Board Stages': [{}], 'Load Board Events': [{}],
+    'Load Board Sequences': [{ contact_key: 'b', status: 'replied', thread_id: 't9', message_id: 'm9', started_at: now, updatedAt: '2026-10-27T05:00:00Z' },
+      { contact_key: 'x', status: 'replied', updatedAt: '2026-10-20T05:30:00Z' }, { contact_key: 'y', status: 'active' }, { contact_key: 'z', status: 'active' }],
+    'Load Board Settings': [{ key: 'past:priya@x.example', value: JSON.stringify({ name: 'Priya', companies: ['Kitebase'] }) },
+      { key: 'seen:priya@x.example', value: JSON.stringify({ name: 'Priya', run: '2', at: now }) }, { key: 'seen:kumar@x.example', value: JSON.stringify({ name: 'Kumar', run: '2', at: now }) }],
+    'Load Board Opens': [{ contact_key: 'b', step: 1, at: now }, { contact_key: 'b', step: 2, at: now }] });
+  const x = r.response; const c = Object.fromEntries(x.cards.map((k) => [k.dedupe_key, k]));
+  assert.equal(c.a.warm, 'Priya worked at Kitebase'); assert.equal(c.a.open_to_work, true);
+  assert.equal(c.b.opens.count, 2); assert.equal(c.b.sequence.thread_id, 't9'); assert.ok(c.b.replied_at);
+  assert.deepEqual(x.viewers, ['Priya']); assert.equal(x.team_reply_rate, 50);
+  assert.equal(x.best_time, 'Tue 10:00–12:00');
 });

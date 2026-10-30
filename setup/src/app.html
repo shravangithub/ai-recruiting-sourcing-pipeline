@@ -183,6 +183,32 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .drawer .db{padding:16px 22px 28px;display:flex;flex-direction:column;gap:14px}
 .hist{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;font-size:13px;padding:7px 0;border-top:1px solid var(--line2)}
 .bfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pulse{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+.pk{display:flex;flex-direction:column;gap:1px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;min-width:120px}
+.pk b{font:800 19px Manrope,sans-serif}.pk span{font-size:12px;color:var(--muted)}
+.fc{flex:1 1 360px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-radius:12px;background:var(--char);color:#fff}
+.fc .btn{height:34px;background:var(--red);border-color:var(--red);color:#fff;margin-left:auto}
+.bwarm{font-size:11px;font-weight:700;padding:2px 6px;border-radius:5px;background:#FDF0E3;color:#9A4A00}
+.ghost{border:1.5px dashed #9C9DA3;background:transparent;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.ghost:hover{border-color:var(--red)}
+.pool{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:var(--ground)}
+.pool .pb{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:8px;align-items:center;font-size:12px}
+.pool .pb i{display:block;height:8px;border-radius:4px;background:#C8C9CE}
+.pool .pb i.hl{background:var(--red)}
+.win{padding:12px;border-radius:12px;background:var(--char);color:#fff;display:flex;flex-direction:column;gap:4px;font-size:12px}
+.slot{height:30px;padding:0 10px;border-radius:8px;border:1px solid #D4D4D8;background:#fff;font:600 12px Inter,sans-serif;cursor:pointer}
+.slot:hover{border-color:var(--red)}
+.senti{font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px}
+.senti.keen{background:var(--okbg);color:var(--ok)}.senti.question{background:#E8EEFB;color:#1D4ED8}.senti.not_now{background:var(--warnbg);color:var(--warn)}.senti.no{background:#F1F1F3;color:var(--muted)}
+.cmdk{position:fixed;inset:0;background:rgba(31,32,36,.35);z-index:9;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
+.cmdk .box{width:min(620px,92vw);background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden}
+.cmdk input{border:0;border-bottom:1px solid var(--line);border-radius:0;font-size:16px;padding:16px 18px}
+.cmdk input:focus{box-shadow:none}
+.cmdk .it{display:flex;gap:10px;align-items:center;padding:10px 18px;font-size:14px;cursor:pointer;border:0;background:#fff;width:100%;text-align:left;font-family:inherit}
+.cmdk .it.on,.cmdk .it:hover{background:#FFF8F8}
+.cmdk .it span{margin-left:auto;font-size:12px;color:var(--muted)}
+.kbd{border:1px solid #6B6C72;border-radius:4px;padding:0 5px;font:600 11px ui-monospace,Menlo,monospace}
+.cmdbtn{height:32px;border-radius:8px;border:0;background:#4A4A4E;color:#BDBEC3;font:400 13px Inter,sans-serif;padding:0 12px;display:flex;align-items:center;gap:8px;cursor:pointer}
 .err{color:var(--bad);font-size:13px}
 .st{font-size:12px;font-weight:600;padding:4px 8px;border-radius:6px;white-space:nowrap;background:#F1F1F3;color:var(--char)}
 .st.ok{background:var(--okbg);color:var(--ok)}.st.bad{background:var(--badbg);color:var(--bad)}.st.warn{background:var(--warnbg);color:var(--warn)}
@@ -199,6 +225,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
     <button data-go="outreach">Outreach</button>
     <button data-go="settings">Settings</button>
   </nav>
+  <button type="button" class="cmdbtn hide" id="cmdBtn"><span class="kbd">/</span>Jump to a role, a person, or an action</button>
+  <span id="viewers" class="hide" style="font-size:12px;color:#BDBEC3"></span>
   <div class="hdr-r"><div class="who hide" id="who"><span class="av" id="whoAv"></span><div style="display:flex;flex-direction:column;line-height:1.2"><b id="whoName"></b><span id="whoRole"></span></div></div><button id="logout" class="hide" type="button">Sign out</button></div>
 </header>
 
@@ -248,10 +276,12 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <button class="btn" type="button" id="bNew" style="height:36px">+ New role</button>
       <div class="bfilters" style="margin-left:auto" id="bFilters"></div>
     </div>
+    <div class="pulse" id="bPulse"></div>
     <div class="bwrap" id="bWrap"></div>
     <p class="muted" style="font-size:12px;margin:0">Drag a card to another column, or open it to change its stage, owner, note or "not now" date. Approved, In follow-up and Replied also update by themselves as emails go out and replies arrive.</p>
   </section>
   <aside id="bDrawer" class="drawer hide" aria-label="Candidate"></aside>
+  <div id="cmdk" class="cmdk hide" role="dialog" aria-label="Command bar"><div class="box"><label for="cmdIn" style="position:absolute;left:-9999px">Search</label><input id="cmdIn" type="text" placeholder="Type a role, a person, or an action…" autocomplete="off"><div id="cmdList" style="max-height:50vh;overflow-y:auto"></div></div></div>
 
   <!-- home -->
   <section id="v-home" class="hide" style="display:flex;flex-direction:column;gap:20px">
@@ -286,6 +316,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Name</b></div><div id="acName"></div></div>
       <div class="frow"><div><b>Email</b></div><div id="acEmail"></div></div>
       <div class="frow"><div><b>Role</b><div class="help">Admins manage the team, sending settings and follow-up emails.</div></div><div id="acRole"></div></div>
+      <div class="frow"><div><b>Companies you've worked at</b><div class="help">Cards show "you worked at …" when a candidate is there now. Comma-separated.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;max-width:520px"><input id="acCos" type="text" placeholder="e.g. Kitebase, Northwind SaaS" style="flex:1 1 260px"><button class="btn" type="button" id="acCosSave">Save</button><span id="acCosMsg" class="muted" style="font-size:13px;align-self:center"></span></div></div>
       <div class="frow"><div><b>Change password</b></div><form onsubmit="return false" style="display:flex;flex-direction:column;gap:8px;max-width:360px"><input type="text" id="acUser" autocomplete="username" hidden><input id="acOld" type="password" placeholder="Current password" autocomplete="current-password"><input id="acNew" type="password" placeholder="New password (8+ characters)" autocomplete="new-password"><div style="display:flex;gap:10px;align-items:center"><button class="btn" type="submit" id="acSave">Update password</button><span id="acMsg" class="muted" style="font-size:13px"></span></div></form></div>
     </div>
     <div class="card panel hide" data-sp="team">
@@ -307,6 +338,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Sending window</b><div class="help">India time</div></div><div style="display:flex;gap:8px;align-items:center;max-width:320px"><input id="snStart" type="text" placeholder="09:30"><span class="muted">to</span><input id="snEnd" type="text" placeholder="18:30"></div></div>
       <div class="frow"><div><b>Daily limit</b><div class="help">Most follow-ups sent in one day (1–200)</div></div><input id="snCap" type="text" inputmode="numeric" style="max-width:120px"></div>
       <div class="frow"><div><b>Weekdays only</b></div><div><button type="button" class="tog on" id="snWk" aria-pressed="true" aria-label="Weekdays only"><i></i></button></div></div>
+      <div class="frow"><div><b>Never email the same person twice within</b><div class="help">Across all roles. Protects your sender reputation.</div></div><div style="display:flex;gap:8px;align-items:center"><input id="snRe" type="text" inputmode="numeric" style="max-width:90px"><span class="muted">days</span></div></div>
+      <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
       <div class="frow"><div><b>Follow-up schedule</b></div><div class="muted" style="font-size:14px">Days 2, 4, 5 and 7, in the same Gmail thread. Stops on reply or bounce. <a href="#" data-go="outreach">Edit the wording →</a></div></div>
       <div style="display:flex;gap:10px;align-items:center"><button class="btn pri" type="button" id="snSave">Save sending settings</button><span id="snMsg" class="muted" style="font-size:13px"></span></div>
     </div>
@@ -467,7 +500,7 @@ function call(action, data){
 // ---------- sign in ----------
 // The session lives only in this page (n8n's sandboxed pages can't keep storage), so a reload asks again.
 function showAuth(mode, needCode){
-  ['app','nav','logout','who','bulk'].forEach(function(id){ el(id).classList.add('hide'); });
+  ['app','nav','logout','who','bulk','cmdBtn','viewers'].forEach(function(id){ el(id).classList.add('hide'); });
   el('v-gate').classList.remove('hide'); el('gateErr').textContent='';
   el('aLogin').classList.toggle('hide', mode!=='login'); el('aSetup').classList.toggle('hide', mode!=='setup'); el('aChange').classList.toggle('hide', mode!=='change');
   el('sCodeBox').classList.toggle('hide', !needCode);
@@ -493,6 +526,8 @@ function fetchAuth(action, data){
 el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; showAuth('login'); };
 
 function start(){
+  call('me').then(function(j){ if (j.ok && j.user) ME.companies = j.user.companies || []; }).catch(function(){});
+  el('cmdBtn').classList.remove('hide');
   el('v-gate').classList.add('hide'); ['app','nav','logout','who'].forEach(function(id){ el(id).classList.remove('hide'); });
   el('whoAv').textContent = initials(ME.name); el('whoName').textContent = ME.name; el('whoRole').textContent = ME.role === 'admin' ? 'Admin' : 'Recruiter';
   el('seqEdit').classList.toggle('hide', ME.role !== 'admin');
@@ -845,6 +880,9 @@ function bCard(c){
   (c.other_roles||[]).slice(0,1).forEach(function(o){ tags.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
   if (c.contacted) tags.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">'+(c.contacted.recent?'Emailed ':'Contacted ')+'for '+esc(c.contacted.role||'another role')+' · '+esc(ago(c.contacted.at))+'</span>');
   if (c.overdue) tags.push('<span class="bwarn">Waiting 2+ days</span>');
+  if (c.warm) tags.push('<span class="bwarm" title="'+esc(c.warm)+'">Warm · '+esc(String(c.warm).split(' ')[0])+'</span>');
+  if (c.open_to_work) tags.push('<span class="bdup" style="background:var(--okbg);color:var(--ok)">Open to work</span>');
+  if (c.opens && c.opens.count) tags.push('<span class="btag">Opened '+c.opens.count+'×</span>');
   if (c.flag) tags.push('<span class="bbad">'+esc(c.flag === 'bounced' ? 'Bounced' : 'Stopped')+'</span>');
   if (c.stage === 'followup' && c.sequence) tags.push('<span class="btag">'+esc(String(c.sequence.status_text||'').replace(/^Contacted · /,'').slice(0,34))+'</span>');
   if (!c.email && ['found','shortlisted'].indexOf(c.stage) !== -1) tags.push('<span class="btag">No email yet</span>');
@@ -861,6 +899,7 @@ function renderBoard(){
   var nf = cards.filter(function(c){ return c.stage === 'not_fit'; }).length, sn = cards.filter(function(c){ return c.snoozed && c.stage !== 'not_fit'; }).length;
   el('bFilters').innerHTML = [['all','Everyone'],['mine','Mine'],['strong','80%+'],['email','Has email']].map(function(f){ return '<button type="button" class="f'+(B.filter===f[0]?' on':'')+'" data-bf="'+f[0]+'">'+f[1]+'</button>'; }).join('') +
     '<button type="button" class="f'+(B.showOut?' on':'')+'" data-bf="out">Not a fit '+nf+' · Not now '+sn+'</button>';
+  renderPulse(cards);
   var html = '<section class="bcol bbrief" aria-label="Brief">'+briefPanel()+'</section>';
   COLS.forEach(function(col){
     var list = cards.filter(function(c){ return c.stage === col[0] && (B.showOut || !c.snoozed); }).sort(function(a,b){ return bPct(b)-bPct(a); });
@@ -868,12 +907,69 @@ function renderBoard(){
     var extra = '';
     if (col[0]==='found' && run.status==='running') extra = '<div class="muted" style="font-size:12px">'+esc(['','Searching your channels','Scoring every profile','Checking location and emails','Almost done'][Math.min(4, +run.stage||1)])+'</div>';
     if (col[0]==='shortlisted') { var od = list.filter(function(c){ return c.overdue; }).length; if (od) extra = '<span class="bwarn" style="align-self:flex-start">'+od+' waiting more than 2 days</span>'; }
-    html += '<section class="bcol" data-col="'+col[0]+'" aria-label="'+esc(col[1])+'"'+(col[0]==='replied'?' style="background:#E7F4EC"':'')+'><div class="bcolh">'+head+'</div>'+extra+list.slice(0,60).map(bCard).join('')+(list.length>60?'<span class="muted" style="font-size:12px">+ '+(list.length-60)+' more</span>':'')+'</section>';
+    var ghost = '';
+    if (col[0]==='shortlisted' && list.length >= 2 && !B.newRole && run.status !== 'running') ghost = '<button type="button" class="ghost" id="bLike"><b style="font-size:13px">Find more like these '+list.length+'</b><span class="muted" style="font-size:12px">Searches again using their titles and companies: '+esc(lookalike(list).companies.slice(0,3).join(', ') || 'similar profiles')+'</span></button>';
+    if (col[0]==='interview' && list.length) extra += '<div class="win"><b style="font-size:13px">'+list.length+' in interviews</b><span style="color:#D4D4D8">From a brief to a conversation. Open a card for interview questions.</span></div>';
+    html += '<section class="bcol" data-col="'+col[0]+'" aria-label="'+esc(col[1])+'"'+(col[0]==='replied'?' style="background:#E7F4EC"':'')+'><div class="bcolh">'+head+'</div>'+extra+list.slice(0,60).map(bCard).join('')+ghost+(list.length>60?'<span class="muted" style="font-size:12px">+ '+(list.length-60)+' more</span>':'')+'</section>';
   });
   if (B.showOut) { var out = cards.filter(function(c){ return c.stage === 'not_fit'; });
     html += '<section class="bcol" data-col="not_fit" aria-label="Not a fit"><div class="bcolh">Not a fit<span class="n">'+out.length+'</span></div>'+out.map(bCard).join('')+'</section>'; }
   el('bWrap').innerHTML = html;
   if (B.open) openCard(B.open, true);
+}
+// ----- pulse: how this role is doing, and what happens if you approve the strong ones -----
+function renderPulse(cards){
+  var j = B.data || {}, run = j.run || {}, pe = el('bPulse');
+  el('viewers').classList.toggle('hide', !(j.viewers||[]).length);
+  el('viewers').textContent = (j.viewers||[]).length ? (j.viewers.slice(0,2).join(' and ') + (j.viewers.length > 2 ? ' + ' + (j.viewers.length-2) : '') + ' on this board now') : '';
+  if (B.newRole || !(j.cards||[]).length) { pe.innerHTML = ''; return; }
+  var all = j.cards || [], contacted = all.filter(function(c){ return c.sequence; }), replied = all.filter(function(c){ return ['replied','interview','hired'].indexOf(c.stage) !== -1; });
+  var rate = contacted.length ? Math.round(100 * replied.length / contacted.length) : null, team = j.team_reply_rate || 0;
+  var days = run.started_at ? Math.max(1, Math.round((Date.now() - new Date(run.started_at).getTime()) / 86400000)) : 0;
+  var bySrc = {}; all.forEach(function(c){ var s = c.source || 'web'; bySrc[s] = bySrc[s] || { n: 0, good: 0 }; bySrc[s].n++; if (bPct(c) >= 80 || ['shortlisted','approved','followup','replied','interview','hired'].indexOf(c.stage) !== -1) bySrc[s].good++; });
+  var best = Object.keys(bySrc).sort(function(a,b){ return bySrc[b].good - bySrc[a].good; })[0];
+  var ready = all.filter(function(c){ return c.stage === 'shortlisted' && c.email && !c.approved && !(c.contacted && c.contacted.recent); });
+  var r = (rate !== null && contacted.length >= 5) ? rate : (team || 12), exp = Math.round(ready.length * r / 100);
+  var k = [[days ? days + (days === 1 ? ' day' : ' days') : '—', 'open'], [rate === null ? '—' : rate + '%', 'reply rate' + (team ? ' · team ' + team + '%' : '')], [best ? esc(best.replace('Google / Open Web','Open web')) : '—', 'best channel' + (best ? ' · ' + bySrc[best].good + ' good' : '')]];
+  if (j.best_time) k.push([esc(j.best_time), 'when replies come in']);
+  pe.innerHTML = k.map(function(x){ return '<div class="pk"><b>'+x[0]+'</b><span>'+esc(x[1])+'</span></div>'; }).join('') +
+    (ready.length ? '<div class="fc"><span style="font-size:13px;line-height:1.45">Approve the <b>'+ready.length+'</b> shortlisted with emails and you can expect about <b>'+Math.max(1, exp)+'</b> '+(Math.max(1,exp) === 1 ? 'reply' : 'replies')+' within 7 days<span style="color:#BDBEC3"> · at '+r+'% '+(rate !== null && contacted.length >= 5 ? 'this role\'s' : 'your team\'s')+' reply rate</span></span><button type="button" class="btn" id="bApproveAll">Approve '+ready.length+'</button></div>'
+      : '<div class="fc" style="background:var(--ground);color:var(--ink)"><span style="font-size:13px">Shortlist people with an email and the forecast of replies shows up here.</span></div>');
+}
+function lookalike(list){
+  var cos = {}, titles = {};
+  list.forEach(function(c){ if (c.company) cos[c.company] = (cos[c.company]||0) + 1; if (c.title) titles[String(c.title).replace(/\s*[,@|·-].*$/, '').trim()] = 1; });
+  return { companies: Object.keys(cos).sort(function(a,b){ return cos[b]-cos[a]; }).slice(0,5), titles: Object.keys(titles).slice(0,4) };
+}
+function findLike(){
+  var j = B.data || {}, cr = j.criteria; if (!cr) { toast('This search was made before roles were saved, so edit the brief instead.'); return; }
+  var list = (j.cards||[]).filter(function(c){ return c.stage === 'shortlisted'; }), L = lookalike(list);
+  var crit = Object.assign({}, cr, { employer: L.companies.join(', '), similar: 'Yes', sources: (B.srcSel && B.srcSel.length) ? B.srcSel : cr.sources,
+    rubric: (cr.rubric ? cr.rubric + '\n' : '') + '- Similar to people the team shortlisted (weight 2): titles like ' + L.titles.join(', ') + '; companies like ' + L.companies.join(', ') });
+  call('search', { criteria: crit, brief: (j.brief || '') + '\nMore people like the shortlisted ones: ' + L.titles.join(', ') + ' at ' + L.companies.join(', ') }).then(function(r){
+    if (!r.ok) { toast(r.error || 'Could not start the search.'); return; }
+    B.runId = String(r.run_id); toast('Looking for people like your shortlist. They land in Found, already-known people are skipped.'); loadBoard(B.runId);
+  }).catch(function(e){ if (e.message!=='locked') toast(e.message); });
+}
+function approveAll(btn){
+  var ready = ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'shortlisted' && c.email && !c.approved && !(c.contacted && c.contacted.recent); });
+  if (!ready.length) return;
+  btn.disabled = true; btn.textContent = 'Approving…';
+  call('approve', { run_id: B.runId, keys: ready.map(function(c){ return c.dedupe_key; }) }).then(function(j){
+    if (!j.ok) { btn.disabled = false; toast(j.error || 'Could not approve.'); return; }
+    ready.forEach(function(c){ c.approved = true; c.stage = 'approved'; call('update_card', { card: { run_id: B.runId, dedupe_key: c.dedupe_key, name: c.name, stage: 'approved', owner: c.owner, note: c.note, snooze_until: c.snooze_until }, prev: { stage: 'shortlisted' } }).catch(function(){}); });
+    renderBoard(); toast(ready.length + ' approved. First emails within 15 minutes, inside your sending hours.');
+  }).catch(function(e){ btn.disabled = false; if (e.message!=='locked') toast(e.message); });
+}
+// pool what-ifs: how many found people have each must-have, so you can see what loosening one does
+function poolPanel(){
+  var j = B.data || {}, cr = j.criteria || {}, run = j.run || {}, must = bList(cr.must || run.must).slice(0,5), all = (j.cards||[]);
+  if (!must.length || all.length < 5) return '';
+  var full = all.filter(function(c){ return must.every(function(m){ return seen(c, m); }); }).length;
+  var rows = must.map(function(m){ var without = all.filter(function(c){ return must.every(function(x){ return x === m || seen(c, x); }); }).length; return { m: m, gain: without - full }; }).sort(function(a,b){ return b.gain - a.gain; });
+  var max = Math.max(1, full + (rows[0] ? rows[0].gain : 0));
+  return '<div class="pool"><span class="lbl">What if · of '+all.length+' found</span><div class="pb"><span><b>'+full+'</b> show every must-have</span><span></span></div><div class="pb" style="grid-template-columns:minmax(0,1fr)"><i class="hl" style="width:'+Math.round(100*full/max)+'%"></i></div>'+
+    rows.slice(0,3).map(function(r){ return '<div class="pb"><span>Make <b>'+esc(r.m)+'</b> nice-to-have</span><span style="font-weight:700;text-align:right">+'+r.gain+'</span></div><div class="pb" style="grid-template-columns:minmax(0,1fr)"><i style="width:'+Math.round(100*(full+r.gain)/max)+'%"></i></div>'; }).join('')+'</div>';
 }
 // ----- the brief column: this role's search, or a new one -----
 function briefPanel(){
@@ -901,6 +997,7 @@ function briefPanel(){
     '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Searched for</span><div class="chips">'+
       bList(cr.must || run.must).map(function(x){ return '<span class="crit must">'+esc(x)+' · must</span>'; }).join('')+bList(cr.nice).map(function(x){ return '<span class="crit nice">'+esc(x)+' · nice</span>'; }).join('')+'</div>'+
       '<div class="chips">'+[cr.experience && cr.experience!=='Any' ? cr.experience : '', run.location, cr.colleges].filter(Boolean).map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>'+
+    poolPanel()+
     channelList(B.srcSel, found)+
     '<button type="button" class="btn pri" id="bAgain">Find more people</button>'+
     '<button type="button" class="btn" id="bEdit" style="height:36px">Edit the brief and search again</button>';
@@ -967,9 +1064,11 @@ el('bWrap').addEventListener('click', function(e){
   if (e.target.closest('#nbGo')) { nbSearch(e.target.closest('#nbGo')); return; }
   if (e.target.closest('#nbCancel')) { B.newRole = false; B.nb = null; renderBoard(); return; }
   if (e.target.closest('#bAgain')) { rerun(false); return; }
+  if (e.target.closest('#bLike')) { findLike(); return; }
   if (e.target.closest('#bEdit')) { rerun(true); return; }
   if ((t = e.target.closest('[data-card]'))) { openCard(t.dataset.card); }
 });
+el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) approveAll(b); });
 el('bFilters').onclick = function(e){ var b = e.target.closest('[data-bf]'); if (!b) return; if (b.dataset.bf === 'out') B.showOut = !B.showOut; else B.filter = b.dataset.bf; renderBoard(); };
 el('bRole').onchange = function(){ B.newRole = false; B.nb = null; B.srcSel = null; B.open = null; el('bDrawer').classList.add('hide'); loadBoard(this.value); };
 el('bNew').onclick = function(){ B.newRole = true; B.nb = null; renderBoard(); setTimeout(function(){ if (el('nbBrief')) el('nbBrief').focus(); }, 30); };
@@ -1011,6 +1110,9 @@ function openCard(key, keep){
   var warn = [];
   (c.other_roles||[]).forEach(function(o){ warn.push('<span class="bdup">Also in '+esc(o.role)+'</span>'); });
   if (c.contacted) warn.push('<span class="'+(c.contacted.recent?'bwarn':'bdup')+'">Emailed for '+esc(c.contacted.role||'another role')+' '+esc(ago(c.contacted.at))+(c.contacted.recent?' · the sender will hold a second email':'')+'</span>');
+  if (c.warm) warn.push('<span class="bwarm">'+esc(c.warm)+' · ask for an intro</span>');
+  if (c.open_to_work) warn.push('<span class="bdup" style="background:var(--okbg);color:var(--ok)">Open to work</span>');
+  if (c.opens && c.opens.count) warn.push('<span class="btag">Opened '+c.opens.count+'× · last '+esc(ago(c.opens.last))+'</span>');
   var p = bPct(c);
   el('bDrawer').innerHTML = '<div class="dh"><div style="display:flex;align-items:flex-start;gap:12px"><span class="av" style="width:48px;height:48px;font-size:15px">'+esc(initials(c.name))+'</span><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><h2 style="font-size:22px">'+esc(c.name)+'</h2><span class="muted" style="font-size:13px">'+esc([c.title,c.company,c.location].filter(Boolean).join(' · '))+'</span></div><button type="button" class="ic" id="dClose" aria-label="Close" style="margin-left:auto">×</button></div>'+
     '<div class="chips"><span class="m '+(p>=80?'hi':(p>=60?'md':'lo'))+'">'+p+'% match</span><span class="btag">'+esc(c.source||'')+'</span>'+warn.join('')+'</div></div>'+
@@ -1020,6 +1122,7 @@ function openCard(key, keep){
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Note</span><textarea id="dNote" rows="3" placeholder="What did you learn? Visible to the team.">'+esc(c.note)+'</textarea></label>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Not now, bring back on</span><input id="dSnooze" type="date" value="'+esc(c.snooze_until)+'" style="max-width:200px"></label>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn dark" id="dSave">Save</button>'+(c.email && !c.approved && ['found','shortlisted'].indexOf(c.stage)!==-1 ? '<button type="button" class="btn pri" id="dApprove">Approve for outreach</button>' : '')+'</div>'+
+    replyPanel(c) + kitPanel(c) +
     (c.sequence ? '<div class="card" style="padding:12px 14px;font-size:13px"><b>Outreach</b><br>'+esc(c.sequence.status_text||c.sequence.status)+(c.sequence.next_due_at && c.sequence.status==='active' ? '<br><span class="muted">Next: '+esc(new Date(c.sequence.next_due_at).toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))+'</span>' : '')+'</div>' : '')+
     '<div><span class="lbl">Why '+esc(String(c.name||'they').split(' ')[0])+' matches</span><p style="margin:6px 0">'+esc(c.summary||'')+'</p>'+whyPanel(c)+'</div>'+
     '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">('+esc(c.contact_source||'')+')</span>':'No email found yet')+'</p><p style="margin:4px 0 0">'+(links||'')+'</p></div>'+
@@ -1037,6 +1140,99 @@ el('bDrawer').addEventListener('click', function(e){
     saveCard(c, { stage: st, owner: el('dOwner').value, note: el('dNote').value.trim(), snooze_until: el('dSnooze').value }, function(){ toast('Saved.'); loadBoard(B.runId); });
     return; }
   if (e.target.closest('#dApprove')) { approveCard(c); return; }
+  if (e.target.closest('#dDraft')) { draftReply(c); return; }
+  if (e.target.closest('#dSend')) { sendReply(c, e.target.closest('#dSend')); return; }
+  if (e.target.closest('#dLater')) { var d = new Date(Date.now() + 90*86400000).toISOString().slice(0,10); saveCard(c, { snooze_until: d }, function(){ toast(c.name + ' is parked until ' + d + ' and comes back then.'); }); return; }
+  if (e.target.closest('#dKit')) { loadKit(c); return; }
+  var sl = e.target.closest('[data-slot]'); if (sl) { var ta = el('dReply'); if (ta) { ta.value = ta.value.replace(/\s*$/, '') + (/\S/.test(ta.value) ? '\n\n' : '') + 'Would ' + sl.dataset.slot + ' IST work for a 45-minute call?'; ta.focus(); } return; }
+});
+// ----- replies: read theirs, draft ours with free slots, send from Gmail -----
+var RD = {}, KIT = {};
+function replyPanel(c){
+  if (c.stage !== 'replied' || !c.sequence || !c.sequence.thread_id) return '';
+  var r = RD[c.dedupe_key];
+  if (!r) return '<div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;border-color:#BFE3CD;background:#F4FBF6"><b>'+esc(String(c.name).split(' ')[0])+' replied'+(c.replied_at?' · '+esc(ago(c.replied_at)):'')+'</b><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn pri" id="dDraft">Read and draft a reply</button><button type="button" class="btn" id="dLater">Not now · back in 3 months</button></div></div>';
+  if (r.busy) return '<div class="card" style="padding:12px 14px"><div class="think"><span class="spin"></span>Reading the thread and checking your calendar…</div></div>';
+  if (r.error) return '<div class="card" style="padding:12px 14px;font-size:13px">'+esc(r.error)+' <button type="button" class="btn" id="dDraft" style="height:32px">Try again</button></div>';
+  if (r.sent) return '<div class="card" style="padding:12px 14px;font-size:13px;background:var(--okbg)">Reply sent from your Gmail, in the same thread.</div>';
+  var m = r.message || {}, sn = { keen: 'Keen', question: 'Has a question', not_now: 'Not now', no: 'Not interested' }[r.sentiment] || '';
+  return '<div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">'+
+    '<div style="display:flex;align-items:center;gap:8px"><b>Their reply</b>'+(sn?'<span class="senti '+esc(r.sentiment)+'">'+sn+'</span>':'')+'<span class="muted" style="font-size:12px;margin-left:auto">'+esc(m.date ? ago(m.date) || m.date : '')+'</span></div>'+
+    '<p style="margin:0;font-size:13px;line-height:1.5;white-space:pre-wrap;max-height:160px;overflow-y:auto;background:var(--ground);border-radius:8px;padding:8px 10px">'+esc(m.text || '')+'</p>'+
+    (r.slots && r.slots.length ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="lbl">Your free slots</span>'+r.slots.map(function(s){ return '<button type="button" class="slot" data-slot="'+esc(s.label)+'">'+esc(s.label)+'</button>'; }).join('')+'</div>'
+      : '<span class="muted" style="font-size:12px">'+(r.calendar ? 'No free 45-minute slot in the next week.' : 'Connect Google Calendar in n8n to offer free slots here.')+'</span>')+
+    '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Your answer · edit freely</span><textarea id="dReply" rows="6">'+esc(r.draft || '')+'</textarea></label>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn pri" id="dSend">Send from my Gmail</button>'+(r.sentiment === 'not_now' ? '<button type="button" class="btn" id="dLater">Park for 3 months</button>' : '')+'</div>'+
+    '<span class="muted" style="font-size:12px">Nothing is sent until you press Send. It goes only to '+esc(String(c.name).split(' ')[0])+', in the same thread.</span></div>';
+}
+function ctxOf(c){ var j = B.data || {}, cr = j.criteria || {}, run = j.run || {};
+  return { role: run.role || cr.role || '', location: run.location || cr.city || '', must: bList(cr.must || run.must).join(', '), nice: bList(cr.nice).join(', '), brief: j.brief || '', title: [c.title, c.company].filter(Boolean).join(' at '), summary: c.summary || '',
+    gaps: bList(cr.must || run.must).filter(function(m){ return !seen(c, m); }).join(', ') }; }
+function draftReply(c){
+  RD[c.dedupe_key] = { busy: true }; openCard(c.dedupe_key, true);
+  call('thread', { thread_id: c.sequence.thread_id, name: c.name, context: ctxOf(c) }).then(function(j){
+    RD[c.dedupe_key] = j.ok ? j : { error: j.error || 'Could not read the thread.' };
+    if (B.open === c.dedupe_key) openCard(c.dedupe_key, true);
+  }).catch(function(e){ RD[c.dedupe_key] = { error: e.message }; if (B.open === c.dedupe_key) openCard(c.dedupe_key, true); });
+}
+function sendReply(c, btn){
+  var r = RD[c.dedupe_key] || {}, txt = el('dReply').value.trim();
+  if (txt.length < 2) { toast('Write a reply first.'); return; }
+  if (!r.reply_to) { toast('Could not find the message to reply to. Draft again.'); return; }
+  r.draft = txt; btn.disabled = true; btn.textContent = 'Sending…';
+  call('send_reply', { message_id: r.reply_to, text: txt, run_id: B.runId, dedupe_key: c.dedupe_key, name: c.name }).then(function(j){
+    if (!j.ok) { btn.disabled = false; btn.textContent = 'Send from my Gmail'; toast(j.error || 'Could not send.'); return; }
+    r.sent = true; openCard(c.dedupe_key, true); toast('Sent to ' + c.name + '.');
+  }).catch(function(e){ btn.disabled = false; btn.textContent = 'Send from my Gmail'; if (e.message!=='locked') toast(e.message); });
+}
+// ----- interview kit -----
+function kitPanel(c){
+  if (['interview','replied','hired'].indexOf(c.stage) === -1) return '';
+  var k = KIT[c.dedupe_key];
+  if (!k) return '<div><button type="button" class="btn" id="dKit">Interview questions for '+esc(String(c.name).split(' ')[0])+'</button></div>';
+  if (k.busy) return '<div class="card" style="padding:12px 14px"><div class="think"><span class="spin"></span>Writing questions that test the must-haves…</div></div>';
+  if (k.error) return '<div class="card" style="padding:12px 14px;font-size:13px">'+esc(k.error)+' <button type="button" class="btn" id="dKit" style="height:32px">Try again</button></div>';
+  return '<div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px"><b>Interview questions</b>'+
+    k.questions.map(function(q,i){ return '<div style="font-size:13px;line-height:1.5"><b>'+(i+1)+'. '+esc(q.q)+'</b>'+(q.competency?' <span class="btag">'+esc(q.competency)+'</span>':'')+'<br><span class="muted">Listen for: '+esc(q.listen_for)+'</span></div>'; }).join('')+
+    (k.scorecard && k.scorecard.length ? '<div style="font-size:13px"><span class="lbl">Scorecard</span>'+k.scorecard.map(function(s){ return '<div class="hist"><span><b>'+esc(s.competency)+'</b> ×'+s.weight+'<br><span class="muted">Strong: '+esc(s.strong)+'</span></span></div>'; }).join('')+'</div>' : '')+'</div>';
+}
+function loadKit(c){
+  KIT[c.dedupe_key] = { busy: true }; openCard(c.dedupe_key, true);
+  call('kit', { name: c.name, context: ctxOf(c) }).then(function(j){
+    KIT[c.dedupe_key] = j.ok ? j : { error: j.error || 'Could not write the questions.' };
+    if (B.open === c.dedupe_key) openCard(c.dedupe_key, true);
+  }).catch(function(e){ KIT[c.dedupe_key] = { error: e.message }; if (B.open === c.dedupe_key) openCard(c.dedupe_key, true); });
+}
+// ----- the / command bar -----
+var CMD = { items: [], sel: 0 };
+function cmdOpen(){ el('cmdk').classList.remove('hide'); el('cmdIn').value = ''; cmdRender(); setTimeout(function(){ el('cmdIn').focus(); }, 10); }
+function cmdClose(){ el('cmdk').classList.add('hide'); }
+function cmdRender(){
+  var q = el('cmdIn').value.trim().toLowerCase(), j = B.data || {}, out = [];
+  [['New role', 'action', function(){ go('board'); B.newRole = true; B.nb = null; renderBoard(); }], ['Board', 'go to', function(){ go('board'); }], ['Home', 'go to', function(){ go('home'); }], ['Outreach', 'go to', function(){ go('outreach'); }], ['Settings', 'go to', function(){ go('settings'); }]]
+    .forEach(function(a){ out.push({ t: a[0], k: a[1], f: a[2] }); });
+  (j.roles||[]).forEach(function(r){ out.push({ t: (r.role||'Search') + (r.location ? ' · ' + r.location : ''), k: 'role', f: function(){ go('board'); B.newRole = false; B.srcSel = null; loadBoard(r.run_id); } }); });
+  (j.cards||[]).forEach(function(c){ out.push({ t: c.name + (c.company ? ' · ' + c.company : ''), k: STAGE_NAME[c.stage] || 'person', f: function(){ go('board'); B.open = c.dedupe_key; openCard(c.dedupe_key); } }); });
+  var ready = (j.cards||[]).filter(function(c){ return c.stage === 'shortlisted' && c.email && !c.approved; }).length;
+  if (ready) out.push({ t: 'Approve ' + ready + ' shortlisted', k: 'action', f: function(){ go('board'); var b = el('bApproveAll'); if (b) b.scrollIntoView({ block: 'center' }); } });
+  CMD.items = (q ? out.filter(function(x){ return x.t.toLowerCase().indexOf(q) !== -1; }) : out).slice(0, 9);
+  CMD.sel = Math.min(CMD.sel, Math.max(0, CMD.items.length - 1));
+  el('cmdList').innerHTML = CMD.items.map(function(x,i){ return '<button type="button" class="it'+(i===CMD.sel?' on':'')+'" data-ci="'+i+'">'+esc(x.t)+'<span>'+esc(x.k)+'</span></button>'; }).join('') || '<div class="it">Nothing matches.</div>';
+}
+el('cmdBtn').onclick = cmdOpen;
+el('cmdIn').addEventListener('input', function(){ CMD.sel = 0; cmdRender(); });
+el('cmdIn').addEventListener('keydown', function(e){
+  if (e.key === 'ArrowDown') { CMD.sel = Math.min(CMD.items.length-1, CMD.sel+1); cmdRender(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { CMD.sel = Math.max(0, CMD.sel-1); cmdRender(); e.preventDefault(); }
+  else if (e.key === 'Enter') { var it = CMD.items[CMD.sel]; if (it) { cmdClose(); it.f(); } e.preventDefault(); }
+  else if (e.key === 'Escape') cmdClose();
+});
+el('cmdList').addEventListener('click', function(e){ var b = e.target.closest('[data-ci]'); if (!b) return; var it = CMD.items[+b.dataset.ci]; cmdClose(); if (it) it.f(); });
+el('cmdk').addEventListener('click', function(e){ if (e.target === el('cmdk')) cmdClose(); });
+document.addEventListener('keydown', function(e){
+  if (e.key !== '/' || !TOKEN || e.metaKey || e.ctrlKey) return;
+  var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  e.preventDefault(); cmdOpen();
 });
 
 // ---------- home ----------
@@ -1082,12 +1278,13 @@ function openSettings(tab){
   S.stab = tab;
   [].forEach.call(document.querySelectorAll('#sTabs button'), function(b){ b.classList.toggle('on', b.dataset.st===tab); });
   [].forEach.call(document.querySelectorAll('[data-sp]'), function(p){ p.classList.toggle('hide', p.dataset.sp!==tab); });
-  if (tab==='account') { el('acName').textContent = ME.name; el('acEmail').textContent = ME.email; el('acUser').value = ME.email; el('acRole').innerHTML = '<span class="pill'+(ME.role==='admin'?' admin':'')+'">'+(ME.role==='admin'?'Admin':'Recruiter')+'</span>'; }
+  if (tab==='account') { el('acCos').value = (ME.companies||[]).join(', '); el('acName').textContent = ME.name; el('acEmail').textContent = ME.email; el('acUser').value = ME.email; el('acRole').innerHTML = '<span class="pill'+(ME.role==='admin'?' admin':'')+'">'+(ME.role==='admin'?'Admin':'Recruiter')+'</span>'; }
   if (tab==='team') loadTeam();
   if (tab==='sending') loadSending();
   if (tab==='services') loadServices();
 }
 el('sTabs').onclick = function(e){ var b=e.target.closest('[data-st]'); if (b) openSettings(b.dataset.st); };
+el('acCosSave').onclick = function(){ el('acCosMsg').textContent='Saving…'; call('save_profile', { companies: el('acCos').value }).then(function(j){ if (j.ok) { ME.companies = j.companies; el('acCosMsg').textContent='Saved.'; } else el('acCosMsg').textContent=j.error; }).catch(function(){}); };
 el('acSave').onclick = function(){ var b=this; el('acMsg').textContent='Saving…';
   call('change_password', { old: el('acOld').value, password: el('acNew').value }).then(function(j){ el('acMsg').textContent = j.ok ? 'Password updated.' : j.error; if (j.ok) { el('acOld').value=''; el('acNew').value=''; } }).catch(function(e){ if (e.message!=='locked') el('acMsg').textContent=e.message; }); };
 function loadTeam(){
@@ -1116,14 +1313,16 @@ el('tmRows').addEventListener('click', function(e){
 });
 function loadSending(){
   var admin = ME.role==='admin';
-  ['snSig','snStart','snEnd','snCap','snSave'].forEach(function(id){ el(id).disabled = !admin; });
+  ['snSig','snStart','snEnd','snCap','snSave','snRe','snUrl'].forEach(function(id){ el(id).disabled = !admin; });
   el('snMsg').textContent = admin ? '' : 'Only admins can change these.';
   call('settings').then(function(j){ if (!j.ok) return; var s=j.settings;
     el('snSig').value=s.signature; el('snStart').value=s.window_start; el('snEnd').value=s.window_end; el('snCap').value=s.daily_cap;
-    el('snWk').classList.toggle('on', !!s.weekdays_only); el('snWk').setAttribute('aria-pressed', s.weekdays_only?'true':'false'); }).catch(function(){}); }
+    el('snWk').classList.toggle('on', !!s.weekdays_only); el('snWk').setAttribute('aria-pressed', s.weekdays_only?'true':'false');
+    el('snRe').value = s.recontact_days || 90; el('snUrl').value = s.public_url || ''; el('snOpen').classList.toggle('on', !!s.open_tracking); el('snOpen').setAttribute('aria-pressed', s.open_tracking?'true':'false'); }).catch(function(){}); }
+el('snOpen').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snWk').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snSave').onclick = function(){ var b=this; el('snMsg').textContent='Saving…';
-  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on') } })
+  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on'), recontact_days: el('snRe').value.trim(), open_tracking: el('snOpen').classList.contains('on'), public_url: el('snUrl').value.trim() } })
     .then(function(j){ el('snMsg').textContent = j.ok ? 'Saved. The next follow-ups use these settings.' : j.error; }).catch(function(e){ if (e.message!=='locked') el('snMsg').textContent=e.message; }); };
 function loadServices(){
   var render = function(){ el('svRows').innerHTML = (S.services||[]).map(function(s){ return '<tr><td><b>'+esc(s.name)+'</b></td><td class="muted">'+esc(s.uses)+'</td><td>'+(s.last_ok?'<span class="st ok">✓ '+esc(ago(s.last_ok))+'</span>':'<span class="st">Not used yet</span>')+'</td></tr>'; }).join(''); };

@@ -4145,3 +4145,289 @@ def apply_round30(nodes, conns):
 
     nodes.extend(new)
     return nodes, conns, routes
+
+
+# ======================================================================
+# Round 31: the Board's smart layer.
+# - Replies: read the candidate's reply, draft an answer with 3 free slots
+#   from Google Calendar (when connected), and send it from Gmail in the same
+#   thread. Nothing is sent until the recruiter presses Send.
+# - Interview kit: 5 questions and a scorecard from the brief and the person.
+# - Teammates' past companies (warm connections), who else is on this board,
+#   team reply rate, and when replies usually arrive.
+# - Optional open tracking (Settings → Sending): a 1x1 image in each email.
+#   Off by default; it only works when n8n is reachable from the internet.
+# ======================================================================
+OPEN_COLUMNS = [("contact_key", "string"), ("step", "number"), ("at", "date")]
+
+GATE_R31_JS = r"""
+// -- your profile (past companies, for warm connections) --
+if (action === 'save_profile') {
+  const cos = String(body.companies || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 12);
+  W.settings.push({ key: 'past:' + me.email, value: JSON.stringify({ name: me.name, companies: cos }) });
+  return reply({ ok: true, companies: cos });
+}
+if (action === 'send_reply') {
+  const txt = String(body.text || '').trim();
+  if (!body.message_id || txt.length < 2 || txt.length > 5000) return reply({ ok: false, error: 'Write a reply first.' });
+  W.events.push({ at: now.toISOString(), run_id: String(body.run_id || ''), dedupe_key: String(body.dedupe_key || ''), person: String(body.name || '').slice(0, 120),
+    kind: 'email', from_stage: '', to_stage: '', detail: 'replied: ' + txt.slice(0, 160), by: me.name });
+}
+if (action === 'board') W.settings.push({ key: 'seen:' + me.email, value: JSON.stringify({ name: me.name, run: String(body.run_id || ''), at: now.toISOString() }) });
+"""
+
+THREAD_URL_FULL = "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/threads/' + $('App Gate').first().json.body.thread_id + '?format=full' }}"
+
+DRAFT_PROMPT = r"""
+// The candidate's latest reply, three free slots, and a prompt for a short answer.
+const g = $('App Gate').first().json, b = g.body || {};
+const th = $('App Thread').first().json || {};
+const msgs = Array.isArray(th.messages) ? th.messages : [];
+const hdr = function(m, n){ const h = ((m.payload || {}).headers || []).find(function(x){ return String(x.name).toLowerCase() === n; }); return h ? String(h.value) : ''; };
+const dec = function(s){ try { return Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (e) { return ''; } };
+const textOf = function(p){
+  if (!p) return '';
+  if (p.mimeType === 'text/plain' && p.body && p.body.data) return dec(p.body.data);
+  let out = ''; (p.parts || []).forEach(function(x){ if (!out) out = textOf(x); });
+  if (!out && p.mimeType === 'text/html' && p.body && p.body.data) out = dec(p.body.data).replace(/<[^>]+>/g, ' ');
+  return out;
+};
+const mine = (msgs[0] ? hdr(msgs[0], 'from') : '').toLowerCase().replace(/.*</, '').replace(/>.*/, '');
+const theirs = msgs.filter(function(m){ return hdr(m, 'from').toLowerCase().indexOf(mine) === -1; });
+const last = theirs[theirs.length - 1] || null;
+// strip the quoted earlier emails
+const clean = function(t){ return String(t || '').split(/\r?\n(On .{5,120} wrote:|-----Original Message-----|From: )/)[0].replace(/\n{3,}/g, '\n\n').trim().slice(0, 3000); };
+const lastText = last ? clean(textOf(last.payload) || last.snippet) : '';
+// free slots: next 5 weekdays, 10:00-17:30 IST, 45 minutes, not busy
+const fb = $('App FreeBusy').first().json || {};
+const busy = (((fb.calendars || {}).primary || {}).busy || []).map(function(x){ return [new Date(x.start).getTime(), new Date(x.end).getTime()]; });
+const calendar = !!(fb.calendars && fb.calendars.primary && !fb.calendars.primary.errors);
+const slots = [];
+if (calendar) {
+  let d = DateTime.now().setZone('Asia/Kolkata').plus({ days: 1 }).startOf('day');
+  for (let i = 0; i < 10 && slots.length < 3; i++, d = d.plus({ days: 1 })) {
+    if (d.weekday > 5) continue;
+    for (let h = 10 * 60; h <= 17 * 60; h += 90) {
+      const s = d.plus({ minutes: h }), e = s.plus({ minutes: 45 });
+      const free = !busy.some(function(x){ return x[0] < e.toMillis() && x[1] > s.toMillis(); });
+      if (free) { slots.push({ start: s.toISO(), label: s.toFormat('ccc d LLL, HH:mm') }); break; }
+    }
+  }
+}
+const ctx = b.context || {};
+const system = 'You help a recruiter answer a candidate who replied to an outreach email. Return ONLY JSON: {"sentiment": "keen" | "question" | "not_now" | "no", "summary": one short line, "reply": the email body}. ' +
+  'The reply: warm, brief (under 90 words), plain text, no subject, no signature. If they are keen or asked a question, answer what you can from the role details and offer the time slots given (or ask for times if none). ' +
+  'If they said not now, thank them and say you will check back in a few months. If they said no, thank them politely. Never invent salary, team size or facts not given.';
+const prompt = 'ROLE: ' + [ctx.role, ctx.location].filter(Boolean).join(', ') + (ctx.must ? '\nMUST-HAVES: ' + ctx.must : '') + (ctx.brief ? '\nBRIEF: ' + String(ctx.brief).slice(0, 1200) : '') +
+  '\nCANDIDATE: ' + (b.name || '') + '\nFREE SLOTS: ' + (slots.length ? slots.map(function(s){ return s.label + ' IST'; }).join('; ') : 'none - ask for their availability') +
+  '\n\nTHEIR LATEST REPLY:\n-----\n' + (lastText || '(could not read the reply)') + '\n-----';
+return [{ json: { system: system, prompt: prompt, last: last ? { id: last.id, from: hdr(last, 'from'), date: hdr(last, 'date'), text: lastText } : null,
+  thread_ok: msgs.length > 0, slots: slots, calendar: calendar } }];
+"""
+
+DRAFT_REPLY = r"""
+const p = $('Draft Prompt').first().json;
+const j = $json || {};
+let raw = ''; try { raw = j.output[0].content[0].text; } catch (e) {}
+let d = {}; try { d = JSON.parse(String(raw).replace(/^```(json)?|```$/g, '').trim()); } catch (e) {}
+if (!p.thread_ok) return [{ json: { response: { ok: false, error: 'Could not open this Gmail thread. Is Gmail still connected in n8n?' } } }];
+return [{ json: { response: { ok: true, message: p.last, slots: p.slots, calendar: p.calendar,
+  sentiment: ['keen', 'question', 'not_now', 'no'].indexOf(d.sentiment) !== -1 ? d.sentiment : '', summary: String(d.summary || '').slice(0, 200),
+  draft: String(d.reply || '').slice(0, 2000), reply_to: p.last ? p.last.id : '' } } }];
+"""
+
+REPLY_BODY = r"""
+const b = $('App Gate').first().json.body || {};
+const esc = function(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+const html = String(b.text || '').trim().split(/\n\s*\n/).map(function(p){ return '<p>' + esc(p).replace(/\n/g, '<br/>') + '</p>'; }).join('');
+return [{ json: { message_id: String(b.message_id), html: html } }];
+"""
+
+REPLY_SENT = r"""
+const j = $json || {};
+if (j.error || !j.id) return [{ json: { response: { ok: false, error: 'Gmail did not send it: ' + String((j.error && (j.error.message || j.error)) || 'unknown error').slice(0, 200) } } }];
+return [{ json: { response: { ok: true, id: j.id } } }];
+"""
+
+KIT_PROMPT = r"""
+// An interview kit for one person: questions that test the brief's must-haves.
+const b = $('App Gate').first().json.body || {};
+const c = b.context || {};
+const system = 'You are an expert in structured, evidence-based interviewing. Return ONLY JSON: {"questions": [{"q": question, "listen_for": what a strong answer shows, "competency": short name}], "scorecard": [{"competency": name, "weight": 1-3, "strong": one line, "weak": one line}]}. ' +
+  'Write exactly 5 behavioural or work-sample questions that test the must-haves and gaps for THIS person. Never ask about age, family, religion, caste, health or any protected attribute.';
+const prompt = 'ROLE: ' + [c.role, c.location].filter(Boolean).join(', ') + '\nMUST-HAVES: ' + (c.must || '') + '\nNICE: ' + (c.nice || '') +
+  '\nCANDIDATE: ' + (b.name || '') + ' - ' + (c.title || '') + '\nWHAT WE KNOW: ' + String(c.summary || '').slice(0, 1200) + '\nNOT YET SEEN ON PROFILE: ' + (c.gaps || 'none');
+return [{ json: { system: system, prompt: prompt } }];
+"""
+
+KIT_REPLY = r"""
+const j = $json || {};
+let raw = ''; try { raw = j.output[0].content[0].text; } catch (e) {}
+let d = {}; try { d = JSON.parse(String(raw).replace(/^```(json)?|```$/g, '').trim()); } catch (e) {}
+const qs = (Array.isArray(d.questions) ? d.questions : []).slice(0, 6).map(function(q){ return { q: String(q.q || '').slice(0, 300), listen_for: String(q.listen_for || '').slice(0, 300), competency: String(q.competency || '').slice(0, 60) }; }).filter(function(q){ return q.q; });
+const sc = (Array.isArray(d.scorecard) ? d.scorecard : []).slice(0, 6).map(function(s){ return { competency: String(s.competency || '').slice(0, 60), weight: Math.max(1, Math.min(3, parseInt(s.weight, 10) || 1)), strong: String(s.strong || '').slice(0, 200), weak: String(s.weak || '').slice(0, 200) }; });
+if (!qs.length) return [{ json: { response: { ok: false, error: 'Could not write the questions. Try again.' } } }];
+return [{ json: { response: { ok: true, questions: qs, scorecard: sc } } }];
+"""
+
+OPEN_ROW = r"""
+const q = ($('Open Pixel').first().json || {}).query || {};
+const k = String(q.k || '').slice(0, 200);
+if (!k) return [];
+return [{ json: { contact_key: k, step: parseInt(q.s, 10) || 1, at: new Date().toISOString() } }];
+"""
+
+BOARD_R31_JS = r"""
+// opens, reply timing, team reply rate, who else is here, warm connections
+const opens = {};
+all('Load Board Opens').forEach(function(o){ if (!o.contact_key) return; const x = opens[o.contact_key] = opens[o.contact_key] || { count: 0, last: '' }; x.count++; if (String(o.at) > x.last) x.last = String(o.at); });
+const repliedSeqs = seqs.filter(function(s){ return s.status === 'replied'; });
+const teamRate = seqs.length ? Math.round(100 * repliedSeqs.length / seqs.length) : 0;
+const hours = {};
+repliedSeqs.forEach(function(s){ const d = DateTime.fromISO(String(s.updatedAt || '')); if (!d.isValid) return; const z = d.setZone('Asia/Kolkata'); const k = z.toFormat('ccc') + '|' + Math.floor(z.hour / 2) * 2; hours[k] = (hours[k] || 0) + 1; });
+const topH = Object.keys(hours).sort(function(a, x){ return hours[x] - hours[a]; })[0];
+const bestTime = topH && hours[topH] >= 2 ? topH.split('|')[0] + ' ' + ('0' + topH.split('|')[1]).slice(-2) + ':00–' + ('0' + (+topH.split('|')[1] + 2)).slice(-2) + ':00' : '';
+const meEmail = ((g.user || {}).email) || '';
+const viewers = []; const teamCos = [];
+Object.keys(sets).forEach(function(k){
+  let v = {}; try { v = JSON.parse(sets[k] || '{}'); } catch (e) { v = {}; }
+  if (k.indexOf('seen:') === 0 && k !== 'seen:' + meEmail && v.run === runId && Date.now() - t(v.at) < 90000) viewers.push(v.name);
+  if (k.indexOf('past:') === 0) (v.companies || []).forEach(function(co){ teamCos.push({ name: v.name, company: co, key: String(co).toLowerCase().replace(/[^a-z0-9]/g, '') }); });
+});
+cards.forEach(function(o){
+  const s = seqByKey[o.dedupe_key];
+  if (s) { o.sequence.thread_id = s.thread_id; o.sequence.message_id = s.message_id; if (s.status === 'replied') o.replied_at = s.updatedAt || ''; }
+  if (opens[o.dedupe_key]) o.opens = opens[o.dedupe_key];
+  const ck = String(o.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const w = ck && teamCos.find(function(x){ return x.key && (x.key === ck || (ck.length > 4 && x.key.indexOf(ck) === 0) || (x.key.length > 4 && ck.indexOf(x.key) === 0)); });
+  if (w) o.warm = w.name + ' worked at ' + w.company;
+  if (/open to (work|new|opportunit)|#opentowork|looking for (a )?new|actively (looking|exploring)/i.test(String(o.summary || '') + ' ' + String(o.title || ''))) o.open_to_work = true;
+});
+"""
+
+
+def apply_round31(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    oai = json.loads(json.dumps(N["Message a model"]["credentials"]))
+    gcred = json.loads(json.dumps(N["Send Outreach Email"]["credentials"]))
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round31 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    def code(name, js, pos, once=True):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def ai(name, pos):
+        n = _node(name, "n8n-nodes-base.httpRequest", 4.2, pos, {
+            "method": "POST", "url": "https://api.openai.com/v1/responses", "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "openAiApi", "sendBody": True, "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.3, text: { format: { type: 'json_object' } }, input: [{ role: 'system', content: $json.system }, { role: 'user', content: $json.prompt }] }) }}",
+            "options": {"timeout": 60000}}, credentials=json.loads(json.dumps(oai)), onError="continueRegularOutput")
+        new.append(n)
+        return n
+
+    # 1. gate: profile, presence, reply logging, new routes, tracking settings
+    R("App Gate", "// -- routes with their own steps --", GATE_R31_JS.lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'dashboard', 'board'];", "'dashboard', 'board', 'thread', 'send_reply', 'kit'];")
+    R("App Gate", "if (action === 'ping' || action === 'me') return reply({ ok: true, user: pub(me) });",
+      "if (action === 'ping' || action === 'me') { let past = {}; try { past = JSON.parse(settings['past:' + me.email] || '{}'); } catch (e) {} return reply({ ok: true, user: Object.assign(pub(me), { companies: past.companies || [] }) }); }")
+    R("App Gate", "'weekdays_only', 'recontact_days'];", "'weekdays_only', 'recontact_days', 'open_tracking', 'public_url'];")
+    R("App Gate", "recontact_days: Number(settings.recontact_days) || 90 }; };",
+      "recontact_days: Number(settings.recontact_days) || 90, open_tracking: settings.open_tracking === 'true', public_url: settings.public_url || '' }; };")
+    R("App Gate", "recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))) };",
+      "recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))), open_tracking: s.open_tracking === true ? 'true' : 'false',\n"
+      "    public_url: /^https:\\/\\/[^\\s]+$/.test(String(s.public_url || '').trim()) ? String(s.public_url).trim().replace(/\\/+$/, '') : '' };\n"
+      "  if (vals.open_tracking === 'true' && !vals.public_url) return reply({ ok: false, error: 'Open tracking needs the public https address of your n8n.' });")
+    R("App Gate", "recontact_days: Number(vals.recontact_days) }", "recontact_days: Number(vals.recontact_days), open_tracking: vals.open_tracking === 'true', public_url: vals.public_url }")
+
+    routes = routes_in + ["thread", "send_reply", "kit"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    bx, by = N["Load Board Runs"]["position"]
+
+    # 2. thread → free slots → AI draft
+    y = by + 200
+    th = _node("App Thread", "n8n-nodes-base.httpRequest", 4.2, [bx, y], {"url": THREAD_URL_FULL, "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2", "options": {}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    new.append(th)
+    fb = _node("App FreeBusy", "n8n-nodes-base.httpRequest", 4.2, [bx + 220, y], {"method": "POST", "url": "https://www.googleapis.com/calendar/v3/freeBusy",
+        "authentication": "predefinedCredentialType", "nodeCredentialType": "googleCalendarOAuth2Api", "sendBody": True, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ timeMin: $now.toISO(), timeMax: $now.plus({ days: 10 }).toISO(), timeZone: 'Asia/Kolkata', items: [{ id: 'primary' }] }) }}",
+        "options": {"timeout": 20000}}, onError="continueRegularOutput")
+    new.append(fb)
+    code("Draft Prompt", DRAFT_PROMPT, [bx + 440, y])
+    ai("Draft Agent", [bx + 660, y])
+    code("Draft Reply", DRAFT_REPLY, [bx + 880, y])
+    link("App Route", "App Thread", routes.index("thread")); link("App Thread", "App FreeBusy"); link("App FreeBusy", "Draft Prompt")
+    link("Draft Prompt", "Draft Agent"); link("Draft Agent", "Draft Reply"); link("Draft Reply", "App Reply")
+
+    # 3. send the reply in the same Gmail thread
+    y = by + 400
+    code("Reply Body", REPLY_BODY, [bx, y])
+    gs = _node("Send Candidate Reply", "n8n-nodes-base.gmail", N["Send Follow-up"]["typeVersion"], [bx + 220, y], {
+        "resource": "message", "operation": "reply", "messageId": "={{ $json.message_id }}", "emailType": "html", "message": "={{ $json.html }}",
+        "options": {"appendAttribution": False, "replyToSenderOnly": True}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    new.append(gs)
+    code("Reply Sent", REPLY_SENT, [bx + 440, y])
+    link("App Route", "Reply Body", routes.index("send_reply")); link("Reply Body", "Send Candidate Reply"); link("Send Candidate Reply", "Reply Sent"); link("Reply Sent", "App Reply")
+
+    # 4. interview kit
+    y = by + 600
+    code("Kit Prompt", KIT_PROMPT, [bx, y]); ai("Kit Agent", [bx + 220, y]); code("Kit Reply", KIT_REPLY, [bx + 440, y])
+    link("App Route", "Kit Prompt", routes.index("kit")); link("Kit Prompt", "Kit Agent"); link("Kit Agent", "Kit Reply"); link("Kit Reply", "App Reply")
+
+    # 5. open tracking pixel (only used when switched on)
+    px, py = N["App API"]["position"]
+    hook = _node("Open Pixel", "n8n-nodes-base.webhook", 2, [px - 900, py + 600],
+                 {"httpMethod": "GET", "path": "sourcing-open", "responseMode": "onReceived", "options": {}},
+                 webhookId="7c1e2a40-8b3d-4f6e-9a12-5d0c3b7e9f03")
+    new.append(hook)
+    eo = _dt_ensure("Ensure App Opens", "app_opens", OPEN_COLUMNS, [px - 680, py + 600]); new.append(eo)
+    code("Open Row", OPEN_ROW, [px - 460, py + 600])
+    so = _node("Save Open", "n8n-nodes-base.dataTable", 1.1, [px - 240, py + 600], {"resource": "row", "operation": "insert",
+        "dataTableId": _dt_ref("app_opens"), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    new.append(so)
+    link("Open Pixel", "Ensure App Opens"); link("Ensure App Opens", "Open Row"); link("Open Row", "Save Open")
+
+    # 6. pixels in emails, when switched on
+    R("Due Follow-ups", "optOut + '<p>' + SIG",
+      "optOut + '<p>' + SIG + (_S.open_tracking === 'true' && _S.public_url ? '<img src=\"' + _S.public_url + '/webhook/sourcing-open?k=' + encodeURIComponent(r.contact_key) + '&s=' + next + '\" width=\"1\" height=\"1\" alt=\"\">' : '')")
+    R("Filter Outreach Queue", "return $input.all().filter(function(i){",
+      "const pixel = function(r){ return sets.open_tracking === 'true' && sets.public_url ? '<img src=\"' + String(sets.public_url).replace(/\\/+$/, '') + '/webhook/sourcing-open?k=' + encodeURIComponent(String(r['Dedupe Key'] || '')) + '&s=1\" width=\"1\" height=\"1\" alt=\"\">' : ''; };\n"
+      "return $input.all().filter(function(i){")
+    R("Filter Outreach Queue", "  return ready && notContacted && hasEmail && notLow && ok(r);\n});",
+      "  return ready && notContacted && hasEmail && notLow && ok(r);\n}).map(function(i){ return { json: Object.assign({}, i.json, { _pixel: pixel(i.json) }), pairedItem: i.pairedItem }; });")
+    m = N["Send Outreach Email"]["parameters"]
+    assert m["message"].endswith("</p>"), m["message"][-40:]
+    m["message"] = m["message"] + "{{ $json._pixel || '' }}"
+
+    # 7. board: opens, timing, presence, warm connections
+    lo = _node("Load Board Opens", "n8n-nodes-base.dataTable", 1.1, [N["Load Board Settings"]["position"][0], N["Load Board Settings"]["position"][1] + 160],
+               {"resource": "row", "operation": "get", "dataTableId": _dt_ref("app_opens"), "returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    lo["executeOnce"] = True
+    new.append(lo)
+    nxt = conns["Load Board Settings"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Board Reply"], nxt
+    conns["Load Board Settings"]["main"][0] = [{"node": "Load Board Opens", "type": "main", "index": 0}]
+    link("Load Board Opens", "Board Reply")
+    R("Board Reply", "const hist = events.filter(", BOARD_R31_JS.lstrip() + "const hist = events.filter(")
+    R("Board Reply", "criteria: saved.criteria || null, brief: saved.brief || '' } } }];",
+      "criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate: teamRate, best_time: bestTime, viewers: viewers } } }];")
+    nodes.extend(new)
+    return nodes, conns, routes
