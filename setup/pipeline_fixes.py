@@ -4778,6 +4778,19 @@ def apply_round33(nodes, conns):
     wx, wy = N["Wait For All Sources"]["position"]
     t = _node("Tag Google Links", "n8n-nodes-base.code", 2, [wx, wy - 200], {"jsCode": TAG_GOOGLE_LINKS})
     nodes.append(t)
+
+    # the company someone works at, from the search line itself (it used to come
+    # only from Apollo or GitHub, so most cards had none)
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round33 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+    R("Format Search Results", "10. line (number - the [n] at the start of that line)\n",
+      "10. line (number - the [n] at the start of that line)\n"
+      "11. current_company (string - their current employer as stated in the line: after \"at\" or \"@\" in the title, the part after the job title in \"Name - Title - Company\", or after \"Current company:\" or \"Experience:\"; \"\" if not stated. Never a school, a website name or LinkedIn)\n")
+    R("Split Candidates", "current_role: c.current_role || '',", "current_role: c.current_role || '',\n      current_company: String(c.current_company || '').slice(0, 120),")
+    R("Combine Enrichment", "let current_company = '';", "let current_company = String(cand.current_company || '');")
+    R("Combine No Apollo", "  current_company: '',", "  current_company: cand.current_company || '',")
     nxt = conns["Wait For All Sources"]["main"][0]
     assert [c["node"] for c in nxt] == ["Merge Pages"], nxt
     conns["Wait For All Sources"]["main"][0] = [{"node": "Tag Google Links", "type": "main", "index": 0}]

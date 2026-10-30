@@ -1258,3 +1258,10 @@ test('R33: two people behind wrapped links are not merged on the Board', async (
     'Load Board Stages': [{}], 'Load Board Events': [{}], 'Load Board Sequences': [{}], 'Load Board Settings': [{}], 'Load Board Opens': [{}] });
   assert.equal(r.response.cards[0].other_roles.length, 0);
 });
+
+test('R33: the employer named in the search line is kept as the current company', async () => {
+  assert.match(require('./harness').NODES['Format Search Results'].parameters.jsCode, /11\. current_company/);
+  assert.match(require('./harness').NODES['Split Candidates'].parameters.jsCode, /current_company: String\(c\.current_company/);
+  assert.match(require('./harness').NODES['Combine No Apollo'].parameters.jsCode, /current_company: cand\.current_company \|\| ''/);
+  assert.match(require('./harness').NODES['Combine Enrichment'].parameters.jsCode, /let current_company = String\(cand\.current_company/);
+});
