@@ -182,13 +182,13 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .csub{grid-area:sub;font-size:12px;color:var(--muted);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ctags{grid-area:tags;display:flex;gap:4px;flex-wrap:wrap}.ctags span{white-space:nowrap}.ctags:empty{display:none}
 /* match % as rising signal bars, warm to green */
-.sig{grid-area:ring;display:flex;flex-direction:column;align-items:center;gap:3px}
-.sig .bars{display:flex;align-items:flex-end;gap:2px;height:23px}
-.sig .bars i{display:block;width:5px;border-radius:2px 2px 1px 1px;background:#E4E4E7}
-.sig b{font:800 11.5px/1 Manrope,sans-serif;color:var(--ink)}
+.sig{grid-area:ring;display:flex;flex-direction:column;align-items:center;gap:2px}
+.sig .bars{display:flex;align-items:flex-end;gap:1.5px;height:12px}
+.sig .bars i{display:block;width:3px;border-radius:1.5px 1.5px 1px 1px;background:#E4E4E7}
+.sig b{font:700 10.5px/1 Manrope,sans-serif;color:var(--muted)}
 .sig.big{flex:0 0 64px;width:64px;gap:5px}
-.sig.big .bars{gap:3px;height:30px}.sig.big .bars i{width:7px;border-radius:3px 3px 1px 1px}
-.sig.big b{font-size:17px}
+.sig.big .bars{gap:2px;height:18px}.sig.big .bars i{width:5px;border-radius:2px 2px 1px 1px}
+.sig.big b{font-size:14px;color:var(--ink)}
 .bcard .r{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bcard b{font-size:14px}
 .bm{font-size:12px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--okbg);color:var(--ok)}
@@ -930,7 +930,7 @@ function bVisible(c){
   return true;
 }
 var SIG_COLORS = ['#E8684A','#F2994A','#F2C94C','#8BC34A','#27AE60'];
-function sigBars(p, big){ var n = Math.max(1, Math.min(5, Math.round(p / 20))), h = big ? [9,14,19,24,30] : [7,11,15,19,23];
+function sigBars(p, big){ var n = Math.max(1, Math.min(5, Math.round(p / 20))), h = big ? [6,9,12,15,18] : [4,6,8,10,12];
   return '<span class="sig'+(big?' big':'')+'" title="'+p+'% match" aria-label="'+p+'% match"><span class="bars">'+h.map(function(x,i){ return '<i style="height:'+x+'px'+(i<n?';background:'+SIG_COLORS[i]:'')+'"></i>'; }).join('')+'</span><b>'+p+'%</b></span>'; }
 function bCard(c){
   var p = bPct(c), tags = [];
