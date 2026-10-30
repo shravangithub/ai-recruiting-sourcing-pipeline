@@ -67,6 +67,11 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.4: more places to find people, all free** (see [`RELEASES/v1.4.md`](RELEASES/v1.4.md)): research
+  papers (industry researchers via OpenAlex), speakers & experts (Sessionize, Google Developer Experts,
+  Microsoft MVPs, AWS Heroes), a veterans-only search, target companies with a Map view, and past
+  candidates who fit a new role, added in one click. Also fixes Google's new hidden result links and
+  keeps each person's company.
 - **v1.3: a smarter Board** (see [`RELEASES/v1.3.md`](RELEASES/v1.3.md)): read a candidate's reply and
   draft an answer with your free calendar slots, send it from Gmail in the same thread; interview
   questions and a scorecard per person; a pulse and reply forecast per role; "what if" counts for each
