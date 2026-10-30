@@ -1179,7 +1179,7 @@ test('R32: research papers come from OpenAlex, as industry researchers in the se
   const [o] = await runNode('Research To Organic', [works], { 'Build Research Query': [q] });
   assert.equal(o.organic.length, 1, 'university and publisher people left out');
   assert.equal(o.organic[0].link, 'https://orcid.org/0000-0001');
-  assert.match(o.organic[0].title, /Asha Rao - Researcher at Kitebase$/);
+  assert.match(o.organic[0].title, /Asha Rao - Researcher - Kitebase$/); assert.match(o.organic[0].snippet, /^Current company: Kitebase\./);
   assert.match(o.organic[0].snippet, /2 recent papers .*2023-2025, cited 14 times/);
   assert.equal((await runNode('Research To Organic', [{ error: 'timeout' }], { 'Build Research Query': [q] }))[0].organic.length, 0);
   assert.equal(await runNode('Parse Contact', [{ profile_url: 'https://orcid.org/0000-0001' }]).then(() => true).catch(() => true), true);

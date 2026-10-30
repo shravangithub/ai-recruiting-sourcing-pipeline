@@ -4492,9 +4492,9 @@ const people = Object.keys(by).map(function(k){ return by[k]; }).sort(function(a
 const organic = people.map(function(x){
   const org = String(x.inst).replace(/\s*\((india|united states|united kingdom|germany|singapore)\)\s*$/i, '');
   const n = x.papers.length;
-  return { title: x.name + ' - Researcher at ' + org,
+  return { title: x.name + ' - Researcher - ' + org,
     link: x.orcid || x.id,
-    snippet: x.name + ' works at ' + org + (q.research_cc ? ', ' + (COUNTRY[q.research_cc] || q.research_cc) : '') + '. ' + n + ' recent paper' + (n === 1 ? '' : 's') + ' on ' + q.research_term +
+    snippet: 'Current company: ' + org + '. Title: Researcher. ' + x.name + ' works at ' + org + (q.research_cc ? ', ' + (COUNTRY[q.research_cc] || q.research_cc) : '') + '. ' + n + ' recent paper' + (n === 1 ? '' : 's') + ' on ' + q.research_term +
       ' (' + Math.min.apply(null, x.years) + '-' + Math.max.apply(null, x.years) + ', cited ' + x.cites + ' times): "' + x.papers.slice(0, 3).join('"; "') + '". Industry researcher; find contact on LinkedIn or the papers.' };
 });
 return [{ json: { organic: organic, source: 'research', results_count: organic.length } }];
