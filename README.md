@@ -67,6 +67,9 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.6: a public apply page for every role** (see [`RELEASES/v1.6.md`](RELEASES/v1.6.md)): open it per role on the Board,
+  share the link, and applicants are scored like everyone else and land in Found, marked Applied.
+  Reaching it from the internet: [`docs/PUBLIC-ACCESS.md`](docs/PUBLIC-ACCESS.md).
 - **v1.5: run it without worrying** (see [`RELEASES/v1.5.md`](RELEASES/v1.5.md)): a Health page that says what
   is stuck and how to fix it (searches, follow-up and first-email jobs, sending limits, bounces,
   channels), a Monday email report for admins, and a backend map ([`docs/BACKEND.md`](docs/BACKEND.md)).

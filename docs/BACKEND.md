@@ -1,6 +1,6 @@
 # How the backend fits together
 
-One n8n workflow, 274 steps, seven ways in. Each "way in" is a trigger; everything it reaches is its
+One n8n workflow, 290 steps, nine ways in. Each "way in" is a trigger; everything it reaches is its
 part of the canvas. When something looks wrong, open **Health** in the app first: it names the part.
 
 | Way in (trigger) | What it does | Steps | Runs |
@@ -13,6 +13,8 @@ part of the canvas. When something looks wrong, open **Health** in the app first
 | **On Candidate Reply** | Spots replies in Gmail and stops follow-ups for that person | 6 | Gmail poll, 15 min |
 | **Weekly Report Schedule** | Emails admins last week's numbers | 11 | Monday 9:17 |
 | **Open Pixel** (`/webhook/sourcing-open`) | Counts opens, only if open tracking is on | 4 | When an email is opened |
+| **Apply Page Hook** (`/webhook/sourcing-apply`) | The public apply page of a role (only when opened on the Board) | 5 | When an applicant opens it |
+| **Apply API Hook** (`/webhook/sourcing-apply-api`) | Checks an application, scores it, adds it to Found | 11 | When someone applies |
 
 \* The search engine is shared: a search from the app and from the form run the same steps
 (Search Criteria → Build Search Query and the source branches → Wait For All Sources → Tag Google
