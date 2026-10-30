@@ -67,6 +67,30 @@ outreach end to end.
 
 ## What's new (October 2026)
 
+- **v1.5: run it without worrying** (see [`RELEASES/v1.5.md`](RELEASES/v1.5.md)): a Health page that says what
+  is stuck and how to fix it (searches, follow-up and first-email jobs, sending limits, bounces,
+  channels), a Monday email report for admins, and a backend map ([`docs/BACKEND.md`](docs/BACKEND.md)).
+- **v1.4: more places to find people, all free** (see [`RELEASES/v1.4.md`](RELEASES/v1.4.md)): research
+  papers (industry researchers via OpenAlex), speakers & experts (Sessionize, Google Developer Experts,
+  Microsoft MVPs, AWS Heroes), a veterans-only search, target companies with a Map view, and past
+  candidates who fit a new role, added in one click. Also fixes Google's new hidden result links and
+  keeps each person's company.
+- **v1.3: a smarter Board** (see [`RELEASES/v1.3.md`](RELEASES/v1.3.md)): read a candidate's reply and
+  draft an answer with your free calendar slots, send it from Gmail in the same thread; interview
+  questions and a scorecard per person; a pulse and reply forecast per role; "what if" counts for each
+  must-have; find more people like your shortlist; warm intros through teammates' past companies; who
+  else is on the board; a `/` command bar; no repeat emails within 90 days; optional open tracking.
+- **v1.2: a team workspace** (see [`RELEASES/v1.2.md`](RELEASES/v1.2.md)):
+  - **Team logins**: each person signs in with their own email and password. Roles are *admin*
+    (manages the team, sending settings and follow-up emails) and *recruiter* (searches, reviews,
+    approves). Passwords are stored as salted PBKDF2-SHA256 in your n8n (Data Table `app_users`),
+    sessions last 7 days, and an activity log records who searched, approved, edited or invited whom.
+    The first admin proves ownership with the old access code once.
+  - **Home**: this week's numbers, what needs your attention (replies, fresh strong matches, bounces),
+    best sources by replies, team activity and a getting-started checklist.
+  - **Settings**: your account and password; team (add people with a one-time password, change roles,
+    reset passwords, turn accounts off); sending (signature, window, daily limit, weekdays only, used
+    by the follow-ups); and connected services with when each last worked.
 - **v1.1: more channels, non-tech roles, a smarter app** (see [`RELEASES/v1.1.md`](RELEASES/v1.1.md)):
   - **10 new sources**: Devfolio, Unstop, Devpost and HackerEarth (hackathons); LeetCode, CodeChef and
     Codeforces (competitive programming, with each Codeforces profile's name, city and rating from

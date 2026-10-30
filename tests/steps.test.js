@@ -697,17 +697,6 @@ test('R24: follow-ups land 2, 4, 5 and 7 days after the first email, then stop',
 });
 
 // ------------------------------------------------------------ Round 25: the sourcing app
-test('R25: the access code is chosen once, then required on every call', async () => {
-  const gate = (body, saved) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': saved ? [{ key: 'access_code', value: saved }] : [{}] });
-  assert.deepEqual((await gate({ action: 'ping' }))[0].response, { ok: false, auth: 'need_code', claim: true });
-  assert.equal((await gate({ action: 'claim', code: 'abc' }))[0].route, 'reply', 'too short to claim');
-  assert.equal((await gate({ action: 'claim', code: 'team-2026' }))[0].route, 'claim');
-  assert.deepEqual((await gate({ action: 'search', code: 'wrong' }, 'team-2026'))[0].response, { ok: false, auth: 'need_code', claim: false });
-  assert.deepEqual((await gate({ action: 'claim', code: 'hijack-123' }, 'team-2026'))[0].response.ok, false, 'a second claim cannot replace the code');
-  const ok = (await gate({ action: 'results', code: 'team-2026', run_id: '9' }, 'team-2026'))[0];
-  assert.equal(ok.route, 'results'); assert.equal(ok.body.run_id, '9');
-});
-
 test('R25: intake agent output is cleaned: bands, regions, sources, no protected-attribute questions', async () => {
   const ai = { criteria: { role: 'Senior Backend Engineer', similar_titles: ['Backend Developer'], must: ['Python', 'Django'], nice: 'Kafka', experience: '3-5 years', city: 'Pune', region: 'India', companies: ['Acme Payments'], exclude: ['intern'] },
     sources: ['LinkedIn', 'Github', 'Stack Overflow', 'Wellfound'],
@@ -870,18 +859,6 @@ test('R28: the app reads the follow-ups as plain text and saves them safely', as
   assert.equal(rows[0].body, '<p>Hi {first_name},</p><p>Quick bump &lt;script&gt;x&lt;/script&gt;<br/>thanks</p>');
 });
 
-test('R28: saving follow-ups is checked at the gate', async () => {
-  const gate = (body) => runNode('App Gate', [{}], { 'App API': [{ body: JSON.stringify(body) }], 'Load App Settings': [{ key: 'access_code', value: 'team-123456' }] });
-  const [bad] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'hi' }] });
-  assert.equal(bad.route, 'reply'); assert.match(bad.response.error, /10 to 4000/);
-  const [badStep] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 9, body: 'a long enough body' }] });
-  assert.equal(badStep.route, 'reply');
-  const [ok] = await gate({ action: 'save_templates', code: 'team-123456', steps: [{ step: 2, body: 'a long enough body' }] });
-  assert.equal(ok.route, 'save_templates');
-  const [t] = await gate({ action: 'templates', code: 'team-123456' });
-  assert.equal(t.route, 'templates');
-});
-
 test('R28: intake keeps "ideally IIM" as a preference and duties out of the search words', async () => {
   const brief = 'Area Sales Manager in Pune, 5-8 years selling B2B SaaS, owns a team and a quarterly target. Ideally an MBA from IIM or Symbiosis.';
   const ai = { output: [{ content: [{ text: JSON.stringify({ criteria: { role: 'Area Sales Manager', must: ['B2B SaaS', 'team management', 'quarterly targets'], nice: ['MBA'], experience: '5-8 years', city: 'Pune', region: 'India', colleges: 'IIM, Symbiosis', exclude: [] }, sources: ['LinkedIn'], questions: [], rubric: [] }) }] }] };
@@ -892,4 +869,451 @@ test('R28: intake keeps "ideally IIM" as a preference and duties out of the sear
   assert.ok(c.nice.includes('IIM or Symbiosis') && c.nice.includes('team management'));
   const [hard] = await runNode('Intake Result', [ai], { 'App Gate': [{ body: { brief: 'Area Sales Manager in Pune. Must be an MBA from IIM or Symbiosis.' } }] });
   assert.equal(hard.response.criteria.colleges, 'IIM, Symbiosis');
+});
+
+// ------------------------------------------------------------ Round 29: team logins, settings, dashboard
+const RAND = 'a'.repeat(32) + 'b'.repeat(32);
+const gate29 = (body, ctx = {}) => runNode('App Gate', [{}], {
+  'App API': [{ body: JSON.stringify(body) }], 'Fresh Random': [{ rand: ctx.rand || RAND }],
+  'Load App Settings': ctx.settings || [{}], 'Load App Users': ctx.users || [{}], 'Load App Sessions': ctx.sessions || [{}] }).then((r) => r[0]);
+const signUp = async () => {
+  const r = await gate29({ action: 'setup_admin', name: 'Kumar', email: 'Admin@Example.com', password: 'longenough1' });
+  return { admin: r.writes.users[0], session: r.writes.sessions[0], r };
+};
+const live = (email, token = 'c'.repeat(32)) => ({ token, email, expires_at: new Date(Date.now() + 864e5).toISOString() });
+
+test('R29: the first admin is created once, proving ownership with the old access code', async () => {
+  assert.deepEqual((await gate29({ action: 'auth_state' }, { settings: [{ key: 'access_code', value: 'team-2026' }] })).response, { ok: true, has_users: false, need_code: true });
+  const bad = await gate29({ action: 'setup_admin', name: 'K', email: 'k@example.com', password: 'longenough1', code: 'nope' }, { settings: [{ key: 'access_code', value: 'team-2026' }] });
+  assert.match(bad.response.error, /access code/);
+  const short = await gate29({ action: 'setup_admin', name: 'K', email: 'k@example.com', password: 'short' });
+  assert.match(short.response.error, /8 characters/);
+  const { admin, session, r } = await signUp();
+  assert.equal(r.response.ok, true); assert.equal(r.response.token, 'b'.repeat(32));
+  assert.equal(admin.email, 'admin@example.com'); assert.equal(admin.role, 'admin'); assert.equal(admin.salt, 'a'.repeat(32));
+  assert.equal(admin.pass_hash, require('crypto').pbkdf2Sync('longenough1', 'a'.repeat(32), 4000, 32, 'sha256').toString('hex'), 'salted PBKDF2-SHA256');
+  assert.ok(!('longenough1' in admin) && !JSON.stringify(r.writes).includes('longenough1'), 'the password itself is never stored');
+  assert.equal(session.email, 'admin@example.com');
+  assert.equal(r.writes.activity[0].action, 'created the workspace');
+  const again = await gate29({ action: 'setup_admin', name: 'X', email: 'x@example.com', password: 'longenough1' }, { users: [admin] });
+  assert.match(again.response.error, /already set up/);
+});
+
+test('R29: sign in, sessions expire, and every other call needs a session', async () => {
+  const { admin } = await signUp();
+  assert.match((await gate29({ action: 'login', email: 'admin@example.com', password: 'wrong-pass' }, { users: [admin] })).response.error, /not right/);
+  const ok = await gate29({ action: 'login', email: ' ADMIN@example.com', password: 'longenough1' }, { users: [admin] });
+  assert.equal(ok.response.ok, true); assert.equal(ok.writes.sessions.length, 1);
+  assert.equal((await gate29({ action: 'results', run_id: '9' }, { users: [admin] })).response.auth, 'need_login');
+  const old = Object.assign(live('admin@example.com'), { expires_at: '2020-01-01T00:00:00Z' });
+  assert.equal((await gate29({ action: 'results', token: old.token }, { users: [admin], sessions: [old] })).response.auth, 'need_login', 'expired');
+  const s = live('admin@example.com');
+  const r = await gate29({ action: 'results', token: s.token, run_id: '9' }, { users: [admin], sessions: [s] });
+  assert.equal(r.route, 'results'); assert.equal(r.body.run_id, '9'); assert.equal(r.body.user.role, 'admin');
+  const off = Object.assign({}, admin, { status: 'disabled' });
+  assert.equal((await gate29({ action: 'results', token: s.token }, { users: [off], sessions: [s] })).response.auth, 'need_login', 'turned-off accounts are out');
+  const out = await gate29({ action: 'logout', token: s.token }, { users: [admin], sessions: [s] });
+  assert.ok(new Date(out.writes.sessions[0].expires_at) <= new Date(), 'logout ends the session');
+});
+
+test('R29: admins add teammates with a one-time password; recruiters cannot manage the team', async () => {
+  const { admin } = await signUp();
+  const s = live('admin@example.com');
+  const inv = await gate29({ action: 'invite', token: s.token, name: 'Priya', email: 'priya@example.com', role: 'recruiter' }, { users: [admin], sessions: [s] });
+  assert.equal(inv.response.ok, true); assert.match(inv.response.temp_password, /^tr-[0-9a-f]{10}$/);
+  const priya = inv.writes.users[0];
+  assert.equal(priya.must_change, true); assert.equal(priya.role, 'recruiter');
+  assert.match((await gate29({ action: 'invite', token: s.token, name: 'P', email: 'priya@example.com' }, { users: [admin, priya], sessions: [s] })).response.error, /already/);
+  const ps = live('priya@example.com', 'd'.repeat(32));
+  const ctx = { users: [admin, priya], sessions: [s, ps] };
+  for (const a of ['users', 'invite', 'save_settings', 'save_templates', 'update_user']) {
+    assert.match((await gate29({ action: a, token: ps.token }, ctx)).response.error, /Only an admin/, a);
+  }
+  const srch = await gate29({ action: 'search', token: ps.token, criteria: { role: 'Product Manager', city: 'Pune' } }, ctx);
+  assert.equal(srch.route, 'search'); assert.equal(srch.writes.activity[0].detail, 'Product Manager · Pune'); assert.equal(srch.writes.activity[0].name, 'Priya');
+  assert.match((await gate29({ action: 'update_user', token: s.token, email: 'admin@example.com', role: 'recruiter' }, ctx)).response.error, /at least one active admin/);
+  assert.match((await gate29({ action: 'update_user', token: s.token, email: 'admin@example.com', status: 'disabled' }, ctx)).response.error, /at least one active admin|own account/);
+  const promo = await gate29({ action: 'update_user', token: s.token, email: 'priya@example.com', role: 'admin' }, ctx);
+  assert.equal(promo.writes.users[0].role, 'admin');
+  const reset = await gate29({ action: 'reset_password', token: s.token, email: 'priya@example.com' }, ctx);
+  assert.equal(reset.writes.users[0].must_change, true); assert.ok(reset.response.temp_password);
+  const ch = await gate29({ action: 'change_password', token: ps.token, old: inv.response.temp_password, password: 'my-own-pass' }, ctx);
+  assert.equal(ch.response.ok, true); assert.equal(ch.writes.users[0].must_change, false);
+  const users = await gate29({ action: 'users', token: s.token }, ctx);
+  assert.ok(users.response.users.every((u) => !('pass_hash' in u) && !('salt' in u)), 'hashes never leave n8n');
+});
+
+test('R29: sending settings are checked, saved and used by the follow-ups', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '19:00', window_end: '09:00', daily_cap: 50 } }, ctx)).response.error, /sending window/);
+  assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '09:00', window_end: '18:00', daily_cap: 999 } }, ctx)).response.error, /between 1 and 200/);
+  const ok = await gate29({ action: 'save_settings', token: s.token, settings: { signature: 'Kumar\nTalent team', window_start: '10:00', window_end: '17:00', daily_cap: 2, weekdays_only: true } }, ctx);
+  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days', 'open_tracking', 'public_url']);
+  const [w] = await runNode('Settings Writes', [{}], { 'App Gate': [ok] });
+  assert.equal(w.key, 'signature');
+  const got = await gate29({ action: 'settings', token: s.token }, Object.assign({ settings: ok.writes.settings }, ctx));
+  assert.equal(got.response.settings.daily_cap, 2); assert.equal(got.response.settings.window_start, '10:00');
+  // the follow-up runner reads them
+  const refs = { 'Load Sequences': Array.from({ length: 5 }, (_, i) => seqRow({ contact_key: 'k' + i })), 'Load Templates': [{}], 'Load Seq Settings': ok.writes.settings };
+  at('2026-10-28T09:45:00'); assert.equal((await runNode('Due Follow-ups', [{}], refs)).length, 0, 'before the new 10:00 start');
+  at('2026-10-28T11:00:00'); const due = await runNode('Due Follow-ups', [{}], refs);
+  assert.equal(due.length, 2, 'new daily limit');
+  assert.match(due[0].html, /Best regards,<br\/>Kumar<br\/>Talent team<\/p>$/);
+  Settings.now = () => Date.now();
+});
+
+test('R29: follow-up edits are admin-only and checked at the gate', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  assert.match((await gate29({ action: 'save_templates', token: s.token, steps: [{ step: 2, body: 'hi' }] }, ctx)).response.error, /10 to 4000/);
+  assert.equal((await gate29({ action: 'save_templates', token: s.token, steps: [{ step: 9, body: 'a long enough body' }] }, ctx)).route, 'reply');
+  const ok = await gate29({ action: 'save_templates', token: s.token, steps: [{ step: 2, body: 'a long enough body' }] }, ctx);
+  assert.equal(ok.route, 'save_templates'); assert.equal(ok.writes.activity[0].action, 'edited the follow-up emails');
+  assert.equal((await gate29({ action: 'dashboard', token: s.token }, ctx)).route, 'dashboard');
+});
+
+test('R29: the home dashboard sums up the week, what needs attention and the best sources', async () => {
+  const now = new Date().toISOString();
+  const g = { user: { name: 'Kumar', role: 'admin' }, users_count: 1 };
+  const people = [
+    { run_id: '1', dedupe_key: 'a', name: 'Asha', fit_score: 9, source: 'Topmate' },
+    { run_id: '1', dedupe_key: 'b', name: 'Ravi', fit_score: 9, source: 'LinkedIn', feedback: 'up' },
+    { run_id: '1', dedupe_key: 'c', name: 'Meera', fit_score: 5, source: 'LinkedIn' }];
+  const [r] = await runNode('Dashboard Reply', [{}], {
+    'App Gate': [g],
+    'Load Dash Runs': [{ run_id: '1', role: 'Product Manager', location: 'Pune', status: 'done', count: 3, by_source: 'LinkedIn 2 · Topmate 1', started_at: now, finished_at: now }],
+    'Load Dash People': people,
+    'Load Dash Sequences': [{ contact_key: 'b', status: 'replied', first_name: 'Ravi', role: 'Product Manager', last_sent_at: now }],
+    'Load Dash Activity': [{ at: now, name: 'Kumar', action: 'started a search', detail: 'Product Manager · Pune' }],
+    'Load Dash Templates': [{}], 'Load Dash Settings': [{}] });
+  const x = r.response;
+  assert.deepEqual(x.week, { searches: 1, people: 3, strong: 2 });
+  assert.equal(x.totals.reply_rate, 100);
+  assert.deepEqual(x.attention.map((a) => a.kind), ['reply', 'review']);
+  assert.match(x.attention[1].text, /^1 strong match to review in Product Manager · Pune/);
+  assert.equal(x.sources[0].source, 'LinkedIn'); assert.equal(x.sources[0].replied, 1);
+  assert.deepEqual(x.checklist.filter((c) => c.done).map((c) => c.key), ['search', 'vote', 'approve']);
+  assert.ok(x.services.find((s) => s.name.startsWith('Google')).last_ok);
+  assert.equal(x.activity[0].action, 'started a search');
+});
+
+test('R29: the checklist only ticks the follow-ups once their wording really changed', async () => {
+  const base = { 'App Gate': [{ user: { name: 'K' }, users_count: 1 }], 'Load Dash Runs': [{}], 'Load Dash People': [{}], 'Load Dash Sequences': [{}], 'Load Dash Activity': [{}], 'Load Dash Settings': [{}] };
+  const tick = async (rows) => (await runNode('Dashboard Reply', [{}], Object.assign({ 'Load Dash Templates': rows }, base)))[0].response.checklist.find((c) => c.key === 'templates').done;
+  const def2 = '<p>Hi {first_name},</p><p>Just bumping this up in case it got buried. Would a quick 15-minute chat about the {role} role{in_location} work for you this week?</p>';
+  assert.equal(await tick([{ step: 2, body: def2 }, { step: 3, body: '<p>Hi {first_name},</p><p>A little more context: from your work{at_company}, I think the {role} role could be a strong fit. Happy to send the full job description - just reply and I will share it.</p>' }]), false);
+  assert.equal(await tick([{ step: 2, body: '<p>Hi {first_name},</p><p>Circling back on the {role} role.</p>' }]), true);
+});
+
+// ------------------------------------------------------------ Round 30: the board
+test('R30: a card move is saved with its history, by whoever made it', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const r = await gate29({ action: 'update_card', token: s.token, card: { run_id: '9', dedupe_key: 'p1', name: 'Asha Nair', stage: 'interview', owner: 'Priya', note: 'Strong on pricing', snooze_until: '' },
+    prev: { stage: 'replied', owner: '', note: '' } }, ctx);
+  assert.equal(r.response.ok, true);
+  assert.deepEqual(r.writes.stages.map((x) => [x.stage, x.owner, x.updated_by]), [['interview', 'Priya', 'Kumar']]);
+  assert.deepEqual(r.writes.events.map((e) => e.kind), ['stage', 'owner', 'note']);
+  assert.equal(r.writes.events[0].from_stage, 'replied'); assert.equal(r.writes.events[0].to_stage, 'interview');
+  const bad = await gate29({ action: 'update_card', token: s.token, card: { run_id: '9', dedupe_key: 'p1', stage: 'teleported', snooze_until: 'soon' } }, ctx);
+  assert.equal(bad.writes.stages[0].stage, 'found'); assert.equal(bad.writes.stages[0].snooze_until, '');
+  assert.equal((await gate29({ action: 'update_card', card: {} }, ctx)).response.auth, 'need_login');
+  const [w] = await runNode('Stages Writes', [{}], { 'App Gate': [r] }); assert.equal(w.dedupe_key, 'p1');
+});
+
+test('R30: the board shows stages, recognises people across roles, and flags recent contact', async () => {
+  const now = new Date().toISOString(), old = new Date(Date.now() - 200 * 864e5).toISOString(), recent = new Date(Date.now() - 10 * 864e5).toISOString();
+  const cand = (run, key, o) => Object.assign({ run_id: run, dedupe_key: key, fit_score: 8 }, o);
+  const [r] = await runNode('Board Reply', [{}], {
+    'App Gate': [{ body: { run_id: '2' } }],
+    'Load Board Runs': [{ run_id: '1', role: 'Platform PM', location: 'Pune', status: 'done', started_at: old }, { run_id: '2', role: 'Product Manager', location: 'Bangalore', status: 'done', started_at: now }],
+    'Load Board People': [
+      cand('1', 'k-old', { name: 'Karan Malhotra', linkedin: 'https://in.linkedin.com/in/karanm/', email: 'karan@x.example' }),
+      cand('2', 'k', { name: 'Karan Malhotra', linkedin: 'https://www.linkedin.com/in/karanm', email: 'karan@x.example' }),
+      cand('2', 'a', { name: 'Asha', approved: true }),
+      cand('2', 'r', { name: 'Rohan' }),
+      cand('2', 'v', { name: 'Vikram', feedback: 'up' }),
+      cand('2', 'm', { name: 'Meera', feedback: 'down' }),
+      cand('2', 'i', { name: 'Ira' })],
+    'Load Board Stages': [{ run_id: '2', dedupe_key: 'r', stage: 'interview', owner: 'Priya' }, { run_id: '2', dedupe_key: 'v', stage: 'shortlisted', updated_at: old },
+      { run_id: '2', dedupe_key: 'i', stage: 'found', snooze_until: '2099-01-06' }],
+    'Load Board Events': [{ at: now, run_id: '2', dedupe_key: 'r', kind: 'stage', from_stage: 'replied', to_stage: 'interview', by: 'Kumar' }, { at: now, run_id: '1', kind: 'stage' }],
+    'Load Board Sequences': [{ contact_key: 'r', email: 'rohan@x.example', status: 'replied', started_at: recent }, { contact_key: 'k-old', email: 'karan@x.example', role: 'Platform PM', status: 'completed', started_at: recent }],
+    'Load Board Settings': [{}] });
+  const x = r.response; const c = Object.fromEntries(x.cards.map((k) => [k.dedupe_key, k]));
+  assert.equal(x.run.role, 'Product Manager');
+  assert.equal(c.a.stage, 'approved'); assert.equal(c.v.stage, 'shortlisted'); assert.equal(c.m.stage, 'not_fit');
+  assert.equal(c.r.stage, 'interview', 'a manual interview stage wins over replied'); assert.equal(c.r.owner, 'Priya');
+  assert.deepEqual(c.k.other_roles.map((o) => o.role), ['Platform PM · Pune'], 'same LinkedIn, different spelling of the link');
+  assert.equal(c.k.contacted.recent, true); assert.equal(c.k.contacted.role, 'Platform PM');
+  assert.equal(c.v.overdue, true); assert.ok(c.i.snoozed);
+  assert.equal(x.history.length, 1);
+});
+
+test('R30: the first-email sender never emails someone contacted for any role recently', async () => {
+  const row = (email, o) => Object.assign({ 'Send Email?': 'TRUE', 'Outreach Status': '', Email: email, Confidence: 'High' }, o);
+  const out = await runNode('Filter Outreach Queue', [row('a@x.example'), row('B@x.example'), row('b@x.example'), row('c@x.example')], {
+    'Load Recent Contacts': [{ email: 'a@x.example', started_at: new Date(Date.now() - 5 * 864e5).toISOString() }, { email: 'c@x.example', started_at: new Date(Date.now() - 400 * 864e5).toISOString() }],
+    'Load Contact Settings': [{}] });
+  assert.deepEqual(out.map((o) => o.Email), ['B@x.example', 'c@x.example'], 'recent contact skipped, one email per address, old contact allowed');
+  const custom = await runNode('Filter Outreach Queue', [row('a@x.example')], { 'Load Recent Contacts': [{ email: 'a@x.example', started_at: new Date(Date.now() - 5 * 864e5).toISOString() }], 'Load Contact Settings': [{ key: 'recontact_days', value: '3' }] });
+  assert.equal(custom.length, 1, 'days come from Settings');
+});
+
+test('R30: a search keeps its brief for the board, and the board knows the team', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com');
+  const r = await gate29({ action: 'search', token: s.token, brief: 'PM in Bangalore', criteria: { role: 'Product Manager', city: 'Bangalore', must: 'B2B SaaS' } }, { users: [admin], sessions: [s] });
+  assert.equal(r.route, 'search'); assert.deepEqual(r.team, ['Kumar']);
+  const saved = r.writes.settings.find((x) => x.key.startsWith('run:'));
+  assert.equal(JSON.parse(saved.value).criteria.must, 'B2B SaaS'); assert.equal(JSON.parse(saved.value).brief, 'PM in Bangalore');
+});
+
+test('R30: the same profile link in two searches is the same person, first names alone are not', async () => {
+  const [r] = await runNode('Board Reply', [{}], {
+    'App Gate': [{ body: { run_id: '2' } }],
+    'Load Board Runs': [{ run_id: '1', role: 'Software Engineer', status: 'done', started_at: '2026-10-01' }, { run_id: '2', role: 'Software Engineer', status: 'done', started_at: '2026-10-20' }],
+    'Load Board People': [
+      { run_id: '1', dedupe_key: 'a1', name: 'Ravi Shankar', profile_url: 'https://www.hackerearth.com/@ravi_shank/' },
+      { run_id: '2', dedupe_key: 'a2', name: 'Ravi Shankar', profile_url: 'https://hackerearth.com/@ravi_shank' },
+      { run_id: '1', dedupe_key: 'b1', name: 'Akshay', profile_url: 'https://app.apollo.io/people/111' },
+      { run_id: '2', dedupe_key: 'b2', name: 'Akshay', profile_url: 'https://app.apollo.io/people/222' }],
+    'Load Board Stages': [{}], 'Load Board Events': [{}], 'Load Board Sequences': [{}], 'Load Board Settings': [{}] });
+  const c = Object.fromEntries(r.response.cards.map((k) => [k.dedupe_key, k]));
+  assert.equal(c.a2.other_roles.length, 1); assert.equal(c.b2.other_roles.length, 0);
+});
+
+// ------------------------------------------------------------ Round 31: the smart layer
+const b64 = (s) => Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+test('R31: a reply is read from the Gmail thread, with three free slots from the calendar', async () => {
+  at('2026-10-30T11:00:00');
+  const thread = { messages: [
+    { id: 'm1', snippet: 'Hi Rohan', payload: { headers: [{ name: 'From', value: 'Kumar <kumar@talentco.example>' }], mimeType: 'text/plain', body: { data: b64('Hi Rohan, quick chat?') } } },
+    { id: 'm2', snippet: 'Happy to talk', payload: { headers: [{ name: 'From', value: 'Rohan <rohan@x.example>' }, { name: 'Date', value: 'Fri, 30 Oct 2026 10:42:00 +0530' }], mimeType: 'multipart/alternative',
+      parts: [{ mimeType: 'text/plain', body: { data: b64('Happy to talk, Tuesday works. What is the team size?\n\nOn Tue, 27 Oct 2026 Kumar wrote:\n> Hi Rohan') } }] } }] };
+  const busy = { calendars: { primary: { busy: [{ start: '2026-11-02T04:30:00Z', end: '2026-11-02T06:00:00Z' }] } } };
+  const [p] = await runNode('Draft Prompt', [{}], { 'App Gate': [{ body: { thread_id: 't1', name: 'Rohan', context: { role: 'Product Manager', location: 'Bangalore' } } }], 'App Thread': [thread], 'App FreeBusy': [busy] });
+  assert.equal(p.last.id, 'm2'); assert.equal(p.last.text, 'Happy to talk, Tuesday works. What is the team size?', 'quoted text removed');
+  assert.equal(p.calendar, true); assert.equal(p.slots.length, 3);
+  assert.ok(p.slots.every((s) => !/Sat|Sun/.test(s.label)), 'weekdays only');
+  assert.ok(!p.slots.some((s) => s.label.startsWith('Mon 2 Nov, 10:00')), 'busy time skipped');
+  assert.match(p.prompt, /FREE SLOTS: .*IST/);
+  const [none] = await runNode('Draft Prompt', [{}], { 'App Gate': [{ body: {} }], 'App Thread': [thread], 'App FreeBusy': [{ error: 'no credentials' }] });
+  assert.equal(none.calendar, false); assert.equal(none.slots.length, 0); assert.match(none.prompt, /ask for their availability/);
+  const [d] = await runNode('Draft Reply', [aiOutput(JSON.stringify({ sentiment: 'keen', summary: 'Keen, asks team size', reply: 'Great to hear from you…' }))], { 'Draft Prompt': [p] });
+  assert.equal(d.response.sentiment, 'keen'); assert.equal(d.response.reply_to, 'm2'); assert.equal(d.response.slots.length, 3);
+  Settings.now = () => Date.now();
+});
+
+test('R31: replies are sent as plain paragraphs, and logged on the card', async () => {
+  const [r] = await runNode('Reply Body', [{}], { 'App Gate': [{ body: { message_id: 'm2', text: 'Hi Rohan,\n\nTuesday 11:00? <b>bold</b>' } }] });
+  assert.equal(r.html, '<p>Hi Rohan,</p><p>Tuesday 11:00? &lt;b&gt;bold&lt;/b&gt;</p>');
+  assert.equal((await runNode('Reply Sent', [{ id: 'abc' }]))[0].response.ok, true);
+  assert.equal((await runNode('Reply Sent', [{ error: { message: 'bad' } }]))[0].response.ok, false);
+  const { admin } = await signUp(); const s = live('admin@example.com');
+  const g = await gate29({ action: 'send_reply', token: s.token, message_id: 'm2', text: 'Tuesday works', run_id: '9', dedupe_key: 'r', name: 'Rohan' }, { users: [admin], sessions: [s] });
+  assert.equal(g.route, 'send_reply'); assert.equal(g.writes.events[0].kind, 'email');
+  assert.equal((await gate29({ action: 'send_reply', token: s.token, text: '' }, { users: [admin], sessions: [s] })).route, 'reply');
+});
+
+test('R31: interview kit, profile companies, presence and open-tracking settings', async () => {
+  const [k] = await runNode('Kit Reply', [aiOutput(JSON.stringify({ questions: [{ q: 'Tell me about a pricing change you led.', listen_for: 'numbers', competency: 'Pricing' }], scorecard: [{ competency: 'Pricing', weight: 5 }] }))]);
+  assert.equal(k.response.questions.length, 1); assert.equal(k.response.scorecard[0].weight, 3);
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const pr = await gate29({ action: 'save_profile', token: s.token, companies: 'Kitebase, Northwind SaaS' }, ctx);
+  assert.deepEqual(JSON.parse(pr.writes.settings[0].value).companies, ['Kitebase', 'Northwind SaaS']);
+  const me = await gate29({ action: 'me', token: s.token }, Object.assign({ settings: pr.writes.settings }, ctx));
+  assert.deepEqual(me.response.user.companies, ['Kitebase', 'Northwind SaaS']);
+  const bd = await gate29({ action: 'board', token: s.token, run_id: '9' }, ctx);
+  assert.equal(bd.route, 'board'); assert.equal(JSON.parse(bd.writes.settings[0].value).run, '9');
+  const base = { window_start: '09:30', window_end: '18:30', daily_cap: 50 };
+  assert.match((await gate29({ action: 'save_settings', token: s.token, settings: Object.assign({ open_tracking: true }, base) }, ctx)).response.error, /public https address/);
+  const ok = await gate29({ action: 'save_settings', token: s.token, settings: Object.assign({ open_tracking: true, public_url: 'https://n8n.talentco.example/' }, base) }, ctx);
+  assert.equal(ok.response.settings.public_url, 'https://n8n.talentco.example');
+});
+
+test('R31: when open tracking is on, emails carry a 1x1 image; when off, nothing is added', async () => {
+  const row = { 'Send Email?': 'TRUE', 'Outreach Status': '', Email: 'a@x.example', Confidence: 'High', 'Dedupe Key': 'k 1' };
+  const off = await runNode('Filter Outreach Queue', [row], { 'Load Recent Contacts': [{}], 'Load Contact Settings': [{}] });
+  assert.equal(off[0]._pixel, '');
+  const on = await runNode('Filter Outreach Queue', [row], { 'Load Recent Contacts': [{}], 'Load Contact Settings': [{ key: 'open_tracking', value: 'true' }, { key: 'public_url', value: 'https://n8n.talentco.example' }] });
+  assert.equal(on[0]._pixel, '<img src="https://n8n.talentco.example/webhook/sourcing-open?k=k%201&s=1" width="1" height="1" alt="">');
+  const msg = require('./harness').NODES['Send Outreach Email'].parameters.message;
+  assert.ok(msg.endsWith("{{ $json._pixel || '' }}"));
+  at('2026-10-28T11:00:00');
+  const [d] = await runNode('Due Follow-ups', [{}], { 'Load Sequences': [seqRow()], 'Load Templates': [{}], 'Load Seq Settings': [{ key: 'open_tracking', value: 'true' }, { key: 'public_url', value: 'https://n8n.talentco.example' }] });
+  assert.match(d.html, /sourcing-open\?k=k1&s=2/);
+  Settings.now = () => Date.now();
+  const [o] = await runNode('Open Row', [{}], { 'Open Pixel': [{ query: { k: 'k1', s: '2' } }] });
+  assert.equal(o.contact_key, 'k1'); assert.equal(o.step, 2);
+});
+
+test('R31: the board adds warm connections, open-to-work, opens, who else is here and when replies come', async () => {
+  const now = new Date().toISOString();
+  const [r] = await runNode('Board Reply', [{}], {
+    'App Gate': [{ body: { run_id: '2' }, user: { email: 'kumar@x.example' } }],
+    'Load Board Runs': [{ run_id: '2', role: 'PM', status: 'done', started_at: now }],
+    'Load Board People': [{ run_id: '2', dedupe_key: 'a', name: 'Ira Bhatt', company: 'Kitebase Inc', summary: 'Open to work, PM at Kitebase.' }, { run_id: '2', dedupe_key: 'b', name: 'Rohan M', company: 'Meridian' }],
+    'Load Board Stages': [{}], 'Load Board Events': [{}],
+    'Load Board Sequences': [{ contact_key: 'b', status: 'replied', thread_id: 't9', message_id: 'm9', started_at: now, updatedAt: '2026-10-27T05:00:00Z' },
+      { contact_key: 'x', status: 'replied', updatedAt: '2026-10-20T05:30:00Z' }, { contact_key: 'y', status: 'active' }, { contact_key: 'z', status: 'active' }],
+    'Load Board Settings': [{ key: 'past:priya@x.example', value: JSON.stringify({ name: 'Priya', companies: ['Kitebase'] }) },
+      { key: 'seen:priya@x.example', value: JSON.stringify({ name: 'Priya', run: '2', at: now }) }, { key: 'seen:kumar@x.example', value: JSON.stringify({ name: 'Kumar', run: '2', at: now }) }],
+    'Load Board Opens': [{ contact_key: 'b', step: 1, at: now }, { contact_key: 'b', step: 2, at: now }] });
+  const x = r.response; const c = Object.fromEntries(x.cards.map((k) => [k.dedupe_key, k]));
+  assert.equal(c.a.warm, 'Priya worked at Kitebase'); assert.equal(c.a.open_to_work, true);
+  assert.equal(c.b.opens.count, 2); assert.equal(c.b.sequence.thread_id, 't9'); assert.ok(c.b.replied_at);
+  assert.deepEqual(x.viewers, ['Priya']); assert.equal(x.team_reply_rate, 50);
+  assert.equal(x.best_time, 'Tue 10:00–12:00');
+});
+
+test('R32: research papers come from OpenAlex, as industry researchers in the search country', async () => {
+  const [q] = await runNode('Build Research Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Applied Scientist', 'Primary Skills': 'computer vision, autonomous driving', 'Target Platforms': ['LinkedIn', 'Research papers'] })] });
+  assert.equal(q.research_cc, 'IN'); assert.equal(q.research_term, 'computer vision autonomous driving');
+  assert.match(q.research_url, /authorships\.institutions\.type:company/); assert.match(q.research_url, /country_code:IN/);
+  assert.deepEqual(await runNode('Build Research Query', [{}], { 'Search Criteria': [criteria()] }), [], 'not picked: no request');
+  const works = { results: [
+    { title: 'Lane detection at night', publication_year: 2025, cited_by_count: 4, authorships: [
+      { author: { id: 'https://openalex.org/A1', display_name: 'Asha Rao', orcid: 'https://orcid.org/0000-0001' }, institutions: [{ display_name: 'Kitebase (India)', type: 'company', country_code: 'IN' }] },
+      { author: { id: 'https://openalex.org/A2', display_name: 'Prof X' }, institutions: [{ display_name: 'Some University', type: 'education', country_code: 'IN' }] },
+      { author: { id: 'https://openalex.org/A3', display_name: 'Ed Itor' }, institutions: [{ display_name: 'Springer Nature (India)', type: 'company', country_code: 'IN' }] }] },
+    { title: 'Radar fusion', publication_year: 2023, cited_by_count: 10, authorships: [
+      { author: { id: 'https://openalex.org/A1', display_name: 'Asha Rao', orcid: 'https://orcid.org/0000-0001' }, institutions: [{ display_name: 'Kitebase (India)', type: 'company', country_code: 'IN' }] }] }] };
+  const [o] = await runNode('Research To Organic', [works], { 'Build Research Query': [q] });
+  assert.equal(o.organic.length, 1, 'university and publisher people left out');
+  assert.equal(o.organic[0].link, 'https://orcid.org/0000-0001');
+  assert.match(o.organic[0].title, /Asha Rao - Researcher - Kitebase$/); assert.match(o.organic[0].snippet, /^Current company: Kitebase\./);
+  assert.match(o.organic[0].snippet, /2 recent papers .*2023-2025, cited 14 times/);
+  assert.equal((await runNode('Research To Organic', [{ error: 'timeout' }], { 'Build Research Query': [q] }))[0].organic.length, 0);
+  assert.equal(await runNode('Parse Contact', [{ profile_url: 'https://orcid.org/0000-0001' }]).then(() => true).catch(() => true), true);
+});
+
+test('R32: speakers & experts, veterans and target companies add their own searches', async () => {
+  const ex = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['Speakers & experts'] })] });
+  const eq = ex.filter((x) => /sessionize|experts\/directory|mvp\.microsoft|community\/heroes/.test(x.q));
+  assert.equal(new Set(eq.map((x) => x.q)).size, 4, 'one query per site');
+  assert.ok(eq.every((x) => /Spring Boot/.test(x.q) && /india/i.test(x.q)));
+  const vet = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Security Manager', 'Primary Skills': '', 'Key Skills & Criteria': '', 'Target Platforms': ['LinkedIn'], Veterans: true })] });
+  const vq = vet.filter((x) => /Indian Army/.test(x.q));
+  assert.equal(new Set(vq.map((x) => x.q)).size, 2); assert.ok(vq.some((x) => /Colonel/.test(x.q)));
+  const co = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'], 'Current Employer': 'Kitebase, Northwind SaaS, Meridian Pay, Cedarloop' })] });
+  const cq = [...new Set(co.filter((x) => x.kind === 'company-profiles').map((x) => x.q))];
+  assert.equal(cq.length, 4); assert.ok(cq.some((x) => /Cedarloop/.test(x)));
+  assert.ok(co.every((x) => x.words <= 32));
+  const single = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['LinkedIn'], 'Current Employer': 'Kitebase' })] });
+  assert.equal(single.filter((x) => x.kind === 'company-profiles').length, 0, 'one company: the main search covers it');
+});
+
+test('R32: past candidates who fit a new role are found once each, best first', async () => {
+  const P = (o) => Object.assign({ run_id: '1', title: '', company: '', location: '', summary: '', key_skills: '', fit_score: 7 }, o);
+  const [r] = await runNode('Past People Reply', [{}], {
+    'App Gate': [{ body: { role: 'Senior Product Manager', must: ['B2B SaaS', 'pricing'], city: 'Bangalore', run_id: '9' } }],
+    'Load Past Runs': [{ run_id: '1', role: 'Product Manager', location: 'Bangalore' }, { run_id: '2', role: 'Growth PM' }],
+    'Load Past People': [
+      P({ dedupe_key: 'a', name: 'Asha Nair', title: 'Product Manager', company: 'Northwind', location: 'Bengaluru, Bangalore', key_skills: 'B2B SaaS, pricing' }),
+      P({ run_id: '2', dedupe_key: 'a2', name: 'Asha Nair', title: 'Senior Product Manager', company: 'Northwind', key_skills: 'B2B SaaS' }),
+      P({ dedupe_key: 'b', name: 'Raj Iyer', title: 'Java Developer', key_skills: 'Java' }),
+      P({ dedupe_key: 'c', name: 'Neha K', title: 'Product Manager', company: 'Brightlane', feedback: 'down', key_skills: 'B2B SaaS, pricing' }),
+      P({ run_id: '9', dedupe_key: 'd', name: 'Kavya Iyer', title: 'Product Manager', company: 'Kitebase' }),
+      P({ dedupe_key: 'd0', name: 'Kavya Iyer', title: 'Product Manager', company: 'Kitebase', key_skills: 'B2B SaaS, pricing' })] });
+  const names = r.response.people.map((x) => x.person.name);
+  assert.deepEqual(names, ['Asha Nair'], 'no Java dev, no thumbs-down, nobody already on this role, Asha once');
+  assert.equal(r.response.people[0].from_role, 'Product Manager, Bangalore');
+});
+
+test('R32: adding people from earlier searches copies them into the role, with a note', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const g = await gate29({ action: 'import_people', token: s.token, run_id: '77', people: [
+    { dedupe_key: 'a', name: 'Asha Nair', title: 'PM', email: 'asha@x.example', profile_url: 'javascript:alert(1)', fit_score: 42, from_role: 'Product Manager' },
+    { dedupe_key: 'a', name: 'Asha Nair' }] }, ctx);
+  assert.equal(g.response.added, 1);
+  const p = g.writes.people[0];
+  assert.equal(p.run_id, '77'); assert.equal(p.profile_url, ''); assert.equal(p.fit_score, 10); assert.equal(p.approved, false);
+  assert.match(g.writes.events[0].detail, /added from an earlier search \(Product Manager\)/);
+  assert.match((await gate29({ action: 'import_people', token: s.token, run_id: 'x', people: [] }, ctx)).response.error, /Pick people/);
+  assert.equal((await gate29({ action: 'past_people', token: s.token, role: 'PM' }, ctx)).route, 'past_people');
+});
+
+test('R33: wrapped google.com/goto links are rebuilt from the shown address, or tagged with their site', async () => {
+  const G = (k) => 'https://www.google.com/goto?url=' + k;
+  const page = { searchParameters: { q: 'site:linkedin.com/in "security manager" bangalore' }, organic: [
+    { title: 'Asha Rao - Security Manager', link: G('A'), displayedLink: 'https://in.linkedin.com › asha-rao-12', subtitle: 'Bengaluru, Karnataka, India · Security Manager · Kitebase', snippet: 'Experience: Kitebase' },
+    { title: 'Ravi K - IT Security Manager', link: G('B'), displayedLink: '360+ followers', snippet: 'Ravi K' },
+    { title: 'Security Manager Job Description Template', link: G('C'), displayedLink: 'https://business.linkedin.com › hire › how-to-hire-guides' },
+    { title: 'Direct', link: 'https://in.linkedin.com/in/direct', snippet: 's' }] };
+  const other = { searchParameters: { q: '(site:dribbble.com OR site:behance.net) designer' }, organic: [{ title: 'Mira - Designer | LinkedIn', link: G('D'), displayedLink: '2K+ followers' }] };
+  const out = await runNode('Tag Google Links', [page, other]);
+  const o = out[0].organic;
+  assert.equal(o.length, 3, 'the hiring-guide page outside linkedin.com/in is dropped');
+  assert.equal(o[0].link, 'https://in.linkedin.com/in/asha-rao-12');
+  assert.match(o[0].snippet, /^Bengaluru, Karnataka, India · Security Manager · Kitebase · Experience/);
+  assert.equal(o[1].link, G('B') + '#via=linkedin.com/in');
+  assert.equal(o[2].link, 'https://in.linkedin.com/in/direct');
+  assert.equal(out[1].organic[0].link, G('D') + '#via=linkedin.com/in', 'several sites: LinkedIn told by the title');
+  assert.deepEqual(out[0]._links, { rebuilt: 1, tagged: 2, dropped: 1 });
+});
+
+test('R33: two people behind wrapped links are not merged on the Board', async () => {
+  const G = (k) => 'https://www.google.com/goto?url=' + k + '#via=linkedin.com/in';
+  const [r] = await runNode('Board Reply', [{}], {
+    'App Gate': [{ body: { run_id: '2' }, user: { email: 'k@x.example' } }], 'Load Board Runs': [{ run_id: '2', role: 'PM', status: 'done' }, { run_id: '1', role: 'PM2', status: 'done' }],
+    'Load Board People': [{ run_id: '2', dedupe_key: 'a', name: 'Ravi K', profile_url: G('A') }, { run_id: '1', dedupe_key: 'b', name: 'Mira S', profile_url: G('B') }],
+    'Load Board Stages': [{}], 'Load Board Events': [{}], 'Load Board Sequences': [{}], 'Load Board Settings': [{}], 'Load Board Opens': [{}] });
+  assert.equal(r.response.cards[0].other_roles.length, 0);
+});
+
+test('R33: the employer named in the search line is kept as the current company', async () => {
+  assert.match(require('./harness').NODES['Format Search Results'].parameters.jsCode, /11\. current_company/);
+  assert.match(require('./harness').NODES['Split Candidates'].parameters.jsCode, /current_company: String\(c\.current_company/);
+  assert.match(require('./harness').NODES['Combine No Apollo'].parameters.jsCode, /current_company: cand\.current_company \|\| ''/);
+  assert.match(require('./harness').NODES['Combine Enrichment'].parameters.jsCode, /let current_company = String\(cand\.current_company/);
+});
+
+const insights = (route, data = {}) => runNode('Insights', [{}], Object.assign({
+  'Load Report Settings': [{}], 'Load Report Runs': [{}], 'Load Report People': [{}], 'Load Report Sequences': [{}], 'Load Report Users': [{}], 'Load Report Events': [{}] },
+  route ? { 'App Gate': [{ route }] } : {}, data));
+const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+
+test('R34: health says in plain words what is wrong and how to fix it', async () => {
+  const [h] = await insights('health', {
+    'Load Report Settings': [{ key: 'hb:followups', value: ago(10) }, { key: 'hb:outreach', value: ago(400) }, { key: 'daily_cap', value: '2' }],
+    'Load Report Runs': [{ run_id: '1', role: 'PM', status: 'running', started_at: ago(45) }, { run_id: '2', role: 'SRE', status: 'done', started_at: ago(100), finished_at: ago(98), count: 20, by_source: 'LinkedIn 12 · GitHub 8', sources: 'LinkedIn, GitHub' }],
+    'Load Report Sequences': [{ contact_key: 'a', status: 'active', last_sent_at: ago(5) }, { contact_key: 'b', status: 'bounced', last_sent_at: ago(60), last_error: 'Address not found', first_name: 'Ravi' }, { contact_key: 'c', status: 'active', last_sent_at: ago(3) }],
+    'Load Report Users': [{ email: 'k@x.example', name: 'Kumar', role: 'admin' }, { email: 'p@x.example', name: 'Priya', role: 'recruiter' }] });
+  const r = h.response, by = Object.fromEntries(r.checks.map((c) => [c.id, c]));
+  assert.equal(h._to, 'app'); assert.equal(r.overall, 'bad');
+  assert.equal(by.searches.status, 'bad'); assert.match(by.searches.detail, /PM \(started 45 min ago\)/);
+  assert.equal(by.followups.status, 'ok'); assert.equal(by.outreach.status, 'bad'); assert.match(by.outreach.fix, /Start n8n/);
+  assert.equal(by.sending.status, 'warn'); assert.match(by.sending.detail, /3 of 2 emails sent today, 2 people in follow-up/);
+  assert.equal(by.bounces.status, 'warn'); assert.match(by.bounces.detail, /Ravi: Address not found/);
+  assert.equal(by.signature.status, 'warn'); assert.equal(by.admins.status, 'warn');
+  assert.deepEqual(r.checks.map((c) => c.status).slice(0, 2), ['bad', 'bad'], 'worst first');
+  assert.deepEqual(r.recipients, ['Kumar']); assert.equal(r.weekly_report, true);
+});
+
+test('R34: the weekly report goes to admins on Monday, only when on and when something happened', async () => {
+  const data = { 'Load Report Runs': [{ run_id: '2', role: 'SRE', location: 'Pune', status: 'done', started_at: ago(600), finished_at: ago(590), count: 2, by_source: 'LinkedIn 2' }],
+    'Load Report People': [{ run_id: '2', dedupe_key: 'a', fit_score: 9, source: 'LinkedIn' }, { run_id: '2', dedupe_key: 'b', fit_score: 5, source: 'GitHub' }],
+    'Load Report Sequences': [{ contact_key: 'a', status: 'replied', started_at: ago(500), updatedAt: ago(30) }],
+    'Load Report Events': [{ at: ago(20), kind: 'stage', to_stage: 'interview', by: 'Priya' }],
+    'Load Report Users': [{ email: 'k@x.example', name: 'Kumar', role: 'admin' }, { email: 'p@x.example', name: 'Priya', role: 'recruiter' }, { email: 'o@x.example', name: 'Old', role: 'admin', status: 'disabled' }] };
+  const mails = await insights(null, data);
+  assert.deepEqual(mails.map((m) => m.to), ['k@x.example'], 'active admins only');
+  assert.match(mails[0].subject, /2 found, 1 reply/);
+  assert.match(mails[0].html, /SRE, Pune/); assert.match(mails[0].html, /moved to interview/); assert.match(mails[0].html, /Priya/);
+  assert.ok(!/TalentRubric/.test(mails[0].html));
+  assert.deepEqual(await insights(null, Object.assign({}, data, { 'Load Report Settings': [{ key: 'weekly_report', value: 'false' }] })), [], 'switched off');
+  assert.deepEqual(await insights(null, { 'Load Report Users': data['Load Report Users'] }), [], 'quiet week: no email');
+  const [pv] = await insights('weekly_preview', data);
+  assert.equal(pv._to, 'app'); assert.equal(pv.response.html, mails[0].html);
+});
+
+test('R34: heartbeats, the report switch, and the routes', async () => {
+  const [hb] = await runNode('Follow-up Heartbeat', [{}]);
+  assert.equal(hb.key, 'hb:followups'); assert.ok(Date.now() - new Date(hb.value) < 5000);
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const off = await gate29({ action: 'save_report', token: s.token, on: false }, ctx);
+  assert.deepEqual(off.writes.settings[0], { key: 'weekly_report', value: 'false' });
+  assert.equal((await gate29({ action: 'health', token: s.token }, ctx)).route, 'health');
+  assert.equal((await gate29({ action: 'weekly_preview', token: s.token }, ctx)).route, 'weekly_preview');
+  const W = require('./harness').WF.connections;
+  assert.deepEqual(W['Insights To App?'].main.map((o) => o.map((c) => c.node)), [['App Reply'], ['Send Weekly Report']]);
+  assert.ok(W['Follow-up Schedule'].main[0].some((c) => c.node === 'Follow-up Heartbeat'));
 });

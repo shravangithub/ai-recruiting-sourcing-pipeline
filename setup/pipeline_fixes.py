@@ -1738,7 +1738,7 @@ PAGE1_FIELDS = [
 PLATFORMS = ["LinkedIn", "GitHub", "Stack Overflow", "Google / Open Web", "Hacker News", "GitLab", "Kaggle",
              "Hugging Face", "Dev.to", "Reddit", "X (Twitter)", "Dribbble", "Behance",
              "Devfolio", "Unstop", "Devpost", "HackerEarth", "LeetCode", "CodeChef", "Codeforces",
-             "Topmate", "ADPList", "Medium"]
+             "Topmate", "ADPList", "Medium", "Research papers", "Speakers & experts"]
 REGIONS = ["Global (all regions)", "India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France",
            "Netherlands", "Singapore", "United Arab Emirates", "Ireland"]
 
@@ -3519,3 +3519,1516 @@ def apply_round28(nodes, conns):
     link("App Route", "App Ensure Templates 2", ri["save_templates"])
     link("App Ensure Templates 2", "Template Rows"); link("Template Rows", "Save Template"); link("Save Template", "Save Templates Reply"); link("Save Templates Reply", "App Reply")
     return nodes, conns
+
+
+# ======================================================================
+# Round 29: the app becomes a team product.
+# - Team logins: one account per person (admin or recruiter), passwords
+#   stored as salted PBKDF2-SHA256, 7-day sessions, and an activity log of
+#   who searched, approved, edited or invited whom. The old shared access
+#   code is only used once, to prove you own the workspace when you create
+#   the first admin.
+# - Settings: signature, sending window, daily cap and weekdays-only for the
+#   follow-ups, kept in app_settings and read by the follow-up runner.
+# - Home dashboard: this week's numbers, what needs attention, best sources,
+#   recent activity and a getting-started checklist.
+# ======================================================================
+USER_COLUMNS = [("email", "string"), ("name", "string"), ("role", "string"), ("pass_hash", "string"), ("salt", "string"),
+                ("status", "string"), ("must_change", "boolean"), ("created_at", "date"), ("last_login", "date")]
+SESSION_COLUMNS = [("token", "string"), ("email", "string"), ("expires_at", "date"), ("created_at", "date")]
+ACTIVITY_COLUMNS = [("at", "date"), ("email", "string"), ("name", "string"), ("action", "string"), ("detail", "string")]
+
+SHA256_JS = r"""
+// ---- SHA-256 / HMAC / PBKDF2 in plain JavaScript (no modules needed) ----
+function utf8(s) { return Array.from(unescape(encodeURIComponent(String(s)))).map(function(c){ return c.charCodeAt(0); }); }
+const K256 = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256(bytes) {
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const l = bytes.length, m = bytes.slice(); m.push(0x80);
+  while ((m.length % 64) !== 56) m.push(0);
+  const bits = l * 8; for (let i = 7; i >= 0; i--) m.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 0xff);
+  const w = new Array(64);
+  for (let o = 0; o < m.length; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (m[o+i*4] << 24) | (m[o+i*4+1] << 16) | (m[o+i*4+2] << 8) | m[o+i*4+3];
+    for (let i = 16; i < 64; i++) {
+      const a = w[i-15], b = w[i-2];
+      const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+      const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + K256[i] + w[i]) | 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  const out = []; H.forEach(function(x){ out.push((x >>> 24) & 0xff, (x >>> 16) & 0xff, (x >>> 8) & 0xff, x & 0xff); });
+  return out;
+}
+function hmac256(key, msg) {
+  if (key.length > 64) key = sha256(key);
+  const k = key.concat(new Array(64 - key.length).fill(0));
+  return sha256(k.map(function(b){ return b ^ 0x5c; }).concat(sha256(k.map(function(b){ return b ^ 0x36; }).concat(msg))));
+}
+function pbkdf2hex(pass, salt, iter) {
+  const P = utf8(pass);
+  let u = hmac256(P, utf8(salt).concat([0, 0, 0, 1])), t = u.slice();
+  for (let i = 1; i < iter; i++) { u = hmac256(P, u); for (let j = 0; j < 32; j++) t[j] ^= u[j]; }
+  return t.map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+"""
+
+APP_GATE_29 = SHA256_JS + r"""
+// ---- Every app request: who is this, are they allowed, then pick a route ----
+let body = $('App API').first().json.body;
+if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+body = body || {};
+const rand = String((($('Fresh Random').first() || {}).json || {}).rand || '');
+const settings = {};
+$('Load App Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) settings[r.key] = String(r.value == null ? '' : r.value); });
+const users = $('Load App Users').all().map(function(i){ return i.json || {}; }).filter(function(u){ return u.email; });
+const sessions = $('Load App Sessions').all().map(function(i){ return i.json || {}; }).filter(function(s){ return s.token; });
+const action = String(body.action || '');
+const now = new Date();
+const W = { users: [], sessions: [], activity: [], settings: [] };
+const out = function(route, extra){ return [{ json: Object.assign({ route: route, writes: W }, extra || {}) }]; };
+const reply = function(r){ return out('reply', { response: r }); };
+const ITER = 4000;
+const hashPw = function(pw, salt){ return pbkdf2hex(String(pw), String(salt), ITER); };
+const USER_KEYS = ['email', 'name', 'role', 'pass_hash', 'salt', 'status', 'must_change', 'created_at', 'last_login'];
+const saveUser = function(u){ const r = {}; USER_KEYS.forEach(function(k){ if (u[k] !== undefined && u[k] !== null) r[k] = u[k]; }); r.must_change = r.must_change === true || r.must_change === 'true'; W.users.push(r); };
+const pub = function(u){ return { email: u.email, name: u.name, role: u.role, status: u.status, last_login: u.last_login || '', must_change: u.must_change === true || u.must_change === 'true' }; };
+const log = function(u, what, detail){ W.activity.push({ at: now.toISOString(), email: u.email, name: u.name, action: what, detail: String(detail || '').slice(0, 300) }); };
+const newSession = function(u){ const token = rand.slice(32, 64); W.sessions.push({ token: token, email: u.email, expires_at: new Date(now.getTime() + 7 * 864e5).toISOString(), created_at: now.toISOString() }); return token; };
+const tempPassword = function(){ return 'tr-' + rand.slice(40, 50); };
+const em = function(e){ return String(e || '').trim().toLowerCase(); };
+const okEmail = function(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); };
+const pwErr = function(p){ return String(p || '').length < 8 ? 'Use at least 8 characters for the password.' : ''; };
+const activeAdmins = function(){ return users.filter(function(u){ return u.role === 'admin' && u.status === 'active'; }); };
+if (rand.length < 64) return reply({ ok: false, error: 'Could not start a secure session. Try again.' });
+
+// -- signed out --
+if (action === 'auth_state') return reply({ ok: true, has_users: users.length > 0, need_code: !users.length && !!settings.access_code });
+if (action === 'setup_admin') {
+  if (users.length) return reply({ ok: false, error: 'This workspace is already set up. Sign in instead.' });
+  if (settings.access_code && String(body.code || '') !== settings.access_code) return reply({ ok: false, error: 'That access code is not right.' });
+  const email = em(body.email), name = String(body.name || '').trim().slice(0, 80);
+  if (!name || !okEmail(email)) return reply({ ok: false, error: 'Add your name and a valid email.' });
+  if (pwErr(body.password)) return reply({ ok: false, error: pwErr(body.password) });
+  const salt = rand.slice(0, 32);
+  const u = { email: email, name: name, role: 'admin', salt: salt, pass_hash: hashPw(body.password, salt), status: 'active', must_change: false, created_at: now.toISOString(), last_login: now.toISOString() };
+  saveUser(u); log(u, 'created the workspace', '');
+  return reply({ ok: true, token: newSession(u), user: pub(u) });
+}
+if (action === 'login') {
+  const u = users.find(function(x){ return x.email === em(body.email); });
+  if (!u || u.status !== 'active' || hashPw(body.password || '', u.salt) !== u.pass_hash) return reply({ ok: false, error: 'Email or password is not right.' });
+  saveUser(Object.assign({}, u, { last_login: now.toISOString() })); log(u, 'signed in', '');
+  return reply({ ok: true, token: newSession(u), user: pub(u) });
+}
+
+// -- everything else needs a live session --
+const tok = String(body.token || '');
+const sess = tok.length >= 32 ? sessions.find(function(s){ return s.token === tok; }) : null;
+const me = sess && new Date(sess.expires_at) > now ? users.find(function(u){ return u.email === sess.email && u.status === 'active'; }) : null;
+if (!me) return reply({ ok: false, auth: 'need_login', has_users: users.length > 0 });
+const isAdmin = me.role === 'admin';
+if (action === 'ping' || action === 'me') return reply({ ok: true, user: pub(me) });
+if (action === 'logout') { W.sessions.push({ token: tok, email: me.email, expires_at: now.toISOString(), created_at: sess.created_at || now.toISOString() }); return reply({ ok: true }); }
+if (action === 'change_password') {
+  if (hashPw(body.old || '', me.salt) !== me.pass_hash) return reply({ ok: false, error: 'Your current password is not right.' });
+  if (pwErr(body.password)) return reply({ ok: false, error: pwErr(body.password) });
+  const salt = rand.slice(0, 32);
+  saveUser(Object.assign({}, me, { salt: salt, pass_hash: hashPw(body.password, salt), must_change: false })); log(me, 'changed their password', '');
+  return reply({ ok: true });
+}
+const ADMIN_ONLY = ['users', 'invite', 'update_user', 'reset_password', 'save_settings', 'save_templates'];
+if (ADMIN_ONLY.indexOf(action) !== -1 && !isAdmin) return reply({ ok: false, error: 'Only an admin can do that.' });
+if (action === 'users') return reply({ ok: true, users: users.map(pub) });
+if (action === 'invite') {
+  const email = em(body.email), name = String(body.name || '').trim().slice(0, 80), role = body.role === 'admin' ? 'admin' : 'recruiter';
+  if (!name || !okEmail(email)) return reply({ ok: false, error: 'Add their name and a valid email.' });
+  if (users.some(function(u){ return u.email === email; })) return reply({ ok: false, error: 'Someone with that email is already on the team.' });
+  const temp = tempPassword(), salt = rand.slice(0, 32);
+  const u = { email: email, name: name, role: role, salt: salt, pass_hash: hashPw(temp, salt), status: 'active', must_change: true, created_at: now.toISOString() };
+  saveUser(u); log(me, 'added a teammate', name + ' (' + role + ')');
+  return reply({ ok: true, user: pub(u), temp_password: temp });
+}
+if (action === 'update_user' || action === 'reset_password') {
+  const u = users.find(function(x){ return x.email === em(body.email); });
+  if (!u) return reply({ ok: false, error: 'No one with that email.' });
+  if (action === 'reset_password') {
+    const temp = tempPassword(), salt = rand.slice(0, 32);
+    saveUser(Object.assign({}, u, { salt: salt, pass_hash: hashPw(temp, salt), must_change: true })); log(me, 'reset a password', u.name);
+    return reply({ ok: true, temp_password: temp });
+  }
+  const role = body.role === 'admin' ? 'admin' : (body.role === 'recruiter' ? 'recruiter' : u.role);
+  const status = body.status === 'disabled' ? 'disabled' : (body.status === 'active' ? 'active' : u.status);
+  const losesAdmin = u.role === 'admin' && u.status === 'active' && (role !== 'admin' || status !== 'active');
+  if (losesAdmin && activeAdmins().length <= 1) return reply({ ok: false, error: 'The team needs at least one active admin.' });
+  if (u.email === me.email && status !== 'active') return reply({ ok: false, error: 'You cannot turn off your own account.' });
+  saveUser(Object.assign({}, u, { role: role, status: status }));
+  log(me, status !== u.status ? (status === 'active' ? 'turned on' : 'turned off') + ' an account' : 'changed a role', u.name + (role !== u.role ? ' → ' + role : ''));
+  return reply({ ok: true, user: pub(Object.assign({}, u, { role: role, status: status })) });
+}
+const SETTING_KEYS = ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only'];
+const sendSettings = function(){ return { signature: settings.signature || '', window_start: settings.window_start || '09:30', window_end: settings.window_end || '18:30',
+  daily_cap: Number(settings.daily_cap) || 50, weekdays_only: settings.weekdays_only !== 'false' }; };
+if (action === 'settings') return reply({ ok: true, settings: sendSettings(), is_admin: isAdmin });
+if (action === 'save_settings') {
+  const s = body.settings || {};
+  const hm = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!hm.test(String(s.window_start)) || !hm.test(String(s.window_end)) || String(s.window_start) >= String(s.window_end)) return reply({ ok: false, error: 'Pick a sending window like 09:30 to 18:30.' });
+  const cap = parseInt(s.daily_cap, 10);
+  if (!(cap >= 1 && cap <= 200)) return reply({ ok: false, error: 'Daily limit must be between 1 and 200.' });
+  const vals = { signature: String(s.signature || '').slice(0, 500), window_start: String(s.window_start), window_end: String(s.window_end), daily_cap: String(cap), weekdays_only: s.weekdays_only === false ? 'false' : 'true' };
+  SETTING_KEYS.forEach(function(k){ W.settings.push({ key: k, value: vals[k] }); });
+  log(me, 'updated the sending settings', vals.window_start + '–' + vals.window_end + ', ' + vals.daily_cap + '/day');
+  return reply({ ok: true, settings: Object.assign(sendSettings(), vals, { daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false' }) });
+}
+
+// -- routes with their own steps --
+const ROUTES = ['intake', 'search', 'status', 'results', 'runs', 'approve', 'feedback', 'outreach', 'templates', 'save_templates', 'dashboard'];
+if (ROUTES.indexOf(action) === -1) return reply({ ok: false, error: 'Unknown action.' });
+if (action === 'save_templates') {
+  const st = Array.isArray(body.steps) ? body.steps : [];
+  const okSteps = st.length && st.every(function(s){ return [2, 3, 4, 5].indexOf(Number(s && s.step)) !== -1 && String(s.body || '').trim().length >= 10 && String(s.body || '').length <= 4000; });
+  if (!okSteps) return reply({ ok: false, error: 'Each follow-up needs some text (10 to 4000 characters).' });
+  log(me, 'edited the follow-up emails', '');
+}
+if (action === 'search') { const c = body.criteria || {}; log(me, 'started a search', [c.role, c.city].filter(Boolean).join(' · ')); }
+if (action === 'approve') log(me, 'approved people for outreach', (Array.isArray(body.keys) ? body.keys.length : 0) + ' people');
+body.user = pub(me);
+return out(action, { body: body, user: pub(me), users_count: users.length });
+"""
+
+WRITES_JS = r"""
+// Save what the gate decided (%s). Nothing to save: the branch stops here.
+const w = ($('App Gate').first().json.writes || {})['%s'] || [];
+return w.map(function(r){ return { json: r }; });
+"""
+
+LOAD_SEQ_SETTINGS_JS = r"""
+// Sending settings from the app (Settings → Sending); the constants above are the defaults.
+const _S = {};
+try { $('Load Seq Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) _S[r.key] = String(r.value == null ? '' : r.value); }); } catch (e) {}
+const _HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CAP = parseInt(_S.daily_cap, 10) > 0 ? parseInt(_S.daily_cap, 10) : DAILY_CAP;
+const WIN_START = _HM.test(_S.window_start || '') ? _S.window_start : START;
+const WIN_END = _HM.test(_S.window_end || '') ? _S.window_end : END;
+const WEEKDAYS_ONLY = _S.weekdays_only !== 'false';
+const SIG = _S.signature ? 'Best regards,<br/>' + _S.signature.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>') + '</p>' : SIGNATURE;
+"""
+
+DASHBOARD_REPLY = r"""
+// Home: this week, what needs attention, best sources, team activity, getting started.
+""" + DEFAULT_TEMPLATES + r"""
+const plain = function(h){ return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim(); };
+const g = $('App Gate').first().json;
+const all = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = all('Load Dash Runs').filter(function(r){ return r.run_id; });
+const people = all('Load Dash People').filter(function(r){ return r.dedupe_key; });
+const seq = all('Load Dash Sequences').filter(function(r){ return r.contact_key; });
+const acts = all('Load Dash Activity').filter(function(r){ return r.at; });
+const tpl = all('Load Dash Templates').filter(function(r){ return r.step && r.body; });
+const sets = {}; all('Load Dash Settings').forEach(function(r){ if (r.key) sets[r.key] = r.value; });
+const now = Date.now(), WEEK = 7 * 864e5;
+const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
+const thisWeek = function(v){ return now - t(v) < WEEK; };
+const pct = function(c){ return (Number(c.fit_score) || 0) * 10; };
+const runsWeek = runs.filter(function(r){ return thisWeek(r.started_at); });
+const peopleWeek = people.filter(function(p){ return runsWeek.some(function(r){ return String(r.run_id) === String(p.run_id); }); });
+const replied = seq.filter(function(s){ return s.status === 'replied'; });
+const contacted = seq.length;
+// by source: found, strong, contacted, replied
+const src = {};
+const bySeq = {}; seq.forEach(function(s){ bySeq[s.contact_key] = s; });
+people.forEach(function(p){ const k = p.source || 'Other'; const s = src[k] = src[k] || { source: k, found: 0, strong: 0, contacted: 0, replied: 0 };
+  s.found++; if (pct(p) >= 80) s.strong++; const q = bySeq[p.dedupe_key]; if (q) { s.contacted++; if (q.status === 'replied') s.replied++; } });
+const sources = Object.keys(src).map(function(k){ return src[k]; }).sort(function(a, b){ return (b.replied - a.replied) || (b.strong - a.strong) || (b.found - a.found); }).slice(0, 8);
+// needs attention
+const attention = [];
+replied.slice(0, 5).forEach(function(s){ attention.push({ kind: 'reply', text: (s.first_name || 'Someone') + ' replied about ' + (s.role || 'a role'), when: s.last_sent_at || '' }); });
+seq.filter(function(s){ return s.status === 'stopped' && /bounc/i.test(s.status_text || ''); }).slice(0, 3).forEach(function(s){ attention.push({ kind: 'bounce', text: 'Email to ' + (s.first_name || 'a candidate') + ' bounced. Find another address.', when: s.last_sent_at || '' }); });
+runs.filter(function(r){ return r.status === 'done'; }).sort(function(a, b){ return t(b.started_at) - t(a.started_at); }).slice(0, 6).forEach(function(r){
+  const ps = people.filter(function(p){ return String(p.run_id) === String(r.run_id); });
+  const fresh = ps.filter(function(p){ return pct(p) >= 80 && !p.approved && !p.feedback && !bySeq[p.dedupe_key]; }).length;
+  if (fresh) attention.push({ kind: 'review', run_id: String(r.run_id), text: fresh + ' strong match' + (fresh > 1 ? 'es' : '') + ' to review in ' + (r.role || 'a search') + (r.location ? ' · ' + r.location : ''), when: r.finished_at || r.started_at || '' });
+});
+const running = runs.filter(function(r){ return r.status === 'running' && now - t(r.started_at) < 15 * 60000; })
+  .map(function(r){ return { run_id: String(r.run_id), role: r.role, location: r.location, stage: r.stage }; });
+// connected services: last time each one produced people
+const services = [];
+const lastBy = {};
+runs.filter(function(r){ return r.status === 'done' && r.by_source; }).forEach(function(r){
+  String(r.by_source).split('·').forEach(function(p){ const m = p.trim().match(/^(.+?)\s+(\d+)$/); if (m && (!lastBy[m[1]] || t(r.started_at) > t(lastBy[m[1]]))) lastBy[m[1]] = r.started_at; });
+});
+const svc = function(name, uses, ok){ services.push({ name: name, uses: uses, last_ok: ok || '' }); };
+const anyOf = function(list){ let best = ''; list.forEach(function(s){ if (lastBy[s] && t(lastBy[s]) > t(best)) best = lastBy[s]; }); return best; };
+svc('Google search (Serper)', 'LinkedIn, Open Web and 15 profile sites', anyOf(['LinkedIn', 'Open Web', 'Topmate', 'ADPList', 'Codeforces', 'HackerEarth', 'Devfolio', 'LeetCode', 'Stack Overflow', 'Kaggle', 'Behance', 'Dribbble']));
+svc('OpenAI', 'Reads briefs and scores every profile', runs.filter(function(r){ return r.status === 'done' && Number(r.count) > 0; }).map(function(r){ return r.started_at; }).sort().pop() || '');
+svc('GitHub', 'Developer profiles and commit emails', lastBy.GitHub || '');
+svc('Apollo', 'Work emails and titles', lastBy.Apollo || '');
+svc('Gmail', 'Sends outreach and follow-ups', seq.map(function(s){ return s.last_sent_at; }).sort().pop() || '');
+// getting started
+const steps = [
+  { key: 'search', text: 'Run your first search', done: runs.length > 0 },
+  { key: 'vote', text: 'Give a 👍 or 👎 on a shortlist so the ranking learns', done: people.some(function(p){ return p.feedback; }) },
+  { key: 'approve', text: 'Approve someone for outreach', done: contacted > 0 || people.some(function(p){ return p.approved === true || p.approved === 'true'; }) },
+  { key: 'templates', text: 'Make the follow-up emails yours', done: tpl.some(function(r){ const d = DEFAULTS.find(function(x){ return x.step === Number(r.step); }); return d && plain(r.body) !== plain(d.body); }) },
+  { key: 'signature', text: 'Set your email signature', done: !!sets.signature },
+  { key: 'team', text: 'Invite a teammate', done: (g.users_count || 1) > 1 }
+];
+return [{ json: { response: { ok: true, user: g.user,
+  week: { searches: runsWeek.length, people: peopleWeek.length, strong: peopleWeek.filter(function(p){ return pct(p) >= 80; }).length },
+  totals: { searches: runs.length, people: people.length, contacted: contacted, replied: replied.length, active: seq.filter(function(s){ return s.status === 'active'; }).length,
+    reply_rate: contacted ? Math.round(100 * replied.length / contacted) : 0 },
+  attention: attention.slice(0, 8), running: running, sources: sources, services: services,
+  activity: acts.sort(function(a, b){ return t(b.at) - t(a.at); }).slice(0, 12).map(function(a){ return { at: a.at, name: a.name, action: a.action, detail: a.detail }; }),
+  checklist: steps } } }];
+"""
+
+APP_ROUTES_29 = APP_ROUTES_28 + ["dashboard"]
+
+
+def apply_round29(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def link(a, b, idx=0, first=False):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        c = {"node": b, "type": "main", "index": 0}
+        if first:
+            conns[a]["main"][idx].insert(0, c)
+        else:
+            conns[a]["main"][idx].append(c)
+
+    def dt(name, op, table, pos, extra=None, **kw):
+        p = {"resource": "row", "operation": op, "dataTableId": _dt_ref(table)}
+        p.update(extra or {})
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, p, **kw)
+        new.append(n)
+        return n
+
+    def code(name, js, pos, once=False):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def cond(k, v):
+        return {"conditions": [{"keyName": k, "condition": "eq", "keyValue": v}]}
+
+    # 1. the gate knows who you are
+    api, gate = N["App API"], N["App Gate"]
+    ax, ay = api["position"]
+    gx, gy = gate["position"]
+    rnd = _node("Fresh Random", "n8n-nodes-base.crypto", 1, [ax, ay + 180], {
+        "action": "generate", "dataPropertyName": "rand", "encodingType": "hex", "stringLength": 64})
+    new.append(rnd)
+    nxt = conns["App API"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Ensure App Settings"], nxt
+    conns["App API"]["main"][0] = [{"node": "Fresh Random", "type": "main", "index": 0}]
+    link("Fresh Random", "Ensure App Settings")
+    prev = conns["Load App Settings"]["main"][0]
+    assert [c["node"] for c in prev] == ["App Gate"], prev
+    e1 = _dt_ensure("Ensure App Users", "app_users", USER_COLUMNS, [gx - 220, gy + 180]); new.append(e1)
+    e2 = _dt_ensure("Ensure App Sessions", "app_sessions", SESSION_COLUMNS, [gx - 220, gy + 340]); new.append(e2)
+    e3 = _dt_ensure("Ensure App Activity", "app_activity", ACTIVITY_COLUMNS, [gx - 220, gy + 500]); new.append(e3)
+    lu = dt("Load App Users", "get", "app_users", [gx, gy + 180], {"returnAll": True}, alwaysOutputData=True); lu["executeOnce"] = True
+    ls = dt("Load App Sessions", "get", "app_sessions", [gx, gy + 340], {"returnAll": True}, alwaysOutputData=True); ls["executeOnce"] = True
+    conns["Load App Settings"]["main"][0] = [{"node": "Ensure App Users", "type": "main", "index": 0}]
+    link("Ensure App Users", "Ensure App Sessions"); link("Ensure App Sessions", "Ensure App Activity")
+    link("Ensure App Activity", "Load App Users"); link("Load App Users", "Load App Sessions"); link("Load App Sessions", "App Gate")
+    gate["parameters"]["jsCode"] = APP_GATE_29
+    gate["executeOnce"] = True
+
+    # 2. the gate's writes, saved before the request is answered (placed above App Route)
+    wy = gy - 640
+    for i, (kind, table, op, key) in enumerate([("users", "app_users", "upsert", "email"), ("sessions", "app_sessions", "upsert", "token"),
+                                                ("activity", "app_activity", "insert", None), ("settings", "app_settings", "upsert", "key")]):
+        nm = kind.capitalize() + " Writes"
+        code(nm, WRITES_JS % (kind, kind), [gx + 220, wy + i * 120])
+        extra = {"columns": _automap(), "options": {}}
+        if key:
+            extra.update({"matchType": "allConditions", "filters": cond(key, "={{ $json.%s }}" % key)})
+        dt("Save " + kind.capitalize(), op, table, [gx + 440, wy + i * 120], extra, onError="continueRegularOutput")
+        link(nm, "Save " + kind.capitalize())
+    route_link = conns["App Gate"]["main"][0]
+    conns["App Gate"]["main"][0] = [{"node": k + " Writes", "type": "main", "index": 0} for k in ["Users", "Sessions", "Activity", "Settings"]] + route_link
+
+    # 3. dashboard route
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(APP_ROUTES_29)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(APP_ROUTES_29)
+    while len(conns["App Route"]["main"]) < len(APP_ROUTES_29):
+        conns["App Route"]["main"].append([])
+    bx, by = N["App Ensure Templates 2"]["position"]
+    by += 200
+    loads = [("Load Dash Runs", "app_runs"), ("Load Dash People", "app_candidates"), ("Load Dash Sequences", SEQ_TABLE),
+             ("Load Dash Activity", "app_activity"), ("Load Dash Templates", TPL_TABLE), ("Load Dash Settings", "app_settings")]
+    for i, (nm, table) in enumerate(loads):
+        n = dt(nm, "get", table, [bx + i * 220, by], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+        n["executeOnce"] = True
+        if i:
+            link(loads[i - 1][0], nm)
+    code("Dashboard Reply", DASHBOARD_REPLY, [bx + len(loads) * 220, by], once=True)
+    link(loads[-1][0], "Dashboard Reply"); link("Dashboard Reply", "App Reply")
+    link("App Route", loads[0][0], APP_ROUTES_29.index("dashboard"))
+
+    # 4. follow-ups use the app's sending settings
+    lt = N["Load Templates"]; x, y = lt["position"]
+    lss = dt("Load Seq Settings", "get", "app_settings", [x + 110, y + 160], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    lss["executeOnce"] = True
+    i = [c["node"] for c in conns["Load Templates"]["main"][0]].index("Load Sequences")
+    conns["Load Templates"]["main"][0][i] = {"node": "Load Seq Settings", "type": "main", "index": 0}
+    link("Load Seq Settings", "Load Sequences")
+    p = N["Due Follow-ups"]["parameters"]
+    marker = "// pick the follow-ups that are due now"
+    assert marker in p["jsCode"]
+    p["jsCode"] = p["jsCode"].replace(marker, LOAD_SEQ_SETTINGS_JS.lstrip() + marker, 1)
+    for old, newv in [("if (now.weekday > 5 || hm < START || hm >= END) return [];", "if ((WEEKDAYS_ONLY && now.weekday > 5) || hm < WIN_START || hm >= WIN_END) return [];"),
+                      ("let room = Math.max(0, DAILY_CAP - sentToday);", "let room = Math.max(0, CAP - sentToday);"),
+                      ("optOut + '<p>' + SIGNATURE", "optOut + '<p>' + SIG")]:
+        assert old in p["jsCode"], "round29 Due Follow-ups: " + old
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    nodes.extend(new)
+    return nodes, conns
+
+
+# ======================================================================
+# Round 30: the Board. Every person on a shortlist has one stage
+# (found, shortlisted, approved, follow-up, replied, interview, hired,
+# not a fit), an owner, a note and an optional "not now until" date. Each
+# change is kept in a history. Stages that the pipeline already knows
+# (approved, in follow-up, replied) are filled in automatically.
+# The same person across roles is recognised (LinkedIn link, email, or name
+# plus company), and the first-email sender never emails someone who was
+# contacted for any role in the last 90 days (Settings can change the days).
+# ======================================================================
+STAGE_COLUMNS = [("run_id", "string"), ("dedupe_key", "string"), ("stage", "string"), ("owner", "string"), ("note", "string"),
+                 ("snooze_until", "string"), ("updated_at", "date"), ("updated_by", "string")]
+EVENT_COLUMNS = [("at", "date"), ("run_id", "string"), ("dedupe_key", "string"), ("person", "string"), ("kind", "string"),
+                 ("from_stage", "string"), ("to_stage", "string"), ("detail", "string"), ("by", "string")]
+STAGES = ["found", "shortlisted", "approved", "followup", "replied", "interview", "hired", "not_fit"]
+
+PERSON_KEY_JS = r"""
+// The same person across roles: any shared LinkedIn link, email, profile link,
+// or full name + company counts as a match.
+const personKeys = function(c){
+  const ks = [];
+  // wrapped Google links (google.com/goto?url=...) say nothing about who it is
+  const norm = function(u){ if (/google\.[a-z.]+\/goto\?/i.test(String(u || ''))) return ''; return String(u || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^[a-z]{2,3}\.linkedin\.com/, 'linkedin.com').replace(/^www\./, '').replace(/[?#].*$/, '').replace(/\/+$/, ''); };
+  const li = norm(c.linkedin || (/linkedin\.com\/in\//i.test(c.profile_url || '') ? c.profile_url : ''));
+  if (li.indexOf('linkedin.com/in/') === 0) ks.push('li:' + li.slice(16));
+  const em = String(c.email || '').toLowerCase().trim();
+  if (em.indexOf('@') > 0) ks.push('em:' + em);
+  const pu = norm(c.profile_url);
+  if (pu && pu.indexOf('linkedin.com/in/') !== 0 && /\/[^/]{3,}/.test(pu)) ks.push('url:' + pu);
+  const nm = String(c.name || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const co = String(c.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (nm.length >= 2 && co) ks.push('nc:' + nm.join(' ') + '@' + co);
+  return ks;
+};
+"""
+
+GATE_CARD_JS = r"""
+// -- a card on the board: stage, owner, note, "not now until" --
+const STAGES = %s;
+if (action === 'update_card') {
+  const c = body.card || {};
+  const runId = String(c.run_id || ''), key = String(c.dedupe_key || '');
+  if (!runId || !key) return reply({ ok: false, error: 'Which person?' });
+  const stage = STAGES.indexOf(c.stage) !== -1 ? c.stage : 'found';
+  const snooze = /^\d{4}-\d{2}-\d{2}$/.test(String(c.snooze_until || '')) ? String(c.snooze_until) : '';
+  const row = { run_id: runId, dedupe_key: key, stage: stage, owner: String(c.owner || '').slice(0, 120), note: String(c.note || '').slice(0, 2000),
+    snooze_until: snooze, updated_at: now.toISOString(), updated_by: me.name };
+  W.stages.push(row);
+  const ev = function(kind, from, to, detail){ W.events.push({ at: now.toISOString(), run_id: runId, dedupe_key: key, person: String(c.name || '').slice(0, 120),
+    kind: kind, from_stage: from || '', to_stage: to || '', detail: String(detail || '').slice(0, 500), by: me.name }); };
+  const prev = body.prev || {};
+  if (prev.stage !== stage) ev('stage', prev.stage, stage, '');
+  if ((prev.owner || '') !== row.owner) ev('owner', '', '', row.owner ? 'owner: ' + row.owner : 'owner removed');
+  if ((prev.note || '') !== row.note && row.note) ev('note', '', '', row.note);
+  if ((prev.snooze_until || '') !== snooze && snooze) ev('snooze', '', '', 'not now until ' + snooze);
+  return reply({ ok: true, card: row });
+}
+"""
+
+BOARD_REPLY = PERSON_KEY_JS + r"""
+// One role as a board: every person with their stage, owner, note, history,
+// and whether they appear in other roles or were contacted recently.
+const g = $('App Gate').first().json;
+const b = g.body || {};
+const all = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = all('Load Board Runs').filter(function(r){ return r.run_id; }).sort(function(a, x){ return String(x.started_at).localeCompare(String(a.started_at)); });
+const people = all('Load Board People').filter(function(c){ return c.dedupe_key && c.run_id; });
+const stageRows = all('Load Board Stages').filter(function(s){ return s.dedupe_key; });
+const events = all('Load Board Events').filter(function(e){ return e.at; });
+const seqs = all('Load Board Sequences').filter(function(s){ return s.contact_key; });
+const sets = {}; all('Load Board Settings').forEach(function(r){ if (r.key) sets[r.key] = r.value; });
+const days = parseInt(sets.recontact_days, 10) > 0 ? parseInt(sets.recontact_days, 10) : 90;
+const runId = String(b.run_id || (runs.find(function(r){ return r.status === 'done'; }) || runs[0] || {}).run_id || '');
+const run = runs.find(function(r){ return String(r.run_id) === runId; }) || {};
+const RANK = { found: 0, shortlisted: 1, approved: 2, followup: 3, replied: 4, interview: 5, hired: 6, not_fit: -1 };
+const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
+const now = Date.now();
+const seqByKey = {}, seqByEmail = {};
+seqs.forEach(function(s){ seqByKey[s.contact_key] = s; const e = String(s.email || '').toLowerCase(); if (e && (!seqByEmail[e] || t(s.started_at) > t(seqByEmail[e].started_at))) seqByEmail[e] = s; });
+const stageOf = {}; stageRows.forEach(function(s){ stageOf[s.run_id + '|' + s.dedupe_key] = s; });
+const runName = {}; runs.forEach(function(r){ runName[r.run_id] = [r.role, r.location].filter(Boolean).join(' · '); });
+const byPerson = {};
+people.forEach(function(c){ personKeys(c).forEach(function(k){ (byPerson[k] = byPerson[k] || []).push(c); }); });
+const seen = {};
+const cards = people.filter(function(c){ if (String(c.run_id) !== runId || seen[c.dedupe_key]) return false; seen[c.dedupe_key] = 1; return true; }).map(function(c){
+  const s = seqByKey[c.dedupe_key];
+  let auto = 'found', flag = '';
+  if (s) { auto = s.status === 'replied' ? 'replied' : 'followup'; if (s.status === 'stopped') flag = /bounc/i.test(s.status_text || '') ? 'bounced' : 'stopped'; }
+  else if (c.approved === true || c.approved === 'true') auto = 'approved';
+  else if (c.feedback === 'up') auto = 'shortlisted';
+  else if (c.feedback === 'down') auto = 'not_fit';
+  const m = stageOf[runId + '|' + c.dedupe_key] || {};
+  let stage = auto;
+  if (m.stage === 'not_fit' || m.stage === 'hired' || m.stage === 'interview') stage = m.stage;
+  else if (m.stage && RANK[m.stage] > RANK[auto]) stage = m.stage;
+  const oseen = {};
+  const others = [];
+  personKeys(c).forEach(function(k){ (byPerson[k] || []).forEach(function(o){ if (String(o.run_id) !== runId && !oseen[o.run_id]) { oseen[o.run_id] = 1; others.push(o); } }); });
+  const em = String(c.email || '').toLowerCase();
+  const last = em && seqByEmail[em] && seqByEmail[em].contact_key !== c.dedupe_key ? seqByEmail[em] : null;
+  const recent = last && now - t(last.started_at) < days * 864e5;
+  const o = { dedupe_key: c.dedupe_key, name: c.name, title: c.title, company: c.company, location: c.location, location_review: c.location_review,
+    fit_score: c.fit_score, confidence: c.confidence, experience_check: c.experience_check, summary: c.summary, key_skills: c.key_skills,
+    email: c.email, contact_source: c.contact_source, source: c.source, profile_url: c.profile_url, linkedin: c.linkedin, github: c.github,
+    resume_link: c.resume_link, feedback: c.feedback || '', approved: c.approved === true || c.approved === 'true',
+    stage: stage, auto_stage: auto, flag: flag, owner: m.owner || '', note: m.note || '', snooze_until: m.snooze_until || '',
+    stage_since: m.updated_at || (s && s.last_sent_at) || '', sequence: s ? { step: s.step, status: s.status, status_text: s.status_text, next_due_at: s.next_due_at, last_sent_at: s.last_sent_at } : null,
+    other_roles: others.map(function(x){ return { run_id: x.run_id, role: runName[x.run_id] || 'another role' }; }).slice(0, 3),
+    contacted: last ? { role: last.role, at: last.started_at, status: last.status, recent: !!recent } : null };
+  o.overdue = stage === 'shortlisted' && !o.approved && o.stage_since && now - t(o.stage_since) > 2 * 864e5;
+  o.snoozed = o.snooze_until && t(o.snooze_until) > now;
+  return o;
+});
+const hist = events.filter(function(e){ return String(e.run_id) === runId; }).sort(function(a, x){ return t(x.at) - t(a.at); }).slice(0, 60)
+  .map(function(e){ return { at: e.at, dedupe_key: e.dedupe_key, person: e.person, kind: e.kind, from_stage: e.from_stage, to_stage: e.to_stage, detail: e.detail, by: e.by }; });
+const roles = runs.filter(function(r){ return r.status === 'done' || r.status === 'running'; }).slice(0, 30).map(function(r){
+  return { run_id: String(r.run_id), role: r.role, location: r.location, status: r.status, count: r.count, started_at: r.started_at }; });
+let saved = {}; try { saved = JSON.parse(sets['run:' + runId] || '{}'); } catch (e) { saved = {}; }
+return [{ json: { response: { ok: true, run: run, roles: roles, cards: cards, history: hist, recontact_days: days, team: g.team || [],
+  criteria: saved.criteria || null, brief: saved.brief || '' } } }];
+"""
+
+FILTER_RECENT_JS = r"""
+// Never email the same person twice: skip anyone already emailed for any role in
+// the last N days (Settings → Sending, default 90), and send one email per address per run.
+const sets = {};
+try { $('Load Contact Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = r.value; }); } catch (e) {}
+const days = parseInt(sets.recontact_days, 10) > 0 ? parseInt(sets.recontact_days, 10) : 90;
+const recent = {};
+try { $('Load Recent Contacts').all().forEach(function(i){ const s = i.json || {}; const e = String(s.email || '').toLowerCase().trim();
+  if (e && Date.now() - new Date(s.started_at || 0).getTime() < days * 864e5) recent[e] = true; }); } catch (e) {}
+const batch = {};
+const ok = function(r){ const e = String(r['Email'] || '').toLowerCase().trim(); if (!e || recent[e] || batch[e]) return false; batch[e] = true; return true; };
+"""
+
+
+def apply_round30(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round30 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    def dt(name, op, table, pos, extra=None, **kw):
+        p = {"resource": "row", "operation": op, "dataTableId": _dt_ref(table)}
+        p.update(extra or {})
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, p, **kw)
+        new.append(n)
+        return n
+
+    def code(name, js, pos, once=False):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    # 1. two more tables, ensured with the others
+    gx, gy = N["App Gate"]["position"]
+    e1 = _dt_ensure("Ensure App Stages", "app_stages", STAGE_COLUMNS, [gx - 220, gy + 660]); new.append(e1)
+    e2 = _dt_ensure("Ensure App Events", "app_events", EVENT_COLUMNS, [gx - 220, gy + 820]); new.append(e2)
+    nxt = conns["Ensure App Activity"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Load App Users"], nxt
+    conns["Ensure App Activity"]["main"][0] = [{"node": "Ensure App Stages", "type": "main", "index": 0}]
+    link("Ensure App Stages", "Ensure App Events"); link("Ensure App Events", "Load App Users")
+
+    # 2. the gate saves card changes and their history
+    R("App Gate", "const W = { users: [], sessions: [], activity: [], settings: [] };",
+      "const W = { users: [], sessions: [], activity: [], settings: [], stages: [], events: [] };")
+    R("App Gate", "// -- routes with their own steps --", (GATE_CARD_JS % json.dumps(STAGES)).lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'templates', 'save_templates', 'dashboard'];", "'templates', 'save_templates', 'dashboard', 'board'];")
+    # each search keeps its full brief, so the board can show and re-run it
+    R("App Gate", "if (action === 'search') { const c = body.criteria || {}; log(me, 'started a search', [c.role, c.city].filter(Boolean).join(' · ')); }",
+      "if (action === 'search') { const c = body.criteria || {}; log(me, 'started a search', [c.role, c.city].filter(Boolean).join(' · '));\n"
+      "  W.settings.push({ key: 'run:' + $execution.id, value: JSON.stringify({ criteria: c, brief: String(body.brief || '').slice(0, 4000), by: me.name }).slice(0, 12000) }); }")
+    R("App Gate", "return out(action, { body: body, user: pub(me), users_count: users.length });",
+      "return out(action, { body: body, user: pub(me), users_count: users.length, team: users.filter(function(u){ return u.status === 'active'; }).map(function(u){ return u.name; }) });")
+    R("App Gate", "const SETTING_KEYS = ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only'];",
+      "const SETTING_KEYS = ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days'];")
+    R("App Gate", "daily_cap: Number(settings.daily_cap) || 50, weekdays_only: settings.weekdays_only !== 'false' }; };",
+      "daily_cap: Number(settings.daily_cap) || 50, weekdays_only: settings.weekdays_only !== 'false', recontact_days: Number(settings.recontact_days) || 90 }; };")
+    R("App Gate", "weekdays_only: s.weekdays_only === false ? 'false' : 'true' };",
+      "weekdays_only: s.weekdays_only === false ? 'false' : 'true', recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))) };")
+    R("App Gate", "{ daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false' }", "{ daily_cap: cap, weekdays_only: vals.weekdays_only !== 'false', recontact_days: Number(vals.recontact_days) }")
+    wy = gy - 240
+    for i, (kind, table, op, keys) in enumerate([("stages", "app_stages", "upsert", ["run_id", "dedupe_key"]), ("events", "app_events", "insert", [])]):
+        nm = kind.capitalize() + " Writes"
+        code(nm, WRITES_JS % (kind, kind), [gx - 200, wy + i * 120])
+        extra = {"columns": _automap(), "options": {}}
+        if keys:
+            extra.update({"matchType": "allConditions", "filters": {"conditions": [{"keyName": k, "condition": "eq", "keyValue": "={{ $json.%s }}" % k} for k in keys]}})
+        dt("Save " + kind.capitalize(), op, table, [gx + 20, wy + i * 120], extra, onError="continueRegularOutput")
+        link(nm, "Save " + kind.capitalize())
+    gl = conns["App Gate"]["main"][0]
+    i = [c["node"] for c in gl].index("App Route")
+    gl[i:i] = [{"node": "Stages Writes", "type": "main", "index": 0}, {"node": "Events Writes", "type": "main", "index": 0}]
+
+    # 3. the board route
+    routes = APP_ROUTES_29 + ["board"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    bx, by = N["Load Dash Runs"]["position"]
+    by += 200
+    loads = [("Load Board Runs", "app_runs"), ("Load Board People", "app_candidates"), ("Load Board Stages", "app_stages"),
+             ("Load Board Events", "app_events"), ("Load Board Sequences", SEQ_TABLE), ("Load Board Settings", "app_settings")]
+    for i, (nm, table) in enumerate(loads):
+        n = dt(nm, "get", table, [bx + i * 220, by], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+        n["executeOnce"] = True
+        if i:
+            link(loads[i - 1][0], nm)
+    code("Board Reply", BOARD_REPLY, [bx + len(loads) * 220, by], once=True)
+    link(loads[-1][0], "Board Reply"); link("Board Reply", "App Reply")
+    link("App Route", loads[0][0], routes.index("board"))
+
+    # 4. never email the same person twice across roles
+    os_ = N["Outreach Schedule"]; ox, oy = os_["position"]
+    rc = dt("Load Recent Contacts", "get", SEQ_TABLE, [ox - 400, oy - 40], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    rc["executeOnce"] = True
+    cs = dt("Load Contact Settings", "get", "app_settings", [ox - 180, oy - 40], {"returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    cs["executeOnce"] = True
+    conns["Outreach Schedule"]["main"][0].insert(0, {"node": "Load Recent Contacts", "type": "main", "index": 0})
+    link("Load Recent Contacts", "Load Contact Settings")
+    R("Filter Outreach Queue", "return $input.all().filter(function(i){", FILTER_RECENT_JS.lstrip() + "return $input.all().filter(function(i){")
+    R("Filter Outreach Queue", "  return ready && notContacted && hasEmail && notLow;\n});", "  return ready && notContacted && hasEmail && notLow && ok(r);\n});")
+
+    nodes.extend(new)
+    return nodes, conns, routes
+
+
+# ======================================================================
+# Round 31: the Board's smart layer.
+# - Replies: read the candidate's reply, draft an answer with 3 free slots
+#   from Google Calendar (when connected), and send it from Gmail in the same
+#   thread. Nothing is sent until the recruiter presses Send.
+# - Interview kit: 5 questions and a scorecard from the brief and the person.
+# - Teammates' past companies (warm connections), who else is on this board,
+#   team reply rate, and when replies usually arrive.
+# - Optional open tracking (Settings → Sending): a 1x1 image in each email.
+#   Off by default; it only works when n8n is reachable from the internet.
+# ======================================================================
+OPEN_COLUMNS = [("contact_key", "string"), ("step", "number"), ("at", "date")]
+
+GATE_R31_JS = r"""
+// -- your profile (past companies, for warm connections) --
+if (action === 'save_profile') {
+  const cos = String(body.companies || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 12);
+  W.settings.push({ key: 'past:' + me.email, value: JSON.stringify({ name: me.name, companies: cos }) });
+  return reply({ ok: true, companies: cos });
+}
+if (action === 'send_reply') {
+  const txt = String(body.text || '').trim();
+  if (!body.message_id || txt.length < 2 || txt.length > 5000) return reply({ ok: false, error: 'Write a reply first.' });
+  W.events.push({ at: now.toISOString(), run_id: String(body.run_id || ''), dedupe_key: String(body.dedupe_key || ''), person: String(body.name || '').slice(0, 120),
+    kind: 'email', from_stage: '', to_stage: '', detail: 'replied: ' + txt.slice(0, 160), by: me.name });
+}
+if (action === 'board') W.settings.push({ key: 'seen:' + me.email, value: JSON.stringify({ name: me.name, run: String(body.run_id || ''), at: now.toISOString() }) });
+"""
+
+THREAD_URL_FULL = "={{ 'https://gmail.googleapis.com/gmail/v1/users/me/threads/' + $('App Gate').first().json.body.thread_id + '?format=full' }}"
+
+DRAFT_PROMPT = r"""
+// The candidate's latest reply, three free slots, and a prompt for a short answer.
+const g = $('App Gate').first().json, b = g.body || {};
+const th = $('App Thread').first().json || {};
+const msgs = Array.isArray(th.messages) ? th.messages : [];
+const hdr = function(m, n){ const h = ((m.payload || {}).headers || []).find(function(x){ return String(x.name).toLowerCase() === n; }); return h ? String(h.value) : ''; };
+const dec = function(s){ try { return Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (e) { return ''; } };
+const textOf = function(p){
+  if (!p) return '';
+  if (p.mimeType === 'text/plain' && p.body && p.body.data) return dec(p.body.data);
+  let out = ''; (p.parts || []).forEach(function(x){ if (!out) out = textOf(x); });
+  if (!out && p.mimeType === 'text/html' && p.body && p.body.data) out = dec(p.body.data).replace(/<[^>]+>/g, ' ');
+  return out;
+};
+const mine = (msgs[0] ? hdr(msgs[0], 'from') : '').toLowerCase().replace(/.*</, '').replace(/>.*/, '');
+const theirs = msgs.filter(function(m){ return hdr(m, 'from').toLowerCase().indexOf(mine) === -1; });
+const last = theirs[theirs.length - 1] || null;
+// strip the quoted earlier emails
+const clean = function(t){ return String(t || '').split(/\r?\n(On .{5,120} wrote:|-----Original Message-----|From: )/)[0].replace(/\n{3,}/g, '\n\n').trim().slice(0, 3000); };
+const lastText = last ? clean(textOf(last.payload) || last.snippet) : '';
+// free slots: next 5 weekdays, 10:00-17:30 IST, 45 minutes, not busy
+const fb = $('App FreeBusy').first().json || {};
+const busy = (((fb.calendars || {}).primary || {}).busy || []).map(function(x){ return [new Date(x.start).getTime(), new Date(x.end).getTime()]; });
+const calendar = !!(fb.calendars && fb.calendars.primary && !fb.calendars.primary.errors);
+const slots = [];
+if (calendar) {
+  let d = DateTime.now().setZone('Asia/Kolkata').plus({ days: 1 }).startOf('day');
+  for (let i = 0; i < 10 && slots.length < 3; i++, d = d.plus({ days: 1 })) {
+    if (d.weekday > 5) continue;
+    for (let h = 10 * 60; h <= 17 * 60; h += 90) {
+      const s = d.plus({ minutes: h }), e = s.plus({ minutes: 45 });
+      const free = !busy.some(function(x){ return x[0] < e.toMillis() && x[1] > s.toMillis(); });
+      if (free) { slots.push({ start: s.toISO(), label: s.toFormat('ccc d LLL, HH:mm') }); break; }
+    }
+  }
+}
+const ctx = b.context || {};
+const system = 'You help a recruiter answer a candidate who replied to an outreach email. Return ONLY JSON: {"sentiment": "keen" | "question" | "not_now" | "no", "summary": one short line, "reply": the email body}. ' +
+  'The reply: warm, brief (under 90 words), plain text, no subject, no signature. If they are keen or asked a question, answer what you can from the role details and offer the time slots given (or ask for times if none). ' +
+  'If they said not now, thank them and say you will check back in a few months. If they said no, thank them politely. Never invent salary, team size or facts not given.';
+const prompt = 'ROLE: ' + [ctx.role, ctx.location].filter(Boolean).join(', ') + (ctx.must ? '\nMUST-HAVES: ' + ctx.must : '') + (ctx.brief ? '\nBRIEF: ' + String(ctx.brief).slice(0, 1200) : '') +
+  '\nCANDIDATE: ' + (b.name || '') + '\nFREE SLOTS: ' + (slots.length ? slots.map(function(s){ return s.label + ' IST'; }).join('; ') : 'none - ask for their availability') +
+  '\n\nTHEIR LATEST REPLY:\n-----\n' + (lastText || '(could not read the reply)') + '\n-----';
+return [{ json: { system: system, prompt: prompt, last: last ? { id: last.id, from: hdr(last, 'from'), date: hdr(last, 'date'), text: lastText } : null,
+  thread_ok: msgs.length > 0, slots: slots, calendar: calendar } }];
+"""
+
+DRAFT_REPLY = r"""
+const p = $('Draft Prompt').first().json;
+const j = $json || {};
+let raw = ''; try { raw = j.output[0].content[0].text; } catch (e) {}
+let d = {}; try { d = JSON.parse(String(raw).replace(/^```(json)?|```$/g, '').trim()); } catch (e) {}
+if (!p.thread_ok) return [{ json: { response: { ok: false, error: 'Could not open this Gmail thread. Is Gmail still connected in n8n?' } } }];
+return [{ json: { response: { ok: true, message: p.last, slots: p.slots, calendar: p.calendar,
+  sentiment: ['keen', 'question', 'not_now', 'no'].indexOf(d.sentiment) !== -1 ? d.sentiment : '', summary: String(d.summary || '').slice(0, 200),
+  draft: String(d.reply || '').slice(0, 2000), reply_to: p.last ? p.last.id : '' } } }];
+"""
+
+REPLY_BODY = r"""
+const b = $('App Gate').first().json.body || {};
+const esc = function(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+const html = String(b.text || '').trim().split(/\n\s*\n/).map(function(p){ return '<p>' + esc(p).replace(/\n/g, '<br/>') + '</p>'; }).join('');
+return [{ json: { message_id: String(b.message_id), html: html } }];
+"""
+
+REPLY_SENT = r"""
+const j = $json || {};
+if (j.error || !j.id) return [{ json: { response: { ok: false, error: 'Gmail did not send it: ' + String((j.error && (j.error.message || j.error)) || 'unknown error').slice(0, 200) } } }];
+return [{ json: { response: { ok: true, id: j.id } } }];
+"""
+
+KIT_PROMPT = r"""
+// An interview kit for one person: questions that test the brief's must-haves.
+const b = $('App Gate').first().json.body || {};
+const c = b.context || {};
+const system = 'You are an expert in structured, evidence-based interviewing. Return ONLY JSON: {"questions": [{"q": question, "listen_for": what a strong answer shows, "competency": short name}], "scorecard": [{"competency": name, "weight": 1-3, "strong": one line, "weak": one line}]}. ' +
+  'Write exactly 5 behavioural or work-sample questions that test the must-haves and gaps for THIS person. Never ask about age, family, religion, caste, health or any protected attribute.';
+const prompt = 'ROLE: ' + [c.role, c.location].filter(Boolean).join(', ') + '\nMUST-HAVES: ' + (c.must || '') + '\nNICE: ' + (c.nice || '') +
+  '\nCANDIDATE: ' + (b.name || '') + ' - ' + (c.title || '') + '\nWHAT WE KNOW: ' + String(c.summary || '').slice(0, 1200) + '\nNOT YET SEEN ON PROFILE: ' + (c.gaps || 'none');
+return [{ json: { system: system, prompt: prompt } }];
+"""
+
+KIT_REPLY = r"""
+const j = $json || {};
+let raw = ''; try { raw = j.output[0].content[0].text; } catch (e) {}
+let d = {}; try { d = JSON.parse(String(raw).replace(/^```(json)?|```$/g, '').trim()); } catch (e) {}
+const qs = (Array.isArray(d.questions) ? d.questions : []).slice(0, 6).map(function(q){ return { q: String(q.q || '').slice(0, 300), listen_for: String(q.listen_for || '').slice(0, 300), competency: String(q.competency || '').slice(0, 60) }; }).filter(function(q){ return q.q; });
+const sc = (Array.isArray(d.scorecard) ? d.scorecard : []).slice(0, 6).map(function(s){ return { competency: String(s.competency || '').slice(0, 60), weight: Math.max(1, Math.min(3, parseInt(s.weight, 10) || 1)), strong: String(s.strong || '').slice(0, 200), weak: String(s.weak || '').slice(0, 200) }; });
+if (!qs.length) return [{ json: { response: { ok: false, error: 'Could not write the questions. Try again.' } } }];
+return [{ json: { response: { ok: true, questions: qs, scorecard: sc } } }];
+"""
+
+OPEN_ROW = r"""
+const q = ($('Open Pixel').first().json || {}).query || {};
+const k = String(q.k || '').slice(0, 200);
+if (!k) return [];
+return [{ json: { contact_key: k, step: parseInt(q.s, 10) || 1, at: new Date().toISOString() } }];
+"""
+
+BOARD_R31_JS = r"""
+// opens, reply timing, team reply rate, who else is here, warm connections
+const opens = {};
+all('Load Board Opens').forEach(function(o){ if (!o.contact_key) return; const x = opens[o.contact_key] = opens[o.contact_key] || { count: 0, last: '' }; x.count++; if (String(o.at) > x.last) x.last = String(o.at); });
+const repliedSeqs = seqs.filter(function(s){ return s.status === 'replied'; });
+const teamRate = seqs.length ? Math.round(100 * repliedSeqs.length / seqs.length) : 0;
+const hours = {};
+repliedSeqs.forEach(function(s){ const d = DateTime.fromISO(String(s.updatedAt || '')); if (!d.isValid) return; const z = d.setZone('Asia/Kolkata'); const k = z.toFormat('ccc') + '|' + Math.floor(z.hour / 2) * 2; hours[k] = (hours[k] || 0) + 1; });
+const topH = Object.keys(hours).sort(function(a, x){ return hours[x] - hours[a]; })[0];
+const bestTime = topH && hours[topH] >= 2 ? topH.split('|')[0] + ' ' + ('0' + topH.split('|')[1]).slice(-2) + ':00–' + ('0' + (+topH.split('|')[1] + 2)).slice(-2) + ':00' : '';
+const meEmail = ((g.user || {}).email) || '';
+const viewers = []; const teamCos = [];
+Object.keys(sets).forEach(function(k){
+  let v = {}; try { v = JSON.parse(sets[k] || '{}'); } catch (e) { v = {}; }
+  if (k.indexOf('seen:') === 0 && k !== 'seen:' + meEmail && v.run === runId && Date.now() - t(v.at) < 90000) viewers.push(v.name);
+  if (k.indexOf('past:') === 0) (v.companies || []).forEach(function(co){ teamCos.push({ name: v.name, company: co, key: String(co).toLowerCase().replace(/[^a-z0-9]/g, '') }); });
+});
+cards.forEach(function(o){
+  const s = seqByKey[o.dedupe_key];
+  if (s) { o.sequence.thread_id = s.thread_id; o.sequence.message_id = s.message_id; if (s.status === 'replied') o.replied_at = s.updatedAt || ''; }
+  if (opens[o.dedupe_key]) o.opens = opens[o.dedupe_key];
+  const ck = String(o.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const w = ck && teamCos.find(function(x){ return x.key && (x.key === ck || (ck.length > 4 && x.key.indexOf(ck) === 0) || (x.key.length > 4 && ck.indexOf(x.key) === 0)); });
+  if (w) o.warm = w.name + ' worked at ' + w.company;
+  if (/open to (work|new|opportunit)|#opentowork|looking for (a )?new|actively (looking|exploring)/i.test(String(o.summary || '') + ' ' + String(o.title || ''))) o.open_to_work = true;
+});
+"""
+
+
+def apply_round31(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    oai = json.loads(json.dumps(N["Message a model"]["credentials"]))
+    gcred = json.loads(json.dumps(N["Send Outreach Email"]["credentials"]))
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert old in p["jsCode"], "round31 %s: anchor not found: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    def code(name, js, pos, once=True):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def ai(name, pos):
+        n = _node(name, "n8n-nodes-base.httpRequest", 4.2, pos, {
+            "method": "POST", "url": "https://api.openai.com/v1/responses", "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "openAiApi", "sendBody": True, "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.3, text: { format: { type: 'json_object' } }, input: [{ role: 'system', content: $json.system }, { role: 'user', content: $json.prompt }] }) }}",
+            "options": {"timeout": 60000}}, credentials=json.loads(json.dumps(oai)), onError="continueRegularOutput")
+        new.append(n)
+        return n
+
+    # 1. gate: profile, presence, reply logging, new routes, tracking settings
+    R("App Gate", "// -- routes with their own steps --", GATE_R31_JS.lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'dashboard', 'board'];", "'dashboard', 'board', 'thread', 'send_reply', 'kit'];")
+    R("App Gate", "if (action === 'ping' || action === 'me') return reply({ ok: true, user: pub(me) });",
+      "if (action === 'ping' || action === 'me') { let past = {}; try { past = JSON.parse(settings['past:' + me.email] || '{}'); } catch (e) {} return reply({ ok: true, user: Object.assign(pub(me), { companies: past.companies || [] }) }); }")
+    R("App Gate", "'weekdays_only', 'recontact_days'];", "'weekdays_only', 'recontact_days', 'open_tracking', 'public_url'];")
+    R("App Gate", "recontact_days: Number(settings.recontact_days) || 90 }; };",
+      "recontact_days: Number(settings.recontact_days) || 90, open_tracking: settings.open_tracking === 'true', public_url: settings.public_url || '' }; };")
+    R("App Gate", "recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))) };",
+      "recontact_days: String(Math.max(0, Math.min(365, parseInt(s.recontact_days, 10) || 90))), open_tracking: s.open_tracking === true ? 'true' : 'false',\n"
+      "    public_url: /^https:\\/\\/[^\\s]+$/.test(String(s.public_url || '').trim()) ? String(s.public_url).trim().replace(/\\/+$/, '') : '' };\n"
+      "  if (vals.open_tracking === 'true' && !vals.public_url) return reply({ ok: false, error: 'Open tracking needs the public https address of your n8n.' });")
+    R("App Gate", "recontact_days: Number(vals.recontact_days) }", "recontact_days: Number(vals.recontact_days), open_tracking: vals.open_tracking === 'true', public_url: vals.public_url }")
+
+    routes = routes_in + ["thread", "send_reply", "kit"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    bx, by = N["Load Board Runs"]["position"]
+
+    # 2. thread → free slots → AI draft
+    y = by + 200
+    th = _node("App Thread", "n8n-nodes-base.httpRequest", 4.2, [bx, y], {"url": THREAD_URL_FULL, "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2", "options": {}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    new.append(th)
+    fb = _node("App FreeBusy", "n8n-nodes-base.httpRequest", 4.2, [bx + 220, y], {"method": "POST", "url": "https://www.googleapis.com/calendar/v3/freeBusy",
+        "authentication": "predefinedCredentialType", "nodeCredentialType": "googleCalendarOAuth2Api", "sendBody": True, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ timeMin: $now.toISO(), timeMax: $now.plus({ days: 10 }).toISO(), timeZone: 'Asia/Kolkata', items: [{ id: 'primary' }] }) }}",
+        "options": {"timeout": 20000}}, onError="continueRegularOutput")
+    # Off until a Google Calendar credential is connected (then switch it on);
+    # while off, the draft simply asks the candidate for times.
+    fb["disabled"] = True
+    fb["notes"] = "Connect a Google Calendar credential here, then enable this node to offer free slots in reply drafts."
+    new.append(fb)
+    code("Draft Prompt", DRAFT_PROMPT, [bx + 440, y])
+    ai("Draft Agent", [bx + 660, y])
+    code("Draft Reply", DRAFT_REPLY, [bx + 880, y])
+    link("App Route", "App Thread", routes.index("thread")); link("App Thread", "App FreeBusy"); link("App FreeBusy", "Draft Prompt")
+    link("Draft Prompt", "Draft Agent"); link("Draft Agent", "Draft Reply"); link("Draft Reply", "App Reply")
+
+    # 3. send the reply in the same Gmail thread
+    y = by + 400
+    code("Reply Body", REPLY_BODY, [bx, y])
+    gs = _node("Send Candidate Reply", "n8n-nodes-base.gmail", N["Send Follow-up"]["typeVersion"], [bx + 220, y], {
+        "resource": "message", "operation": "reply", "messageId": "={{ $json.message_id }}", "emailType": "html", "message": "={{ $json.html }}",
+        "options": {"appendAttribution": False, "replyToSenderOnly": True}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    new.append(gs)
+    code("Reply Sent", REPLY_SENT, [bx + 440, y])
+    link("App Route", "Reply Body", routes.index("send_reply")); link("Reply Body", "Send Candidate Reply"); link("Send Candidate Reply", "Reply Sent"); link("Reply Sent", "App Reply")
+
+    # 4. interview kit
+    y = by + 600
+    code("Kit Prompt", KIT_PROMPT, [bx, y]); ai("Kit Agent", [bx + 220, y]); code("Kit Reply", KIT_REPLY, [bx + 440, y])
+    link("App Route", "Kit Prompt", routes.index("kit")); link("Kit Prompt", "Kit Agent"); link("Kit Agent", "Kit Reply"); link("Kit Reply", "App Reply")
+
+    # 5. open tracking pixel (only used when switched on)
+    px, py = N["App API"]["position"]
+    hook = _node("Open Pixel", "n8n-nodes-base.webhook", 2, [px - 900, py + 600],
+                 {"httpMethod": "GET", "path": "sourcing-open", "responseMode": "onReceived", "options": {}},
+                 webhookId="7c1e2a40-8b3d-4f6e-9a12-5d0c3b7e9f03")
+    new.append(hook)
+    eo = _dt_ensure("Ensure App Opens", "app_opens", OPEN_COLUMNS, [px - 680, py + 600]); new.append(eo)
+    code("Open Row", OPEN_ROW, [px - 460, py + 600])
+    so = _node("Save Open", "n8n-nodes-base.dataTable", 1.1, [px - 240, py + 600], {"resource": "row", "operation": "insert",
+        "dataTableId": _dt_ref("app_opens"), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    new.append(so)
+    link("Open Pixel", "Ensure App Opens"); link("Ensure App Opens", "Open Row"); link("Open Row", "Save Open")
+
+    # 6. pixels in emails, when switched on
+    R("Due Follow-ups", "optOut + '<p>' + SIG",
+      "optOut + '<p>' + SIG + (_S.open_tracking === 'true' && _S.public_url ? '<img src=\"' + _S.public_url + '/webhook/sourcing-open?k=' + encodeURIComponent(r.contact_key) + '&s=' + next + '\" width=\"1\" height=\"1\" alt=\"\">' : '')")
+    R("Filter Outreach Queue", "return $input.all().filter(function(i){",
+      "const pixel = function(r){ return sets.open_tracking === 'true' && sets.public_url ? '<img src=\"' + String(sets.public_url).replace(/\\/+$/, '') + '/webhook/sourcing-open?k=' + encodeURIComponent(String(r['Dedupe Key'] || '')) + '&s=1\" width=\"1\" height=\"1\" alt=\"\">' : ''; };\n"
+      "return $input.all().filter(function(i){")
+    R("Filter Outreach Queue", "  return ready && notContacted && hasEmail && notLow && ok(r);\n});",
+      "  return ready && notContacted && hasEmail && notLow && ok(r);\n}).map(function(i){ return { json: Object.assign({}, i.json, { _pixel: pixel(i.json) }), pairedItem: i.pairedItem }; });")
+    m = N["Send Outreach Email"]["parameters"]
+    assert m["message"].endswith("</p>"), m["message"][-40:]
+    m["message"] = m["message"] + "{{ $json._pixel || '' }}"
+
+    # 7. board: opens, timing, presence, warm connections
+    lo = _node("Load Board Opens", "n8n-nodes-base.dataTable", 1.1, [N["Load Board Settings"]["position"][0], N["Load Board Settings"]["position"][1] + 160],
+               {"resource": "row", "operation": "get", "dataTableId": _dt_ref("app_opens"), "returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    lo["executeOnce"] = True
+    new.append(lo)
+    nxt = conns["Load Board Settings"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Board Reply"], nxt
+    conns["Load Board Settings"]["main"][0] = [{"node": "Load Board Opens", "type": "main", "index": 0}]
+    link("Load Board Opens", "Board Reply")
+    R("Board Reply", "const hist = events.filter(", BOARD_R31_JS.lstrip() + "const hist = events.filter(")
+    R("Board Reply", "criteria: saved.criteria || null, brief: saved.brief || '' } } }];",
+      "criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate: teamRate, best_time: bestTime, viewers: viewers } } }];")
+    nodes.extend(new)
+    return nodes, conns, routes
+
+
+# ======================================================================
+# Round 32: more places to find people, all free.
+# - Research papers: industry researchers from OpenAlex (free public API;
+#   about 100 searches a day without a key, one per sourcing run).
+# - Speakers & experts: conference speakers (Sessionize), Google Developer
+#   Experts, Microsoft MVPs and AWS Heroes, through the existing Google search.
+# - Veterans: a preset that searches for people leaving the armed forces and
+#   scores what their service shows, not corporate job titles.
+# - Target companies: one search per company, and a Map view on the Board.
+# - Past candidates first: people from earlier searches who fit a new role,
+#   added to it in one click.
+# ======================================================================
+BUILD_RESEARCH_QUERY = r"""
+// Research papers (OpenAlex): recent papers on the role's topic by people at
+// companies in the search country, newest first. One request per search.
+const form = $('Search Criteria').first().json;
+let platforms = form['Target Platforms'];
+if (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+if (!platforms.some(function(p){ return /research/i.test(String(p)); })) return [];
+const skills = String(form['Primary Skills'] || form['Key Skills & Criteria'] || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+const term = (skills.length ? skills.slice(0, 2).join(' ') : String(form['Target Role'] || '')).replace(/[^\w\s+#.-]/g, ' ').trim();
+if (!term) return [];
+const CC = { 'india':'IN','united states':'US','united kingdom':'GB','singapore':'SG','united arab emirates':'AE','germany':'DE','netherlands':'NL','canada':'CA','australia':'AU','ireland':'IE','france':'FR' };
+const INDIA = /bangalore|bengaluru|mumbai|delhi|gurgaon|gurugram|noida|chennai|hyderabad|pune|kolkata|kochi|ahmedabad|jaipur|india/i;
+const region = String(form['Search Region'] || '').toLowerCase().replace(/\s*\(.*\)\s*/, '').trim();
+const loc = String(form['Location'] || '');
+const cc = CC[region] || (INDIA.test(loc) ? 'IN' : '');
+const since = new Date(Date.now() - 4 * 365 * 86400000).toISOString().slice(0, 10);
+const filter = ['authorships.institutions.type:company', 'from_publication_date:' + since].concat(cc ? ['authorships.institutions.country_code:' + cc] : []).join(',');
+const url = 'https://api.openalex.org/works?search=' + encodeURIComponent(term) + '&filter=' + filter + '&per_page=100&sort=publication_date:desc&select=id,title,publication_year,authorships,cited_by_count';
+return [{ json: { research_term: term, research_cc: cc, research_url: url } }];
+"""
+
+RESEARCH_TO_ORGANIC = r"""
+// One line per researcher: where they work, how many recent papers, the newest titles.
+const q = $('Build Research Query').first().json;
+const j = $input.first().json || {};
+const works = Array.isArray(j.results) ? j.results : [];
+const PUBLISHER = /springer|elsevier|wiley|ieee|taylor|francis|sage publi|nature|igi global|scitepress|mdpi/i;
+const by = {};
+works.forEach(function(w){
+  (w.authorships || []).forEach(function(a){
+    const inst = (a.institutions || []).find(function(i){ return i.type === 'company' && (!q.research_cc || i.country_code === q.research_cc) && !PUBLISHER.test(i.display_name || ''); });
+    if (!inst || !a.author || !a.author.display_name) return;
+    const k = a.author.id;
+    const x = by[k] = by[k] || { name: a.author.display_name, orcid: a.author.orcid || '', id: a.author.id, inst: inst.display_name, papers: [], cites: 0, years: [] };
+    if (x.papers.length < 6) x.papers.push(String(w.title || '').slice(0, 140));
+    x.cites += w.cited_by_count || 0; x.years.push(w.publication_year);
+  });
+});
+const COUNTRY = { IN:'India', US:'United States', GB:'United Kingdom', SG:'Singapore', AE:'United Arab Emirates', DE:'Germany', NL:'Netherlands', CA:'Canada', AU:'Australia', IE:'Ireland', FR:'France' };
+const people = Object.keys(by).map(function(k){ return by[k]; }).sort(function(a, b){ return b.papers.length - a.papers.length || b.cites - a.cites; }).slice(0, 30);
+const organic = people.map(function(x){
+  const org = String(x.inst).replace(/\s*\((india|united states|united kingdom|germany|singapore)\)\s*$/i, '');
+  const n = x.papers.length;
+  return { title: x.name + ' - Researcher - ' + org,
+    link: x.orcid || x.id,
+    snippet: 'Current company: ' + org + '. Title: Researcher. ' + x.name + ' works at ' + org + (q.research_cc ? ', ' + (COUNTRY[q.research_cc] || q.research_cc) : '') + '. ' + n + ' recent paper' + (n === 1 ? '' : 's') + ' on ' + q.research_term +
+      ' (' + Math.min.apply(null, x.years) + '-' + Math.max.apply(null, x.years) + ', cited ' + x.cites + ' times): "' + x.papers.slice(0, 3).join('"; "') + '". Industry researcher; find contact on LinkedIn or the papers.' };
+});
+return [{ json: { organic: organic, source: 'research', results_count: organic.length } }];
+"""
+
+EXPERT_SITES = r"""
+// Speakers & experts: conference speaker pages and expert programmes, one
+// query per site, by topic (skills or job title) and place.
+if (platforms.some(function(pl){ return /speakers|experts/i.test(String(pl)); })) {
+  const topicOpts = skillArr.length || skillRawBool ? skillOpts : (roleOpts.length ? roleOpts : [roleShort]);
+  // expert pages name a country more often than a city
+  const country = countryOf(loc);
+  const placeOpts = loc ? ['(' + [locList[0] || q(loc.toLowerCase()), country ? q(country) : ''].filter(Boolean).join(' OR ') + ')', ''] : [''];
+  [['site:sessionize.com intitle:"speaker profile"', 2], ['site:developers.google.com/community/experts/directory/profile', 1],
+   ['site:mvp.microsoft.com', 1], ['site:aws.amazon.com/developer/community/heroes', 1]].forEach(function(x){
+    queries.push({ kind: 'expert-profiles', pages: x[1], q: fit([[x[0]], topicOpts, placeOpts, exclOpts]) });
+  });
+}
+// Veterans: people from the armed forces, by role and place, and officers
+// moving into corporate roles.
+if (VETERANS) {
+  const FORCES = INDIA_GL ? '("Indian Army" OR "Indian Navy" OR "Indian Air Force" OR veteran)' : '(veteran OR "armed forces" OR army OR navy)';
+  const RANKS = INDIA_GL ? '(Colonel OR Major OR "Wing Commander" OR Commander)' : '(Colonel OR Major OR Captain OR Commander)';
+  queries.push({ kind: 'profiles', pages: 2, q: fit([['site:linkedin.com/in'], [FORCES], roleOpts.concat(['']), locOpts.concat(['']), exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });
+  queries.push({ kind: 'profiles', pages: 2, q: fit([['site:linkedin.com/in'], [FORCES], [RANKS], ['(transition OR retired)', ''], locOpts.concat(['']), exclOpts]) });
+}
+// Target companies: one LinkedIn search per company, so every company is covered.
+if (has(/linkedin/i) && employerList.length > 1) {
+  employerList.slice(0, 5).forEach(function(co){
+    queries.push({ kind: 'company-profiles', pages: 2, q: fit([['site:linkedin.com/in'], [co], roleOpts.concat(['']), locOpts.concat(['']), exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });
+  });
+}
+"""
+
+NOT_PROFILE_32 = r"""
+// Speakers & experts and research: only people's pages.
+PROFILE_ONLY.push(
+  [/sessionize\.com/i, /sessionize\.com\/(?!api|app|playbook|blog|pricing|events?|organizers?|speakers-directory)[\w.-]+\/?$/i],
+  [/developers\.google\.com/i, /\/experts\/directory\/profile\/[\w.-]+\/?$/i],
+  [/mvp\.microsoft\.com/i, /(publicprofile|mvp\/profile)\/[\w.-]+\/?$/i],
+  [/aws\.amazon\.com\/developer\/community\/heroes/i, /heroes\/[\w.-]+\/?$/i]
+);
+"""
+
+VETERAN_SCORING = ("${ S('Search Criteria')['Veterans'] ? "
+                   "'VETERANS SEARCH: these are people from the armed forces. Score what their service shows, not corporate titles: "
+                   "rank and years of service (scope and seniority), people led, logistics, operations, security, training, procurement, administration, "
+                   "technical branches (signals, engineering, EME, aviation) and any civilian courses or certifications. Translate it to the role "
+                   "(e.g. a Colonel commanding 800 people = senior operations leadership). Do not penalise missing corporate experience; "
+                   "do penalise profiles that show no service at all.\\n' : '' }")
+
+PAST_PEOPLE_REPLY = r"""
+// People from earlier searches who fit this role, best first. Read-only.
+""" + PERSON_KEY_JS + r"""
+const g = $('App Gate').first().json, b = g.body || {};
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const runs = {}; rows('Load Past Runs').forEach(function(r){ if (r.run_id) runs[String(r.run_id)] = r; });
+const people = rows('Load Past People').filter(function(r){ return r.dedupe_key && r.name; });
+const STOP = /^(senior|sr|junior|jr|lead|principal|staff|head|of|and|the|i|ii|iii|manager|associate)$/;
+const words = function(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9+#.\s]/g, ' ').split(/\s+/).filter(function(w){ return w.length > 1 && !STOP.test(w); }); };
+const roleW = words(b.role);
+const must = (Array.isArray(b.must) ? b.must : String(b.must || '').split(',')).map(function(s){ return String(s).trim().toLowerCase(); }).filter(Boolean).slice(0, 6);
+const city = String(b.city || '').toLowerCase().trim();
+const cur = String(b.run_id || '');
+const have = {};
+people.filter(function(r){ return String(r.run_id) === cur; }).forEach(function(r){ personKeys(r).forEach(function(k){ have[k] = 1; }); });
+const shows = function(r, m){
+  const hay = (String(r.key_skills || '') + ' ' + String(r.title || '')).toLowerCase();
+  if (hay.indexOf(m) !== -1) return true;
+  return String(r.summary || '').toLowerCase().split(/(?<=[.;!?])\s+/).some(function(sn){ return sn.indexOf(m) !== -1 && !/\b(no|not|without|lacks?|missing|unclear)\b/.test(sn); });
+};
+const best = {};
+people.forEach(function(r){
+  if (String(r.run_id) === cur || r.feedback === 'down') return;
+  const ks = personKeys(r); if (ks.some(function(k){ return have[k]; })) return;
+  const tw = words(r.title), hit = roleW.filter(function(w){ return tw.indexOf(w) !== -1; });
+  const ms = must.filter(function(m){ return shows(r, m); });
+  const inCity = city && String(r.location || '').toLowerCase().indexOf(city.split(/[ ,]/)[0]) !== -1;
+  let score = (roleW.length ? 45 * hit.length / roleW.length : 0) + (must.length ? 35 * ms.length / must.length : 0) + (inCity ? 10 : 0) + Math.min(10, Number(r.fit_score) || 0);
+  if (!hit.length && ms.length < Math.ceil(must.length / 2)) return;
+  if (score < 45) return;
+  const key = ks[0] || r.dedupe_key;
+  if (best[key] && best[key].score >= score) return;
+  const run = runs[String(r.run_id)] || {};
+  best[key] = { score: Math.round(score), why: hit.concat(ms).slice(0, 4), from_role: [run.role, run.location].filter(Boolean).join(', ') || 'an earlier search', from_run: String(r.run_id),
+    person: { dedupe_key: r.dedupe_key, name: r.name, title: r.title || '', company: r.company || '', location: r.location || '', location_review: r.location_review || '', fit_score: Number(r.fit_score) || 0,
+      confidence: r.confidence || '', experience_check: r.experience_check || '', summary: r.summary || '', key_skills: r.key_skills || '', email: r.email || '', contact_source: r.contact_source || '',
+      source: r.source || '', profile_url: r.profile_url || '', linkedin: r.linkedin || '', github: r.github || '', resume_link: r.resume_link || '' } };
+});
+const list = Object.keys(best).map(function(k){ return best[k]; }).sort(function(a, b){ return b.score - a.score; }).slice(0, 25);
+return [{ json: { response: { ok: true, people: list, searched: people.length } } }];
+"""
+
+GATE_R32_JS = r"""
+// -- add people from earlier searches to this role --
+if (action === 'import_people') {
+  const run = String(body.run_id || '').trim();
+  const list = Array.isArray(body.people) ? body.people.slice(0, 50) : [];
+  if (!/^\d+$/.test(run) || !list.length) return reply({ ok: false, error: 'Pick people to add first.' });
+  const S = function(v, n){ return String(v == null ? '' : v).slice(0, n || 300); };
+  const seenK = {};
+  list.forEach(function(p){
+    if (!p || !p.dedupe_key || !p.name || seenK[p.dedupe_key]) return; seenK[p.dedupe_key] = 1;
+    W.people.push({ run_id: run, dedupe_key: S(p.dedupe_key, 200), name: S(p.name, 120), title: S(p.title, 200), company: S(p.company, 120), location: S(p.location, 120),
+      location_review: S(p.location_review, 200), fit_score: Math.max(0, Math.min(10, Number(p.fit_score) || 0)), confidence: S(p.confidence, 40), experience_check: S(p.experience_check, 200),
+      summary: S(p.summary, 2000), key_skills: S(p.key_skills, 500), email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(p.email || '')) ? S(p.email, 200) : '', contact_source: S(p.contact_source, 60),
+      source: S(p.source, 60), profile_url: /^https?:\/\//.test(String(p.profile_url || '')) ? S(p.profile_url, 500) : '', linkedin: /^https?:\/\//.test(String(p.linkedin || '')) ? S(p.linkedin, 500) : '',
+      github: /^https?:\/\//.test(String(p.github || '')) ? S(p.github, 500) : '', resume_link: /^https?:\/\//.test(String(p.resume_link || '')) ? S(p.resume_link, 500) : '',
+      outreach_status: '', approved: false, feedback: '' });
+    W.events.push({ at: now.toISOString(), run_id: run, dedupe_key: S(p.dedupe_key, 200), person: S(p.name, 120), kind: 'note', from_stage: '', to_stage: '',
+      detail: 'added from an earlier search' + (p.from_role ? ' (' + S(p.from_role, 80) + ')' : ''), by: me.name });
+  });
+  log(me, 'added people from earlier searches', W.people.length + ' people');
+  return reply({ ok: true, added: W.people.length });
+}
+"""
+
+
+def apply_round32(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        key = "jsCode" if "jsCode" in p else None
+        assert key and old in p[key], "round32 %s: anchor not found: %s" % (name, old[:70])
+        p[key] = p[key].replace(old, newv, 1)
+
+    def link(a, b, idx=0, to=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": to})
+
+    def code(name, js, pos, once=True):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js})
+        if once:
+            n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    # 1. research papers (OpenAlex) as a 12th source
+    kx, ky = N["Build Repo Query"]["position"]
+    ry = ky - 144
+    code("Build Research Query", BUILD_RESEARCH_QUERY, [kx, ry])
+    new.append(_node("Research Search", "n8n-nodes-base.httpRequest", 4.2, [kx + 192, ry], {
+        "url": "={{ $json.research_url }}", "sendHeaders": True,
+        "headerParameters": {"parameters": [{"name": "User-Agent", "value": "open-source-sourcing-pipeline"}]},
+        "options": {"timeout": 20000}}, onError="continueRegularOutput"))
+    code("Research To Organic", RESEARCH_TO_ORGANIC, [kx + 400, ry])
+    link("Load CRM Rows", "Build Research Query"); link("Build Research Query", "Research Search"); link("Research Search", "Research To Organic")
+    wa = N["Wait For All Sources"]
+    n_in = wa["parameters"]["numberInputs"]
+    wa["parameters"]["numberInputs"] = n_in + 1
+    link("Research To Organic", "Wait For All Sources", 0, n_in)
+
+    # 2. speakers & experts, veterans, target companies (search queries)
+    R("Build Search Query", "const employerList = employer.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 3).map(q);",
+      "const employerList = employer.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 5).map(q);")
+    R("Build Search Query", "const out = [];\nfor (const qq of queries) {",
+      "const VETERANS = form['Veterans'] === true || form['Veterans'] === 'Yes';\nconst INDIA_GL = gl === 'in' || !gl;\n" + EXPERT_SITES.lstrip() + "const out = [];\nfor (const qq of queries) {")
+    # with several target companies the combined LinkedIn query uses the first three
+    R("Build Search Query", "const employerOpts = employerList.length ? shrink(employerList).concat(['']) : [''];",
+      "const employerOpts = employerList.length ? shrink(employerList.slice(0, 3)).concat(['']) : [''];")
+    R("Merge Pages", "const notProfile = function(link)", NOT_PROFILE_32.lstrip() + "const notProfile = function(link)")
+    R("Format Search Results", "medium\\.com\\/@)/i;",
+      "medium\\.com\\/@|openalex\\.org\\/A|orcid\\.org\\/|sessionize\\.com\\/|experts\\/directory\\/profile\\/|mvp\\.microsoft\\.com\\/|community\\/heroes\\/)/i;")
+    R("Format Search Results", "--- INSTRUCTIONS ---\n", "--- INSTRUCTIONS ---\n" + VETERAN_SCORING + "\n")
+    R("Parse Contact", "  if (u.indexOf('medium.com') !== -1) return 'Medium';",
+      "  if (u.indexOf('medium.com') !== -1) return 'Medium';\n"
+      "  if (u.indexOf('openalex.org') !== -1 || u.indexOf('orcid.org') !== -1) return 'Research papers';\n"
+      "  if (/sessionize\\.com|developers\\.google\\.com\\/community\\/experts|mvp\\.microsoft\\.com|community\\/heroes/.test(u)) return 'Speakers & experts';")
+    R("Location Check & Rank", "['medium.com','Medium']]",
+      "['medium.com','Medium'],['openalex.org','Research papers'],['orcid.org','Research papers'],['sessionize.com','Speakers & experts'],['developers.google.com/community/experts','Speakers & experts'],['mvp.microsoft.com','Speakers & experts'],['community/heroes','Speakers & experts']]")
+    R("Search Criteria", "  'Keywords to Exclude':", "  'Veterans': val('veteran', 'Veterans') === true || val('veteran', 'Veterans') === 'Yes',\n  'Keywords to Exclude':")
+    fields = N["Check Search"]["parameters"]["formFields"]["values"]
+    ci = [f.get("fieldName") for f in fields].index("colleges")
+    fields.insert(ci + 1, VETERAN_FIELD)
+    R("App Criteria", "  colleges: String(c.colleges || '').slice(0, 200),", "  colleges: String(c.colleges || '').slice(0, 200),\n  veteran: c.veteran === true || c.veteran === 'Yes' ? 'Yes' : '',")
+    R("App Criteria", "if (!sources.length) return", "if (c.veteran === true || c.veteran === 'Yes') { if (sources.indexOf('LinkedIn') === -1) sources.unshift('LinkedIn'); }\nif (!sources.length) return")
+    # intake suggests the new channels and spots veteran briefs
+    R("Intake Prompt", "product managers: LinkedIn, Topmate, ADPList;",
+      "product managers: LinkedIn, Topmate, ADPList; research, R&D, AI/ML scientists and applied researchers: add Research papers; senior engineers, architects, developer advocates and tech leads: add Speakers & experts;")
+    R("Intake Result", "try { brief = String(($('App Gate').first().json.body || {}).brief || ''); } catch (e) {}",
+      "try { brief = String(($('App Gate').first().json.body || {}).brief || ''); } catch (e) {}\n"
+      "criteria.veteran = /\\b(veterans?|ex[- ]?servicem[ae]n|ex[- ]?(army|navy|air force|defen[cs]e)|armed forces|military background|defen[cs]e (background|personnel)|retired officers?)\\b/i.test(brief);")
+
+    # 3. the gate: import people, the new route
+    R("App Gate", "const W = { users: [], sessions: [], activity: [], settings: [], stages: [], events: [] };",
+      "const W = { users: [], sessions: [], activity: [], settings: [], stages: [], events: [], people: [] };")
+    R("App Gate", "// -- routes with their own steps --", GATE_R32_JS.lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'thread', 'send_reply', 'kit'];", "'thread', 'send_reply', 'kit', 'past_people'];")
+    gx, gy = N["App Gate"]["position"]
+    pw = code("People Writes", WRITES_JS % ("people", "people"), [gx - 200, gy - 360], once=False)
+    sp = _node("Save Imported People", "n8n-nodes-base.dataTable", 1.1, [gx + 20, gy - 360], {"resource": "row", "operation": "insert",
+        "dataTableId": _dt_ref("app_candidates"), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
+    new.append(sp)
+    link("People Writes", "Save Imported People")
+    gl = conns["App Gate"]["main"][0]
+    i = [c["node"] for c in gl].index("App Route")
+    gl[i:i] = [{"node": "People Writes", "type": "main", "index": 0}]
+
+    routes = routes_in + ["past_people"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    bx, by = N["Kit Prompt"]["position"]
+    y = by + 200
+    for k, (nm, table) in enumerate([("Load Past Runs", "app_runs"), ("Load Past People", "app_candidates")]):
+        ld = _node(nm, "n8n-nodes-base.dataTable", 1.1, [bx + 220 * k, y], {"resource": "row", "operation": "get", "dataTableId": _dt_ref(table), "returnAll": True},
+                   alwaysOutputData=True, onError="continueRegularOutput")
+        ld["executeOnce"] = True
+        new.append(ld)
+    code("Past People Reply", PAST_PEOPLE_REPLY, [bx + 440, y])
+    link("App Route", "Load Past Runs", routes.index("past_people")); link("Load Past Runs", "Load Past People"); link("Load Past People", "Past People Reply"); link("Past People Reply", "App Reply")
+    nodes.extend(new)
+    return nodes, conns, routes
+
+
+VETERAN_FIELD = {"fieldName": "veteran", "fieldLabel": "Veterans only", "fieldType": "dropdown",
+                 "fieldOptions": {"values": [{"option": "No"}, {"option": "Yes"}]}, "defaultValue": "={{ $json['veteran'] || 'No' }}"}
+
+
+# ======================================================================
+# Round 33: Google now hides many result links behind google.com/goto?url=...
+# (rolled out mid-2026) and our search service passes some through. Google
+# answers programmatic requests for them with a bot check, so we don't fetch
+# them. Instead, before anything reads the results:
+# - when Google shows the address ("https://in.linkedin.com › in › asha-rao"),
+#   the real link is rebuilt from it;
+# - otherwise the link keeps working for a person (it redirects in a browser)
+#   and is tagged with the site the search was limited to, so the source is
+#   right and LinkedIn people still count as LinkedIn;
+# - Google's line under the title (place · title · company) is added to the
+#   snippet, so the scorer sees it.
+# ======================================================================
+TAG_GOOGLE_LINKS = r"""
+const GOTO = /^https?:\/\/(www\.)?google\.[a-z.]+\/goto\?/i;
+let rebuilt = 0, tagged = 0, dropped = 0;
+const items = $input.all().map(function(i){
+  const j = Object.assign({}, i.json || {});
+  if (!Array.isArray(j.organic)) return { json: j };
+  const q = String((j.searchParameters || {}).q || '');
+  const sites = (q.match(/site:([^\s)]+)/g) || []).map(function(x){ return x.slice(5).toLowerCase(); });
+  const site = sites.length === 1 ? sites[0] : '';
+  j.organic = j.organic.map(function(o){
+    let x = Object.assign({}, o);
+    if (x.subtitle && String(x.snippet || '').indexOf(x.subtitle) === -1) x.snippet = String(x.subtitle) + ' · ' + String(x.snippet || '');
+    const l = String(x.link || '');
+    if (!GOTO.test(l)) return x;
+    const d = String(x.displayedLink || '');
+    const m = d.match(/^(https?:\/\/[^\s›]+)((\s*›\s*[^\s›]+)*)\s*$/);
+    let real = '';
+    if (m) {
+      const host = m[1].replace(/\/+$/, ''), parts = (m[2] || '').split('›').map(function(s){ return s.trim(); }).filter(Boolean);
+      if (/linkedin\.com$/i.test(host) && parts.length === 1 && parts[0] !== 'in') parts.unshift('in');
+      real = host + (parts.length ? '/' + parts.join('/') : '');
+    }
+    const want = site ? site.replace(/^www\./, '') : '';
+    if (real && (!want || real.toLowerCase().indexOf(want.split('/')[0]) !== -1)) {
+      if (want && real.toLowerCase().indexOf(want) === -1) { dropped++; return null; }
+      rebuilt++; x.google_link = l; x.link = real; return x;
+    }
+    let via = want;
+    if (!via && /linkedin/i.test(String(x.subtitle || '') + ' ' + String(x.title || ''))) via = 'linkedin.com/in';
+    if (via) { tagged++; x.link = l + '#via=' + via; }
+    return x;
+  }).filter(Boolean);
+  return { json: j };
+});
+if (items.length) items[0].json._links = { rebuilt: rebuilt, tagged: tagged, dropped: dropped };
+return items;
+"""
+
+
+def apply_round33(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    wx, wy = N["Wait For All Sources"]["position"]
+    t = _node("Tag Google Links", "n8n-nodes-base.code", 2, [wx, wy - 200], {"jsCode": TAG_GOOGLE_LINKS})
+    nodes.append(t)
+
+    # the company someone works at, from the search line itself (it used to come
+    # only from Apollo or GitHub, so most cards had none)
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round33 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+    R("Format Search Results", "10. line (number - the [n] at the start of that line)\n",
+      "10. line (number - the [n] at the start of that line)\n"
+      "11. current_company (string - their current employer as stated in the line: after \"at\" or \"@\" in the title, the part after the job title in \"Name - Title - Company\", or after \"Current company:\" or \"Experience:\"; \"\" if not stated. Never a school, a website name or LinkedIn)\n")
+    R("Split Candidates", "current_role: c.current_role || '',", "current_role: c.current_role || '',\n      current_company: String(c.current_company || '').slice(0, 120),")
+    R("Combine Enrichment", "let current_company = '';", "let current_company = String(cand.current_company || '');")
+    R("Combine No Apollo", "  current_company: '',", "  current_company: cand.current_company || '',")
+    nxt = conns["Wait For All Sources"]["main"][0]
+    assert [c["node"] for c in nxt] == ["Merge Pages"], nxt
+    conns["Wait For All Sources"]["main"][0] = [{"node": "Tag Google Links", "type": "main", "index": 0}]
+    conns["Tag Google Links"] = {"main": [[{"node": "Merge Pages", "type": "main", "index": 0}]]}
+    return nodes, conns
+
+
+# ======================================================================
+# Round 34: run it without worrying.
+# - Health: one page that says, in plain words, whether searches finish,
+#   follow-ups and first emails are being sent on schedule (heartbeats),
+#   sending is inside limits, sources return people and nothing is stuck.
+# - Weekly report: every Monday morning each admin gets last week's numbers
+#   by email (switch it off in Health). The same report can be previewed in
+#   the app.
+# One "Insights" step reads the tables once and serves all three.
+# ======================================================================
+HEARTBEAT_JS = r"""
+// This scheduled job ran: the Health page shows when, so a stopped scheduler is noticed.
+return [{ json: { key: 'hb:%s', value: new Date().toISOString() } }];
+"""
+
+INSIGHTS_JS = r"""
+// Health checks, the weekly report preview, and the Monday email, from one read of the tables.
+let g = null; try { g = $('App Gate').first().json; } catch (e) { g = null; }
+const mode = g ? g.route : 'weekly';
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }); } catch (e) { return []; } };
+const sets = {}; rows('Load Report Settings').forEach(function(r){ if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });
+const runs = rows('Load Report Runs').filter(function(r){ return r.run_id; });
+const people = rows('Load Report People').filter(function(r){ return r.dedupe_key; });
+const seqs = rows('Load Report Sequences').filter(function(r){ return r.contact_key; });
+const users = rows('Load Report Users').filter(function(r){ return r.email; });
+const events = rows('Load Report Events').filter(function(r){ return r.at; });
+const NOW = Date.now(), H = 3600000, D = 24 * H;
+const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
+const ago = function(ms){ if (!ms) return 'never'; const s = (NOW - ms) / 1000; if (s < 90) return 'just now'; if (s < 5400) return Math.round(s / 60) + ' min ago'; if (s < 36 * 3600) return Math.round(s / 3600) + ' h ago'; const dd = Math.round(s / 86400); return dd === 1 ? 'yesterday' : dd + ' days ago'; };
+const IST = function(ms){ return new Date(ms + 5.5 * H); };
+const fmtDay = function(ms){ const d = IST(ms); return d.getUTCDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]; };
+const esc = function(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+const reportOn = sets.weekly_report !== 'false';
+const admins = users.filter(function(u){ return u.role === 'admin' && u.status !== 'disabled'; });
+
+// ---------- health ----------
+const checks = [];
+const add = function(id, status, title, detail, fix){ checks.push({ id: id, status: status, title: title, detail: detail, fix: fix || '' }); };
+// searches
+const week = runs.filter(function(r){ return NOW - t(r.started_at) < 7 * D; });
+const stalled = runs.filter(function(r){ return r.status === 'running' && NOW - t(r.started_at) > 20 * 60000; });
+const done = week.filter(function(r){ return r.status === 'done'; });
+const durs = done.map(function(r){ return (t(r.finished_at) - t(r.started_at)) / 60000; }).filter(function(m){ return m > 0 && m < 120; });
+const avgMin = durs.length ? Math.round(10 * durs.reduce(function(a, b){ return a + b; }, 0) / durs.length) / 10 : 0;
+if (stalled.length) add('searches', 'bad', stalled.length + ' search' + (stalled.length > 1 ? 'es' : '') + ' stuck', stalled.slice(0, 3).map(function(r){ return (r.role || 'Search') + ' (started ' + ago(t(r.started_at)) + ')'; }).join(', '),
+  'Open n8n, Executions, and look at the failed run. Usually a service ran out of credits or a connection expired.');
+else if (!runs.length) add('searches', 'warn', 'No searches yet', 'Nothing has been searched in this workspace.', 'Start one from the Board.');
+else add('searches', 'ok', 'Searches finish', done.length + ' finished this week' + (avgMin ? ', ' + avgMin + ' min on average' : '') + '. Last one ' + ago(Math.max.apply(null, runs.map(function(r){ return t(r.started_at); }))) + '.');
+// schedulers
+const beat = function(id, key, title, what){
+  const at = t(sets[key]);
+  if (!at) add(id, 'warn', title + ': no signal yet', 'This shows once the workflow is published and the job has run.', 'Publish the workflow in n8n. The job runs every 15 minutes.');
+  else if (NOW - at < 40 * 60000) add(id, 'ok', title + ' run', what + ' Last ran ' + ago(at) + '.');
+  else if (NOW - at < 3 * H) add(id, 'warn', title + ' late', 'Last ran ' + ago(at) + '. It should run every 15 minutes.', 'Check that n8n is running and the workflow is published.');
+  else add(id, 'bad', title + ' stopped', 'Last ran ' + ago(at) + '. Emails are not going out.', 'Start n8n (or wake the computer it runs on) and check the workflow is published.');
+};
+beat('followups', 'hb:followups', 'Follow-ups', 'Sends the day 2, 4, 5 and 7 emails.');
+beat('outreach', 'hb:outreach', 'First emails', 'Sends the first email to people you approve.');
+// sending
+const cap = Number(sets.daily_cap) || 50;
+const istNow = IST(NOW), dayStart = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - 5.5 * H;
+const sentToday = seqs.filter(function(s){ return t(s.last_sent_at) >= dayStart; }).length;
+const active = seqs.filter(function(s){ return s.status === 'active'; });
+const hm = function(v, d){ const m = /^(\d\d):(\d\d)$/.exec(String(v || d)); return m ? (+m[1]) * 60 + (+m[2]) : 0; };
+const nowMin = istNow.getUTCHours() * 60 + istNow.getUTCMinutes(), wd = istNow.getUTCDay();
+const inWindow = nowMin >= hm(sets.window_start, '09:30') && nowMin < hm(sets.window_end, '18:30') && !(sets.weekdays_only !== 'false' && (wd === 0 || wd === 6));
+const late = active.filter(function(s){ return t(s.next_due_at) && NOW - t(s.next_due_at) > 2 * H; });
+if (late.length && inWindow) add('late', 'warn', late.length + ' follow-up' + (late.length > 1 ? 's' : '') + ' overdue', 'Due more than 2 hours ago and still waiting, inside your sending hours.', sentToday >= cap ? 'The daily limit (' + cap + ') is reached. Raise it in Settings, Sending, or wait for tomorrow.' : 'Check the follow-up job above and the Gmail connection in n8n.');
+add('sending', sentToday >= cap ? 'warn' : 'ok', 'Sending', sentToday + ' of ' + cap + ' emails sent today, ' + active.length + ' people in follow-up. Hours ' + (sets.window_start || '09:30') + '–' + (sets.window_end || '18:30') + (sets.weekdays_only !== 'false' ? ', weekdays' : '') + '.',
+  sentToday >= cap ? 'The daily limit is reached; the rest go tomorrow.' : '');
+const recentErr = seqs.filter(function(s){ return (s.status === 'bounced' || s.last_error) && NOW - t(s.last_sent_at || s.started_at) < 7 * D; });
+if (recentErr.length) add('bounces', recentErr.length >= 3 ? 'bad' : 'warn', recentErr.length + ' email' + (recentErr.length > 1 ? 's' : '') + ' bounced or failed this week', recentErr.slice(0, 3).map(function(s){ return (s.first_name || s.email || '') + (s.last_error ? ': ' + String(s.last_error).slice(0, 60) : ''); }).join('; '),
+  'Bad addresses hurt your sender reputation. Check where these emails came from before approving more from that source.');
+// sources
+const last = {};
+runs.filter(function(r){ return r.status === 'done' && r.by_source; }).forEach(function(r){ String(r.by_source).split('·').forEach(function(p){ const m = p.trim().match(/^(.+?)\s+(\d+)$/); if (m && +m[2] > 0) { m[1].split(' + ').forEach(function(s){ s = s.trim(); if (t(r.finished_at || r.started_at) > (last[s] || 0)) last[s] = t(r.finished_at || r.started_at); }); } }); });
+const tried = {};
+week.forEach(function(r){ String(r.sources || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(s){ tried[s] = (tried[s] || 0) + 1; }); });
+const ALIAS = { 'Google / Open Web': 'Open Web', 'Github': 'GitHub' };
+const dry = Object.keys(tried).filter(function(s){ const k = ALIAS[s] || s; return tried[s] >= 2 && (!last[k] || NOW - last[k] > 7 * D); });
+const lastFound = Math.max.apply(null, [0].concat(Object.keys(last).map(function(k){ return last[k]; })));
+const recentDone = runs.filter(function(r){ return r.status === 'done'; }).sort(function(a, b){ return t(b.started_at) - t(a.started_at); }).slice(0, 3);
+if (recentDone.length === 3 && recentDone.every(function(r){ return !(Number(r.count) > 0); })) add('sources', 'bad', 'The last 3 searches found nobody', 'Google search or the AI may have run out of credits.', 'Check your Serper and OpenAI balances, then search again.');
+else if (dry.length) add('sources', 'warn', 'Some channels found nobody this week', dry.join(', ') + ' were picked but returned no people.', 'Untick them for these roles, or broaden the brief.');
+else add('sources', runs.length ? 'ok' : 'warn', 'Channels return people', Object.keys(last).length ? Object.keys(last).sort(function(a, b){ return last[b] - last[a]; }).slice(0, 6).map(function(k){ return k + ' ' + ago(last[k]); }).join(', ') : 'No results yet.');
+// settings
+if (!sets.signature) add('signature', 'warn', 'No email signature', 'Emails go out with the default sign-off.', 'Add yours in Settings, Sending.');
+const admCount = admins.length;
+if (admCount < 2 && users.length > 1) add('admins', 'warn', 'Only one admin', 'If that person is away, nobody can change settings or reset passwords.', 'Make a second teammate an admin in Settings, Team.');
+const overall = checks.some(function(c){ return c.status === 'bad'; }) ? 'bad' : (checks.some(function(c){ return c.status === 'warn'; }) ? 'warn' : 'ok');
+const ORDER = { bad: 0, warn: 1, ok: 2 };
+checks.sort(function(a, b){ return ORDER[a.status] - ORDER[b.status]; });
+
+// ---------- weekly report ----------
+const from = NOW - 7 * D;
+const inWk = function(v){ return t(v) >= from; };
+const wkRuns = runs.filter(function(r){ return inWk(r.started_at); });
+const wkRunIds = {}; wkRuns.forEach(function(r){ wkRunIds[String(r.run_id)] = r; });
+const wkPeople = people.filter(function(p){ return wkRunIds[String(p.run_id)]; });
+const strong = wkPeople.filter(function(p){ return Number(p.fit_score) >= 8; }).length;
+const started = seqs.filter(function(s){ return inWk(s.started_at); });
+const replied = seqs.filter(function(s){ return s.status === 'replied' && inWk(s.updatedAt || s.last_sent_at); });
+const moved = function(stage){ return events.filter(function(e){ return e.kind === 'stage' && e.to_stage === stage && inWk(e.at); }).length; };
+const allStarted = seqs.length, allReplied = seqs.filter(function(s){ return s.status === 'replied'; }).length;
+const rate = allStarted ? Math.round(100 * allReplied / allStarted) : 0;
+const byRole = {};
+wkRuns.forEach(function(r){ const k = [r.role, r.location].filter(Boolean).join(', ') || 'Search'; const x = byRole[k] = byRole[k] || { found: 0, strong: 0, searches: 0 }; x.searches++; });
+wkPeople.forEach(function(p){ const r = wkRunIds[String(p.run_id)]; const k = [r.role, r.location].filter(Boolean).join(', ') || 'Search'; byRole[k].found++; if (Number(p.fit_score) >= 8) byRole[k].strong++; });
+const bySrc = {};
+wkPeople.forEach(function(p){ const s = String(p.source || 'Other').split(' + ')[0]; const x = bySrc[s] = bySrc[s] || { found: 0, strong: 0 }; x.found++; if (Number(p.fit_score) >= 8) x.strong++; });
+const byPerson = {};
+events.filter(function(e){ return inWk(e.at) && e.by; }).forEach(function(e){ const x = byPerson[e.by] = byPerson[e.by] || { moves: 0, notes: 0, replies: 0 }; if (e.kind === 'stage') x.moves++; else if (e.kind === 'email') x.replies++; else x.notes++; });
+const waiting = seqs.filter(function(s){ return s.status === 'replied'; }).length;
+const range = fmtDay(from) + ' – ' + fmtDay(NOW);
+const kpis = [[wkRuns.length, 'searches'], [wkPeople.length, 'people found'], [strong, 'strong matches'], [started.length, 'first emails'], [replied.length, 'replies'], [moved('interview'), 'moved to interview'], [moved('hired'), 'hired']];
+const subject = 'Weekly hiring report, ' + range + ': ' + wkPeople.length + ' found, ' + replied.length + ' repl' + (replied.length === 1 ? 'y' : 'ies');
+const cell = 'padding:6px 10px;border-bottom:1px solid #EFEFF1;text-align:left;font-size:13px';
+const table = function(head, body){ return body.length ? '<table style="border-collapse:collapse;width:100%;margin:6px 0 18px">' + '<tr>' + head.map(function(h){ return '<th style="' + cell + ';color:#5F6168;font-weight:600">' + esc(h) + '</th>'; }).join('') + '</tr>' + body.map(function(r){ return '<tr>' + r.map(function(c){ return '<td style="' + cell + '">' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' : '<p style="color:#5F6168;font-size:13px">Nothing this week.</p>'; };
+const h2 = function(x){ return '<h2 style="font:700 15px Arial,sans-serif;margin:18px 0 4px;color:#1F2024">' + esc(x) + '</h2>'; };
+const html = '<div style="font-family:Arial,sans-serif;color:#1F2024;max-width:640px">' +
+  '<p style="font-size:13px;color:#5F6168;margin:0 0 4px">' + esc(range) + '</p>' +
+  '<h1 style="font:800 20px Arial,sans-serif;margin:0 0 14px">Your hiring week</h1>' +
+  '<table style="border-collapse:separate;border-spacing:6px;margin:0 -6px 8px"><tr>' + kpis.map(function(k){ return '<td style="background:#F5F5F6;border-radius:8px;padding:10px 12px;min-width:70px"><div style="font:800 20px Arial,sans-serif">' + k[0] + '</div><div style="font-size:12px;color:#5F6168">' + esc(k[1]) + '</div></td>'; }).join('') + '</tr></table>' +
+  '<p style="font-size:13px;margin:0 0 4px">Reply rate so far: <b>' + rate + '%</b> of ' + allStarted + ' people emailed.' + (waiting ? ' <b>' + waiting + '</b> repl' + (waiting === 1 ? 'y is' : 'ies are') + ' waiting for an answer.' : '') + '</p>' +
+  h2('By role') + table(['Role', 'Searches', 'Found', 'Strong'], Object.keys(byRole).sort(function(a, b){ return byRole[b].found - byRole[a].found; }).map(function(k){ return [k, byRole[k].searches, byRole[k].found, byRole[k].strong]; })) +
+  h2('Best channels') + table(['Channel', 'Found', 'Strong'], Object.keys(bySrc).sort(function(a, b){ return bySrc[b].strong - bySrc[a].strong || bySrc[b].found - bySrc[a].found; }).slice(0, 8).map(function(k){ return [k.replace('Google / Open Web', 'Open web'), bySrc[k].found, bySrc[k].strong]; })) +
+  h2('Team') + table(['Person', 'Moves', 'Notes', 'Replies sent'], Object.keys(byPerson).sort(function(a, b){ return byPerson[b].moves - byPerson[a].moves; }).map(function(k){ return [k, byPerson[k].moves, byPerson[k].notes, byPerson[k].replies]; })) +
+  h2('Health') + '<p style="font-size:13px;margin:0">' + checks.filter(function(c){ return c.status !== 'ok'; }).map(function(c){ return (c.status === 'bad' ? 'Needs attention: ' : 'Check: ') + esc(c.title) + '.'; }).join('<br>') + (overall === 'ok' ? 'Everything is running.' : '') + '</p>' +
+  '<p style="font-size:12px;color:#9C9DA3;margin-top:20px">Sent every Monday to workspace admins. Switch it off on the Health page in the app.</p></div>';
+
+if (mode === 'health') return [{ json: { _to: 'app', response: { ok: true, overall: overall, checks: checks, weekly_report: reportOn, recipients: admins.map(function(u){ return u.name; }),
+  numbers: { searches_week: wkRuns.length, people: people.length, in_followup: active.length, sent_today: sentToday, cap: cap } } } }];
+if (mode === 'weekly_preview') return [{ json: { _to: 'app', response: { ok: true, subject: subject, html: html, on: reportOn, recipients: admins.map(function(u){ return u.name; }) } } }];
+// Monday email: only when switched on, and only if anything happened
+if (!reportOn || (!wkRuns.length && !started.length && !replied.length)) return [];
+return admins.filter(function(u){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email); }).map(function(u){ return { json: { _to: 'mail', to: u.email, subject: subject, html: html } }; });
+"""
+
+GATE_R34_JS = r"""
+if (action === 'save_report') {
+  if (!isAdmin) return reply({ ok: false, error: 'Only an admin can do that.' });
+  W.settings.push({ key: 'weekly_report', value: body.on ? 'true' : 'false' });
+  log(me, body.on ? 'switched the weekly report on' : 'switched the weekly report off', '');
+  return reply({ ok: true, on: !!body.on });
+}
+"""
+
+
+def apply_round34(nodes, conns, routes_in):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round34 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    gcred = json.loads(json.dumps(N["Send Outreach Email"]["credentials"]))
+    upsert = json.loads(json.dumps(N["Save Settings"]["parameters"]))
+
+    # 1. heartbeats from the two 15-minute jobs
+    taken = [n["position"] for n in nodes]
+
+    def free(x, y):
+        for dy in [0, -160, 160, -320, 320, -480, 480, -640, 640]:
+            for dx in [0, -220, -440]:
+                a, b = [x + dx, y + dy], [x + dx + 220, y + dy]
+                if all(abs(q[0] - c[0]) >= 180 or abs(q[1] - c[1]) >= 110 for q in taken for c in (a, b)):
+                    taken.extend([a, b])
+                    return a, b
+        raise AssertionError("round34: no free spot near %s,%s" % (x, y))
+
+    for trig, key, nm in [("Follow-up Schedule", "followups", "Follow-up Heartbeat"), ("Outreach Schedule", "outreach", "Outreach Heartbeat")]:
+        tx, ty = N[trig]["position"]
+        a, b = free(tx, ty - 160)
+        n = _node(nm, "n8n-nodes-base.code", 2, a, {"jsCode": HEARTBEAT_JS % key})
+        sv = _node(nm.replace("Heartbeat", "Beat Saved"), "n8n-nodes-base.dataTable", 1.1, b, json.loads(json.dumps(upsert)), onError="continueRegularOutput")
+        new += [n, sv]
+        # first in the list, so it runs before the job's own steps (v1 order)
+        conns[trig]["main"][0].insert(0, {"node": nm, "type": "main", "index": 0})
+        link(nm, sv["name"])
+
+    # 2. insights: shared reads, one code step, then app or email
+    bx, by = N["Load Past Runs"]["position"]
+    y = by + 220
+    loads = [("Load Report Settings", "app_settings"), ("Load Report Runs", "app_runs"), ("Load Report People", "app_candidates"),
+             ("Load Report Sequences", SEQ_TABLE), ("Load Report Users", "app_users"), ("Load Report Events", "app_events")]
+    for i, (nm, table) in enumerate(loads):
+        ld = _node(nm, "n8n-nodes-base.dataTable", 1.1, [bx + 220 * i, y], {"resource": "row", "operation": "get", "dataTableId": _dt_ref(table), "returnAll": True},
+                   alwaysOutputData=True, onError="continueRegularOutput")
+        ld["executeOnce"] = True
+        new.append(ld)
+        if i:
+            link(loads[i - 1][0], nm)
+    ins = _node("Insights", "n8n-nodes-base.code", 2, [bx + 220 * len(loads), y], {"jsCode": INSIGHTS_JS})
+    ins["executeOnce"] = True
+    new.append(ins)
+    link(loads[-1][0], "Insights")
+    iff = _node("Insights To App?", "n8n-nodes-base.if", 2.2, [bx + 220 * (len(loads) + 1), y], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2},
+                       "conditions": [{"id": "to-app", "leftValue": "={{ $json._to }}", "rightValue": "app", "operator": {"type": "string", "operation": "equals"}}],
+                       "combinator": "and"}, "looseTypeValidation": True, "options": {}})
+    new.append(iff)
+    link("Insights", "Insights To App?")
+    link("Insights To App?", "App Reply", 0)
+    mail = _node("Send Weekly Report", "n8n-nodes-base.gmail", 2.1, [bx + 220 * (len(loads) + 2), y + 120], {
+        "sendTo": "={{ $json.to }}", "subject": "={{ $json.subject }}", "emailType": "html", "message": "={{ $json.html }}",
+        "options": {"appendAttribution": False}}, credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
+    new.append(mail)
+    link("Insights To App?", "Send Weekly Report", 1)
+    sch = _node("Weekly Report Schedule", "n8n-nodes-base.scheduleTrigger", 1.2, [bx - 240, y + 120], {
+        "rule": {"interval": [{"field": "cronExpression", "expression": "17 9 * * 1"}]}})
+    new.append(sch)
+    link("Weekly Report Schedule", loads[0][0])
+
+    # 3. the app: two read routes and the on/off switch
+    R("App Gate", "// -- routes with their own steps --", GATE_R34_JS.lstrip() + "\n// -- routes with their own steps --")
+    R("App Gate", "'kit', 'past_people'];", "'kit', 'past_people', 'health', 'weekly_preview'];")
+    routes = routes_in + ["health", "weekly_preview"]
+    sw = N["App Route"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    link("App Route", loads[0][0], routes.index("health"))
+    link("App Route", loads[0][0], routes.index("weekly_preview"))
+    nodes.extend(new)
+    return nodes, conns, routes
