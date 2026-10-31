@@ -6008,3 +6008,54 @@ def apply_round38(nodes, conns):
     link("Email Search?", "Email Search Body", 0); link("Email Search?", "Email Reply", 1)
     link("Email Search Body", "Email Start Search"); link("Email Start Search", "Email Reply")
     return nodes, conns
+
+
+# ======================================================================
+# Round 39: every channel teaches itself: a welcome and samples on
+# Telegram, instructions by email when a mail asks for nothing, hints
+# in the browser popup and under the app's brief box.
+# ======================================================================
+TG_WELCOME = r"""
+const SAMPLES = 'Describe the role the way you’d tell a colleague, typed or as a voice note:\n' +
+  '“Senior product manager in Bangalore, 5 to 8 years, pricing for B2B SaaS, must know SQL. Look on LinkedIn, GitHub and research papers.”\n' +
+  '“Backend engineer in Pune, 3-5 years, Go or Java, has run services on Kubernetes. LinkedIn and GitHub only.”\n' +
+  'Name channels to pick them; say “everywhere” for all; “ex-servicemen” for a veteran search.\n' +
+  'Paste a profile link on its own to add that person to the role you’re on.';
+const WELCOME = function(name){ return 'Connected as ' + name + '. ' + SAMPLES + '\n\nSend “help” for the full list of commands.'; };
+"""
+
+EMAIL_HELP_HTML = r"""
+const HELP_HTML = '<p>Two things you can do by email, from this address:</p>' +
+  '<p><b>Start a search.</b> Subject: <code>Search: Senior Product Manager, Bangalore</code><br>Body: “5 to 8 years, has done pricing for B2B SaaS, must know SQL. Nice if from a payments company. LinkedIn, GitHub and research papers.”<br>You get a reply saying what is being searched, and the results email when it is done.</p>' +
+  '<p><b>Add a person.</b> Subject: <code>Fwd: Backend Engineer, Pune</code> (the role name picks the role)<br>Body: a LinkedIn or GitHub link, or anything about the person; a PDF attached is read as the CV.<br>You get the score and summary back, and the person is in Found on the Board.</p>' +
+  '<p>Name channels in the brief to pick them (“on LinkedIn and GitHub”, “everywhere”); say “ex-servicemen” for a veteran search.</p>';
+"""
+
+
+def apply_round39(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round39 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    # Telegram: a welcome with samples; help carries the samples; the fallback shows one instead of "Not sure"
+    R("TG Jobs", "// Channels named in plain words -> the sourcing channels of the app.", TG_WELCOME.strip() + "\n// Channels named in plain words -> the sourcing channels of the app.")
+    R("TG Jobs", "job(chat, lk, 'say', null, { text: 'Connected as ' + lk.name + '. ' + HELP, writes:", "job(chat, lk, 'say', null, { text: WELCOME(lk.name), writes:")
+    R("TG Jobs", "if (/^\\/?help$/.test(low) || /^(hi|hello|hey)$/.test(low)) { job(chat, who, 'say', null, { text: HELP }); return; }",
+      "if (/^\\/?help$/.test(low) || /^(hi|hello|hey)$/.test(low)) { job(chat, who, 'say', null, { text: HELP + '\\n\\n' + SAMPLES }); return; }")
+    R("TG Jobs", "job(chat, who, 'say', null, { text: 'Not sure what you mean. ' + HELP });",
+      "job(chat, who, 'say', null, { text: 'Not sure what you mean. ' + SAMPLES + '\\n\\nSend \\u201chelp\\u201d for the commands.' });")
+
+    # Email: a mail that asks for nothing gets the instructions; an unreadable search brief gets them too
+    R("Email In", "  out.push({ json: { message_id: String(m.id || ''), thread_id: String(m.threadId || ''), from: em, who: u.name, subject: subject, kind: search ? 'search' : 'add',",
+      "  const nothing = !search && !url && text.replace(/\\s+/g, '').length < 40 && !/attach/i.test(text) || /^(help|how|\\?)$/i.test(subject);\n"
+      "  out.push({ json: { message_id: String(m.id || ''), thread_id: String(m.threadId || ''), from: em, who: u.name, subject: subject, kind: search ? 'search' : (nothing ? 'help' : 'add'),")
+    R("Email Text", "  if (e.kind === 'search') return", "  if (e.kind === 'help') return { json: Object.assign({}, e, { body: { action: 'ping', service_key: e.service_key, as_email: e.from } }) };\n  if (e.kind === 'search') return")
+    R("Email Reply", "let html;\nif (e.kind === 'search') {", EMAIL_HELP_HTML.strip() + "\nlet html;\nif (e.kind === 'help') html = HELP_HTML;\nelse if (e.kind === 'search') {")
+    R("Email Reply", "  if (!sb.body) html = '<p>Could not read the brief: ' + esc(sb.error || 'no role found') + '.</p><p>Put the role after \"Search:\" in the subject and describe the person in the body, e.g. \"Product manager in Bangalore, 5-8 years, B2B SaaS, on LinkedIn and GitHub\".</p>';",
+      "  if (!sb.body) html = '<p>Could not read the brief: ' + esc(sb.error || 'no role found') + '.</p>' + HELP_HTML;")
+    R("Email Reply", "else html = '<p>Could not add this one: ' + esc(j.error || 'the app did not answer') + '.</p><p>Send a profile link or the CV text with the role name in the subject.</p>';",
+      "else html = '<p>Could not add this one: ' + esc(j.error || 'the app did not answer') + '.</p>' + HELP_HTML;")
+    return nodes, conns

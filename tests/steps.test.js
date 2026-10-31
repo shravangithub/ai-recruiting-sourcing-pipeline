@@ -1596,3 +1596,30 @@ test('R38: "Search: <role>" by email starts a search, with the channels named an
   const crit2 = await runNode('App Criteria', [{ body: { criteria: { role: 'PM', sources: ['LinkedIn'], notify: 'not-an-email' } } }]);
   assert.equal(crit2[0].notify, '');
 });
+
+// ---------- Round 39: each channel explains itself ----------
+test('R39: Telegram welcomes with sample briefs, help carries them, and a puzzled reply shows one', async () => {
+  const sets = tgSets([{ key: 'tglink:AB12CD', value: JSON.stringify({ email: 'priya@x.example', name: 'Priya', role: 'recruiter', exp: Date.now() + 60000 }) }]);
+  const j = await jobs([msg(555, '/start ab12cd')], sets);
+  assert.match(j[0].text, /^Connected as Priya\. Describe the role the way you’d tell a colleague/); assert.match(j[0].text, /Senior product manager in Bangalore/); assert.match(j[0].text, /Send “help”/);
+  const h = await jobs([msg(777, 'help')], tgSets([linkedK]));
+  assert.match(h[0].text, /What I can do:/); assert.match(h[0].text, /Paste a profile link on its own/);
+  const p = await jobs([msg(777, 'ok')], tgSets([linkedK]));
+  assert.match(p[0].text, /^Not sure what you mean\. Describe the role/); assert.doesNotMatch(p[0].text, /What I can do/);
+});
+
+test('R39: an email that asks for nothing, or a brief that cannot be read, gets the instructions back', async () => {
+  const users = [{ email: 'kumar@x.example', name: 'Kumar', status: 'active' }];
+  const sets = [{ key: 'service_key', value: 'svc-key' }];
+  const mails = [{ id: 'h1', from: 'kumar@x.example', subject: 'help', text: '' }, { id: 'h2', from: 'kumar@x.example', subject: 'Backend Engineer', text: 'hi' },
+    { id: 'a1', from: 'kumar@x.example', subject: 'Backend Engineer', text: 'See https://www.linkedin.com/in/x/' }, { id: 'a2', from: 'kumar@x.example', subject: 'Backend Engineer, Pune', text: 'CV attached for the Pune role, please have a look at this person, strong on Go.' }];
+  const got = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
+  assert.deepEqual(got.map((x) => x.kind), ['help', 'help', 'add', 'add']);
+  const [t] = await runNode('Email Text', [got[0]], { 'Email In': [got[0]] });
+  assert.equal(t.body.action, 'ping');
+  const [r] = await runNode('Email Reply', [{ ok: true }], { 'Email Text': [t], 'Email Search Body': [{}] });
+  assert.match(r.html, /Two things you can do by email/); assert.match(r.html, /Search: Senior Product Manager, Bangalore/); assert.match(r.html, /Fwd: Backend Engineer, Pune/);
+  const s = Object.assign({}, got[0], { kind: 'search', message_id: 's1' });
+  const [bad] = await runNode('Email Reply', [{}], { 'Email Text': [s], 'Email Search Body': [{ ok: false, error: 'No role found.' }] });
+  assert.match(bad.html, /Could not read the brief: No role found/); assert.match(bad.html, /Two things you can do by email/);
+});

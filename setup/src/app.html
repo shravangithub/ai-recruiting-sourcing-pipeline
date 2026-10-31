@@ -567,6 +567,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 (function(){
 var API = '__API__';
 var SHEET_URL = '__SHEET_URL__';
+var CHANNEL_WORDS = [['LinkedIn',/linked ?in/i],['GitHub',/git ?hub/i],['Stack Overflow',/stack ?overflow/i],['Google / Open Web',/\b(open web|google|the web)\b/i],['Hacker News',/hacker ?news/i],['GitLab',/git ?lab/i],['Kaggle',/kaggle/i],['Hugging Face',/hugging ?face/i],['Dev.to',/\bdev\.to\b/i],['Reddit',/reddit/i],['X (Twitter)',/\b(twitter|x\.com)\b/i],['Dribbble',/dribbble/i],['Behance',/behance/i],['Devfolio',/devfolio/i],['Unstop',/unstop/i],['Devpost',/devpost/i],['HackerEarth',/hacker ?earth/i],['LeetCode',/leet ?code/i],['CodeChef',/code ?chef/i],['Codeforces',/codeforces/i],['Topmate',/topmate/i],['ADPList',/adp ?list/i],['Medium',/\bmedium\b/i],['Research papers',/\b(research papers?|papers|researchers?|openalex|publications?)\b/i],['Speakers & experts',/\b(speakers?|experts?|conference talks?|sessionize)\b/i]];
+function channelsIn(t){ t = String(t||''); if (/\b(everywhere|all channels|all sources|every channel|every source)\b/i.test(t)) return CHANNEL_WORDS.map(function(c){ return c[0]; }); return CHANNEL_WORDS.filter(function(c){ return c[1].test(t); }).map(function(c){ return c[0]; }); }
 var PLATFORMS = ['LinkedIn','GitHub','Stack Overflow','Google / Open Web','Hacker News','GitLab','Kaggle','Hugging Face','Dev.to','Reddit','X (Twitter)','Dribbble','Behance','Devfolio','Unstop','Devpost','HackerEarth','LeetCode','CodeChef','Codeforces','Topmate','ADPList','Medium','Research papers','Speakers & experts'];
 var YIELD = {'LinkedIn':'~25','GitHub':'~40','Stack Overflow':'~35','Google / Open Web':'~12','Hacker News':'~14','GitLab':'~11','Kaggle':'~28','Hugging Face':'~27','Dev.to':'~8','Reddit':'~14','X (Twitter)':'~13','Dribbble':'~10','Behance':'~20','Devfolio':'new','Unstop':'new','Devpost':'new','HackerEarth':'new','LeetCode':'new','CodeChef':'new','Codeforces':'new','Topmate':'new','ADPList':'new','Medium':'new','Research papers':'new','Speakers & experts':'new'};
 var REGIONS = ['Global (all regions)','India','United States','United Kingdom','Canada','Australia','Germany','France','Netherlands','Singapore','United Arab Emirates','Ireland'];
@@ -1149,7 +1151,8 @@ function briefPanel(){
       nb.nice.map(function(x,i){ return '<button type="button" class="crit nice" data-mv="nice:'+i+'" title="Make it a must-have">'+esc(x)+' · nice</button>'; }).join('') : '';
     var facts = crit ? [crit.experience !== 'Any' ? crit.experience : '', crit.city, (crit.similar_titles||[]).length ? '+ ' + crit.similar_titles.slice(0,2).join(', ') : '', (crit.exclude||[]).map(function(x){ return '− ' + x; }).join(' '), crit.colleges].filter(Boolean) : [];
     return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+(nb.busy?'<span class="spin" style="display:inline-block;width:10px;height:10px"></span> reading…':(crit?'read as below':'type or paste'))+'</span></div>'+
-      '<label for="nbBrief" style="position:absolute;left:-9999px">Brief</label><textarea id="nbBrief" rows="4" style="font-size:14px;line-height:1.5;background:#FAFAFB" placeholder="e.g. Area Sales Manager in Pune, 5–8 years, B2B SaaS. Ideally an MBA. No freshers.">'+esc(nb.brief)+'</textarea>'+
+      '<label for="nbBrief" style="position:absolute;left:-9999px">Brief</label><textarea id="nbBrief" rows="4" style="font-size:14px;line-height:1.5;background:#FAFAFB" placeholder="e.g. Area Sales Manager in Pune, 5–8 years, B2B SaaS. Ideally an MBA. No freshers. Look on LinkedIn and GitHub.">'+esc(nb.brief)+'</textarea>'+
+      (crit ? '' : '<div class="muted" style="font-size:12px;margin-top:-4px">Say the role, place, years and must-haves the way you’d tell a colleague. Name channels to pick them (“on LinkedIn and GitHub”, “include research papers”, “everywhere”); say “ex-servicemen” for a veteran search.</div>')+
       (nb.q.length ? nb.q.map(function(q,qi){ return '<div class="q"><b>'+esc(q.text)+'</b><div class="qopts">'+q.options.map(function(o){ return '<button type="button" data-nbq="'+qi+'" data-a="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div></div>'; }).join('') : '')+
       (crit ? '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Read as · tap to switch must / nice</span><div class="chips">'+chips+'</div><div class="chips">'+facts.map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>' : '')+
       (crit ? '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Target companies (optional, up to 5)</span><input id="nbCos" type="text" value="'+esc(nb.companies||'')+'" placeholder="e.g. Kitebase, Northwind SaaS"></label>'+
@@ -1194,7 +1197,8 @@ function nbIntake(){
     if (!nb.touchedCos) nb.companies = nb.crit.companies || ''; if (!nb.touchedVet) nb.veteran = !!nb.crit.veteran;
     loadPast(nb, { role: nb.crit.role || '', must: nb.must, city: nb.crit.city || '', run_id: '' });
     nb.q = (j.questions||[]).filter(function(q){ return q && q.text; }).slice(0,2);
-    if (!nb.touchedSrc && (j.sources||[]).length) nb.sources = j.sources.filter(function(p){ return PLATFORMS.indexOf(p)!==-1; });
+    var named = channelsIn(nb.brief);
+    if (!nb.touchedSrc && named.length) nb.sources = named; else if (!nb.touchedSrc && (j.sources||[]).length) nb.sources = j.sources.filter(function(p){ return PLATFORMS.indexOf(p)!==-1; });
     renderBrief();
   }).catch(function(e){ nb.busy = false; renderBrief(); if (e.message!=='locked') toast(e.message); });
 }
@@ -1529,13 +1533,13 @@ function addWindow(q){
       if (j.auth === 'need_login') { w.innerHTML = '<p>This button no longer works. Open Sourcing → Settings → Phone &amp; browser and drag a new one to your bookmarks bar.</p>'; return; }
       if (j.need_role) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Add to which role?</h2><p class="muted" style="margin:0 0 12px">' + esc(page.title.slice(0, 90)) + '</p><div id="addRoles" style="display:flex;flex-direction:column;gap:8px"></div>' + (j.roles.length ? '' : '<p>' + esc(j.error) + '</p>');
         j.roles.forEach(function(r){ var b = document.createElement('button'); b.className = 'btn'; b.style.cssText = 'height:auto;padding:10px 12px;text-align:left;justify-content:flex-start'; b.textContent = r.role + (r.location ? ' · ' + r.location : ''); b.onclick = function(){ send({ run_id: r.run_id }); }; el('addRoles').appendChild(b); }); return; }
-      if (j.already) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Already there</h2><p>' + esc(j.error) + '</p><button class="btn" onclick="window.close()">Close</button>'; return; }
+      if (j.already) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Already there</h2><p>' + esc(j.error) + '</p><p class="muted" style="font-size:13px">Open the Board to shortlist or approve them. Each click adds the person on the page you’re on, once per role.</p><button class="btn" onclick="window.close()">Close</button>'; return; }
       if (!j.ok) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Could not add</h2><p>' + esc(j.error || 'The server did not answer.') + '</p><button class="btn" onclick="window.close()">Close</button>'; return; }
       var p = j.person;
       w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Added to ' + esc(j.role) + '</h2><div style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><div>' + sigBars(p.fit * 10, true) + '</div><div><b>' + esc(p.name) + '</b><div class="muted" style="font-size:13px">' + esc([p.title, p.company].filter(Boolean).join(' · ')) + '</div></div></div><p style="margin:0 0 10px">' + esc(p.summary) + '</p><p class="muted" style="font-size:13px;margin:0 0 14px">' + (p.email ? 'An email address was found, so they can be approved for outreach.' : 'No email address yet; Apollo or a CV can fill it in later.') + '</p><div style="display:flex;gap:8px"><a class="btn pri" style="text-decoration:none" href="' + esc(appUrl()) + '#list=' + esc(j.run_id) + '" target="_blank" rel="opener">Open the Board</a><button class="btn" onclick="window.close()">Close</button></div>';
     });
   };
-  if (!key || (!page.url && page.text.length < 40)) { w.innerHTML = '<p>Nothing to add. Open a profile page and click the button there.</p>'; return; }
+  if (!key || (!page.url && page.text.length < 40)) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Add to Board</h2><p>Nothing to add here. Open a LinkedIn, GitHub or any profile page and click the button there: the person is scored for one of your roles and added to Found.</p><p class="muted" style="font-size:13px">To start a search, use the app, Telegram or an email with “Search:” in the subject.</p>'; return; }
   send();
 }
 
