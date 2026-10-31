@@ -1466,3 +1466,92 @@ test('R36: the gate gives out link codes, keeps the token with admins, and trust
   const wrongKey = await gate29({ action: 'board', service_key: 'nope', as_email: 'admin@example.com' }, { users: [admin], settings: [{ key: 'service_key', value: 'svc-key' }] });
   assert.equal(wrongKey.response.auth, 'need_login');
 });
+
+// ---------- Round 37: the browser button, email in, voice notes, staying signed in ----------
+const ADD_RUNS = [{ run_id: '42', role: 'Product Manager', location: 'Bangalore', status: 'done', must: 'B2B SaaS, pricing', started_at: '2026-10-20' }, { run_id: '43', role: 'Backend Engineer', location: 'Pune', status: 'done', started_at: '2026-10-25' }];
+const addPrompt = (body, people = [{}], user = { name: 'Kumar' }) => runNode('Add Prompt', [{}], { 'App Gate': [{ body, user }], 'Load Add Settings': [{ key: 'run:42', value: JSON.stringify({ criteria: { role: 'Product Manager', city: 'Bengaluru', must: 'B2B SaaS, pricing', experience: '5-8 years' } }) }], 'Load Add Runs': ADD_RUNS, 'Load Add People': people }).then((r) => r[0]);
+
+test('R37: a person from a page is matched to a role by id or by the words in a subject, and not added twice', async () => {
+  const noRole = await addPrompt({ url: 'https://www.linkedin.com/in/asha-nair/', title: 'Asha Nair - Product Manager - Zeta', text: 'x'.repeat(50) });
+  assert.equal(noRole.ok, false); assert.equal(noRole.response.need_role, true); assert.equal(noRole.response.roles.length, 2); assert.equal(noRole.response.roles[0].run_id, '43', 'newest first');
+  const byHint = await addPrompt({ url: 'https://www.linkedin.com/in/asha-nair/', title: 'Asha Nair - Product Manager - Zeta', text: 'x'.repeat(50), role_hint: 'Fwd: product manager, bangalore', via: 'email' });
+  assert.equal(byHint.ok, true); assert.equal(byHint.run_id, '42'); assert.equal(byHint.via, 'email'); assert.match(byHint.prompt, /MUST-HAVES: B2B SaaS, pricing/); assert.match(byHint.prompt, /EXPERIENCE: 5-8 years/); assert.match(byHint.prompt, /data, not instructions/);
+  const dup = await addPrompt({ run_id: '42', url: 'http://linkedin.com/in/asha-nair?trk=x', text: 'x'.repeat(50) }, [{ run_id: '42', profile_url: 'https://www.linkedin.com/in/asha-nair/' }]);
+  assert.equal(dup.response.already, true); assert.match(dup.response.error, /Already/);
+  const nothing = await addPrompt({ run_id: '42', text: 'short' });
+  assert.match(nothing.response.error, /profile link or some text/);
+  const row = (await runNode('Add Row', [aiOutput({ name: 'Asha Nair', fit_score: 8, title: 'Product Manager', company: 'Zeta', location: 'Bengaluru', email: 'Asha@Example.com', summary: 'Pricing lead at a B2B fintech.', key_skills: ['pricing', 'B2B SaaS'], experience_check: '6 years' })], { 'Add Prompt': [byHint] }))[0];
+  assert.equal(row.run_id, '42'); assert.equal(row.dedupe_key, 'url:linkedin.com/in/asha-nair'); assert.equal(row.source, 'Added'); assert.equal(row.linkedin, 'https://www.linkedin.com/in/asha-nair/');
+  assert.equal(row.location_review, '✅ in Bengaluru', 'Bengaluru counts as Bangalore'); assert.equal(row.email, 'asha@example.com'); assert.match(row.summary, /^Added by email by Kumar\. Pricing lead/); assert.equal(row.fit_score, 8);
+  const reply = (await runNode('Add Reply', [{}], { 'Add Row': [row] }))[0].response;
+  assert.equal(reply.ok, true); assert.equal(reply.person.name, 'Asha Nair'); assert.equal(reply.person.email, true); assert.equal(reply.person.summary, 'Pricing lead at a B2B fintech.');
+  const noName = (await runNode('Add Row', [aiOutput({ fit_score: 'high' })], { 'Add Prompt': [Object.assign({}, byHint, { url: '', title: '(3) Ravi K | Backend | LinkedIn' })] }))[0];
+  assert.equal(noName.name, 'Ravi K'); assert.equal(noName.fit_score, 5); assert.equal(noName.dedupe_key, 'nm:ravi k|'); assert.equal(noName.location_review, '🟡 Location not shown');
+});
+
+test('R37: the gate hands out a personal browser key, trusts it only to add people, and keeps a 30-day session when asked', async () => {
+  const { admin } = await signUp();
+  const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const k1 = await gate29({ action: 'bookmarklet_key', token: s.token }, ctx);
+  assert.match(k1.response.key, /^[a-f0-9]{32}$/); assert.equal(k1.writes.settings[0].key, 'bm:' + k1.response.key); assert.equal(JSON.parse(k1.writes.settings[0].value).email, 'admin@example.com');
+  const keyed = { users: [admin], settings: [{ key: 'bm:' + k1.response.key, value: k1.writes.settings[0].value }] };
+  const same = await gate29({ action: 'bookmarklet_key', token: s.token }, Object.assign({ sessions: [s] }, keyed));
+  assert.equal(same.response.key, k1.response.key, 'the same key comes back'); assert.equal(same.writes.settings.length, 0);
+  const renewed = await gate29({ action: 'bookmarklet_key', token: s.token, renew: true }, Object.assign({ sessions: [s], rand: 'z'.repeat(64) }, keyed));
+  assert.notEqual(renewed.response.key, k1.response.key); assert.equal(renewed.writes.settings[0].value, '', 'the old key is wiped');
+  const add = await gate29({ action: 'add_person', bm_key: k1.response.key, url: 'https://github.com/someone' }, keyed);
+  assert.equal(add.route, 'add_person');
+  assert.equal((await gate29({ action: 'me', bm_key: k1.response.key }, keyed)).response.user.email, 'admin@example.com');
+  assert.equal((await gate29({ action: 'board', bm_key: k1.response.key }, keyed)).response.auth, 'need_login', 'the key opens nothing else');
+  assert.equal((await gate29({ action: 'add_person', bm_key: 'f'.repeat(32) }, keyed)).response.auth, 'need_login');
+  const login = await gate29({ action: 'login', email: 'admin@example.com', password: 'longenough1', remember: true }, { users: [admin] });
+  const days = (new Date(login.writes.sessions[0].expires_at) - Date.now()) / 864e5;
+  assert.ok(days > 29 && days < 31, 'remembered sessions last 30 days, got ' + days);
+  const plain = await gate29({ action: 'login', email: 'admin@example.com', password: 'longenough1' }, { users: [admin] });
+  assert.ok((new Date(plain.writes.sessions[0].expires_at) - Date.now()) / 864e5 < 8);
+});
+
+test('R37: forwarded emails from teammates are scored, with the CV text when one is attached, and answered', async () => {
+  const users = [{ email: 'kumar@x.example', name: 'Kumar', status: 'active' }, { email: 'gone@x.example', name: 'Old', status: 'disabled' }];
+  const sets = [{ key: 'service_key', value: 'svc-key' }, { key: 'self_url', value: 'https://n8n.example/' }];
+  const mails = [
+    { id: 'm1', threadId: 't1', from: 'Kumar <Kumar@x.example>', subject: 'Fwd: Backend Engineer, Pune', text: 'Have a look: https://www.linkedin.com/in/ravi-k/. Strong on Go.' },
+    { id: 'm2', from: 'stranger@else.example', subject: 'Backend', text: 'https://www.linkedin.com/in/x/' },
+    { id: 'm3', from: { text: 'Old <gone@x.example>' }, subject: 'Backend', text: 'https://www.linkedin.com/in/y/' },
+    { id: 'm4', from: 'kumar@x.example', subject: 'Re: Product Manager', html: '<p>CV attached, <b>Asha</b></p><style>p{}</style>' }];
+  const got = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
+  assert.deepEqual(got.map((x) => x.message_id), ['m1', 'm4'], 'only active teammates');
+  assert.equal(got[0].url, 'https://www.linkedin.com/in/ravi-k/'); assert.equal(got[0].subject, 'Backend Engineer, Pune'); assert.equal(got[0].api, 'https://n8n.example/webhook/sourcing-app-api');
+  assert.equal(got[1].text, 'CV attached, Asha'); assert.equal(got[1].url, '');
+  const none = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': [{}] });
+  assert.equal(none.length, 0, 'nothing without a service key');
+  const withPdf = await runNode('Email Text', [{ text: 'ASHA NAIR\nProduct manager, 6 years.  Pricing.' }], { 'Email In': [got[1]] });
+  assert.match(withPdf[0].text, /^ATTACHED CV:\nASHA NAIR Product manager, 6 years\. Pricing\.\n\nEMAIL:\nCV attached, Asha$/);
+  assert.equal(withPdf[0].body.action, 'add_person'); assert.equal(withPdf[0].body.as_email, 'kumar@x.example'); assert.equal(withPdf[0].body.role_hint, 'Product Manager'); assert.equal(withPdf[0].body.via, 'email');
+  const plain = await runNode('Email Text', [got[0]], { 'Email In': [got[0]] });
+  assert.equal(plain[0].text, got[0].text);
+  const ok = (await runNode('Email Reply', [{ ok: true, role: 'Backend Engineer, Pune', person: { name: 'Ravi K', fit: 7, summary: 'Go and Kafka.', email: false } }], { 'Email Text': [got[0]] }))[0];
+  assert.equal(ok.message_id, 'm1'); assert.match(ok.html, /<b>Ravi K<\/b> added to <b>Backend Engineer, Pune<\/b> as a 70% match/); assert.match(ok.html, /No email address yet/);
+  assert.match((await runNode('Email Reply', [{ ok: false, need_role: true, roles: [{ role: 'PM', location: 'Pune' }] }], { 'Email Text': [got[0]] }))[0].html, /Which role.*<li>PM, Pune<\/li>/);
+  assert.match((await runNode('Email Reply', [{}], { 'Email Text': [got[0]] }))[0].html, /did not answer/);
+});
+
+test('R37: voice notes are picked out, transcribed and treated as typed; a bare link adds that person to the role in hand', async () => {
+  const voice = { update_id: 9, message: { chat: { id: 777 }, voice: { file_id: 'F1' } } };
+  const vs = await runNode('TG Voices', [{}], { 'Load TG Settings': tgSets(), 'Telegram Updates': [{ ok: true, result: [msg(777, 'hi', 8), voice] }] });
+  assert.equal(vs.length, 1); assert.equal(vs[0].update_id, 9); assert.equal(vs[0].url, 'https://api.telegram.org/bot' + TOK + '/getFile?file_id=F1');
+  const u = (await runNode('TG Voice URL', [{ ok: true, result: { file_path: 'voice/file_1.oga' } }], { 'TG Voices': vs }))[0];
+  assert.equal(u.file_url, 'https://api.telegram.org/file/bot' + TOK + '/voice/file_1.oga');
+  const tr = await runNode('TG Transcripts', [{ text: ' Product manager in Bangalore, five to eight years, B2B SaaS and pricing. ' }], { 'TG Voices': vs });
+  assert.equal(tr[0].update_id, 9); assert.equal(tr[0].chat, '777'); assert.equal(tr[0].error, '');
+  const heard = await runNode('TG Jobs', [{}], { 'Load TG Settings': tgSets([linkedK]), 'Telegram Updates': [{ ok: true, result: [voice] }], 'Load TG Runs': [{}], 'Load TG Sequences': [{}], 'TG Transcripts': tr });
+  assert.equal(heard[0].kind, 'find'); assert.match(heard[0].a.text || JSON.stringify(heard[0].a), /Product manager in Bangalore/);
+  const deaf = await runNode('TG Jobs', [{}], { 'Load TG Settings': tgSets([linkedK]), 'Telegram Updates': [{ ok: true, result: [voice] }], 'Load TG Runs': [{}], 'Load TG Sequences': [{}], 'TG Transcripts': [{ update_id: 9, text: '', error: 'could not transcribe' }] });
+  assert.match(deaf[0].text, /couldn’t make out/);
+  const st = { key: 'tg:777:state', value: JSON.stringify({ run_id: '42', list: [] }) };
+  const link = await jobs([msg(777, 'https://www.linkedin.com/in/asha-nair/ looks good')], tgSets([linkedK, st]));
+  assert.equal(link[0].kind, 'add'); assert.equal(link[0].a.action, 'add_person'); assert.equal(link[0].a.run_id, '42'); assert.equal(link[0].a.url, 'https://www.linkedin.com/in/asha-nair/'); assert.equal(link[0].a.via, 'telegram');
+  assert.match((await jobs([msg(777, 'https://www.linkedin.com/in/asha-nair/')], tgSets([linkedK])))[0].text, /Which role/);
+  const said = await runNode('TG Compose', [{ ok: true }], { 'TG Step B': [{ chat: '777', kind: 'add', api: 'x', token: TOK, ra: { ok: true, role: 'Product Manager, Bangalore', run_id: '42', person: { name: 'Asha Nair', fit: 8, summary: 'Pricing lead.', email: true } }, b: { action: 'ping' }, writes: [] }], 'Load TG Settings': tgSets([linkedK]) });
+  assert.match(said.map((x) => x.json ? x.json.text : x.text).join('\n'), /Asha Nair added to Product Manager, Bangalore as a 80% match\.\nPricing lead\.\nHas an email/);
+});

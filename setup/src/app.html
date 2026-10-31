@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B4D8C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sourcing">
+<link rel="icon" href="sourcing-app-icon">
+<link rel="apple-touch-icon" href="sourcing-app-icon">
 <title>Sourcing</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -297,6 +304,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
     <form onsubmit="return false">
       <label class="lbl" for="lEmail">Work email</label><input id="lEmail" type="text" autocomplete="username" inputmode="email">
       <label class="lbl" for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password">
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0 12px;cursor:pointer"><input type="checkbox" id="lKeep" style="width:auto;margin:0"> Stay signed in on this device for 30 days</label>
       <button id="lBtn" class="btn pri" type="submit">Sign in</button>
     </form>
     <p class="muted" style="font-size:13px;margin:10px 0 0">Forgot your password? Ask an admin to reset it in Settings → Team.</p>
@@ -379,7 +387,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
   </section>
   <section id="v-settings" class="hide" style="display:flex;flex-direction:column;gap:18px">
     <h1 style="font-size:30px;font-weight:800">Settings</h1>
-    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="telegram">Telegram</button><button data-st="services">Connected services</button></div>
+    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="telegram">Telegram</button><button data-st="phone">Phone &amp; browser</button><button data-st="services">Connected services</button></div>
     <div class="card panel" data-sp="account">
       <div class="frow"><div><b>Name</b></div><div id="acName"></div></div>
       <div class="frow"><div><b>Email</b></div><div id="acEmail"></div></div>
@@ -410,6 +418,14 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default. The same public address makes apply pages reachable.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
       <div class="frow"><div><b>Follow-up schedule</b></div><div class="muted" style="font-size:14px">Days 2, 4, 5 and 7, in the same Gmail thread. Stops on reply or bounce. <a href="#" data-go="outreach">Edit the wording →</a></div></div>
       <div style="display:flex;gap:10px;align-items:center"><button class="btn pri" type="button" id="snSave">Save sending settings</button><span id="snMsg" class="muted" style="font-size:13px"></span></div>
+    </div>
+    <div class="card panel hide" data-sp="phone">
+      <h2 style="font-size:20px;margin:0 0 4px">Phone &amp; browser</h2>
+      <p class="muted" style="margin:0 0 14px;font-size:14px">Three more ways in, all scored the same way as a search.</p>
+      <div class="frow"><div><b>On your phone</b><div class="help">Open this page on your phone, sign in with “Stay signed in” ticked, then add it to the home screen (Share → Add to Home Screen on iPhone; ⋮ → Add to Home screen on Android). It opens like an app, already signed in.</div></div><div class="muted" style="font-size:13px;max-width:480px" id="phUrl"></div></div>
+      <div class="frow"><div><b>Add to Board from any page</b><div class="help">Drag this button to your bookmarks bar. On a LinkedIn, GitHub or any profile page, click it: the person is scored for a role and added to Found.</div></div><div style="max-width:480px"><a id="bmLink" class="btn" href="#" draggable="true" style="height:38px;display:inline-flex;align-items:center;text-decoration:none">Add to Board</a><div class="help" id="bmHelp" style="margin-top:8px">Loading your button…</div><button type="button" class="btn" id="bmRenew" style="margin-top:8px;height:32px;font-size:13px">Make a new button (the old one stops working)</button></div></div>
+      <div class="frow"><div><b>By email</b><div class="help">Forward a CV or a profile link to the team’s connected mailbox with the role name in the subject (e.g. “Fwd: Backend Engineer, Pune”). You get a reply with the score, and the person lands in Found. Only teammates in this workspace can do this.</div></div><div class="muted" style="font-size:13px;max-width:480px" id="phMail">The mailbox is the one connected in n8n for outreach.</div></div>
+      <div class="frow"><div><b>Voice notes on Telegram</b><div class="help">Once Telegram is connected, hold the mic and describe the role; the bot transcribes it and searches. Send a profile link to add that person to the role you’re on.</div></div><div></div></div>
     </div>
     <div class="card panel hide" data-sp="telegram">
       <h2 style="font-size:20px;margin:0 0 4px">Telegram</h2>
@@ -558,7 +574,10 @@ var el = function(id){ return document.getElementById(id); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
 var store = { get: function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del: function(k){ try { localStorage.removeItem(k); } catch(e){} } };
 var TOKEN = '';
+var KEEP = false;
 var ME = null;
+function hashOf(frag){ var k = KEEP && TOKEN ? 'k=' + TOKEN : ''; var h = [frag, k].filter(Boolean).join('&'); return h ? '#' + h : location.pathname + location.search; }
+function setHash(frag){ history.replaceState(null, '', hashOf(frag)); }
 var S = { must:[], nice:[], ex:[], similar:[], sources:['LinkedIn','GitHub'], answers:{}, questions:[], rubric:[], touched:{}, runId:null, list:[], filter:'rec', sel:{}, votes:{}, open:null };
 
 function toast(t){ var e=el('toast'); e.textContent=t; e.classList.remove('hide'); clearTimeout(toast.t); toast.t=setTimeout(function(){ e.classList.add('hide'); }, 3200); }
@@ -588,7 +607,7 @@ function signedIn(j){
 function busy(btn, on, txt){ btn.disabled = on; if (txt) btn.textContent = txt; }
 el('lBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Signing in…');
   var pw = el('lPass').value;
-  fetchAuth('login', { email: el('lEmail').value, password: pw }).then(function(j){ busy(b, false, 'Sign in'); if (!j.ok) { el('gateErr').textContent = j.error; return; } S.tempPw = pw; el('lPass').value=''; signedIn(j); }); };
+  fetchAuth('login', { email: el('lEmail').value, password: pw, remember: el('lKeep').checked }).then(function(j){ busy(b, false, 'Sign in'); if (!j.ok) { el('gateErr').textContent = j.error; return; } S.tempPw = pw; el('lPass').value=''; KEEP = el('lKeep').checked; signedIn(j); }); };
 el('sBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Creating…');
   fetchAuth('setup_admin', { name: el('sName').value, email: el('sEmail').value, password: el('sPass').value, code: el('sCode').value }).then(function(j){ busy(b, false, 'Create workspace'); if (!j.ok) { el('gateErr').textContent = j.error; return; } el('sPass').value=''; S.firstRun = true; signedIn(j); }); };
 el('cBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Saving…');
@@ -597,7 +616,7 @@ function fetchAuth(action, data){
   return fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(Object.assign({ action: action }, data)) })
     .then(function(r){ return r.json(); }).catch(function(){ return { ok:false, error:'The server did not answer. Is the pipeline switched on?' }; });
 }
-el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; showAuth('login'); };
+el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; KEEP=false; setHash(''); showAuth('login'); };
 
 function start(){
   setTimeout(function(){ call('health').then(function(j){ if (j.ok) setHealthDot(j.overall); }).catch(function(){}); }, 1500);
@@ -607,7 +626,8 @@ function start(){
   el('whoAv').textContent = initials(ME.name); el('whoName').textContent = ME.name; el('whoRole').textContent = ME.role === 'admin' ? 'Admin' : 'Recruiter';
   el('seqEdit').classList.toggle('hide', ME.role !== 'admin');
   var h = location.hash || '';
-  var m = h.match(/^#run=(\w+)/), l = h.match(/^#list=(\w+)/);
+  var m = h.match(/[#&]run=(\w+)/), l = h.match(/[#&]list=(\w+)/);
+  if (KEEP) setHash(m ? 'run=' + m[1] : (l ? 'list=' + l[1] : ''));
   if (m) { S.runId = m[1]; go('run'); } else if (l) openList(l[1]); else go(S.firstRun ? 'home' : 'board');
   loadRuns();
 }
@@ -627,7 +647,7 @@ function go(v){
   if (v === 'board') loadBoard(B.runId);
   if (v === 'settings') openSettings(S.stab || 'account');
   if (v === 'health') loadHealth();
-  if (v === 'search' || v === 'home' || v === 'settings' || v === 'board' || v === 'health') history.replaceState(null,'',location.pathname+location.search);
+  if (v === 'search' || v === 'home' || v === 'settings' || v === 'board' || v === 'health') setHash('');
   window.scrollTo(0,0);
 }
 document.addEventListener('click', function(e){ var t = e.target.closest('[data-go]'); if (t) { e.preventDefault(); go(t.dataset.go); } });
@@ -721,7 +741,7 @@ el('go').onclick = function(){
     b.textContent='Find candidates'; b.disabled=false;
     if (!j.ok) { el('searchErr').textContent = j.error || 'Could not start the search.'; return; }
     S.runId = String(j.run_id); S.runTitle = crit.role + (crit.city ? ' · ' + crit.city : '');
-    history.replaceState(null,'','#run=' + S.runId); go('run');
+    setHash('run=' + S.runId); go('run');
   }).catch(function(e){ b.textContent='Find candidates'; b.disabled=false; if (e.message!=='locked') el('searchErr').textContent = e.message; });
 };
 
@@ -759,7 +779,7 @@ function loadRuns(){
     el('allRuns').innerHTML = rs.map(runCard).join('') || '<div class="empty card">No searches yet.</div>';
   }).catch(function(){});
 }
-document.addEventListener('click', function(e){ var a=e.target.closest('[data-run]'); if(!a) return; e.preventDefault(); S.runId=a.dataset.run; if (a.dataset.status==='done') openList(S.runId); else { history.replaceState(null,'','#run='+S.runId); go('run'); } });
+document.addEventListener('click', function(e){ var a=e.target.closest('[data-run]'); if(!a) return; e.preventDefault(); S.runId=a.dataset.run; if (a.dataset.status==='done') openList(S.runId); else { setHash('run='+S.runId); go('run'); } });
 
 // ---------- shortlist ----------
 // Match % = the AI's score, adjusted by what the checks actually found, so a
@@ -908,7 +928,7 @@ el('bulkGo').onclick = function(){
 };
 function openList(id){
   S.runId = id; S.sel = {}; S.open = null; S.filter='rec';
-  history.replaceState(null,'','#list='+id);
+  setHash('list='+id);
   go('list'); el('lRows').innerHTML='<tr><td colspan="8" class="empty"><span class="spin" style="display:inline-block"></span></td></tr>';
   call('results', { run_id: id }).then(function(j){
     var r = j.run || {};
@@ -1481,7 +1501,44 @@ function openSettings(tab){
   if (tab==='sending') loadSending();
   if (tab==='services') loadServices();
   if (tab==='telegram') loadTelegram();
+  if (tab==='phone') loadPhone();
 }
+function appUrl(){ return location.origin === 'null' ? (document.baseURI || location.href).split('#')[0] : location.origin + location.pathname + location.search; }
+function loadPhone(){
+  el('phUrl').textContent = appUrl();
+  call('bookmarklet_key').then(function(j){ if (!j.ok) { el('bmHelp').textContent = j.error || 'Could not make your button.'; return; } setBm(j.key); }).catch(function(){});
+}
+function setBm(key){
+  var js = "javascript:void(window.open(" + JSON.stringify(appUrl()) + "+'#add='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({u:location.href,t:document.title,x:(document.body.innerText||'').slice(0,12000)})))))+'&bm=" + key + "','sourcing_add','width=460,height=640,popup=1'))";
+  el('bmLink').setAttribute('href', js);
+  el('bmHelp').innerHTML = 'The button is yours alone; it adds people as ' + esc(ME.name) + '. If the bookmarks bar is hidden, press Ctrl+Shift+B (⌘+Shift+B on a Mac).';
+}
+el('bmLink').onclick = function(e){ e.preventDefault(); toast('Drag this button to your bookmarks bar rather than clicking it here.'); };
+el('bmRenew').onclick = function(){ var b = this; b.disabled = true; call('bookmarklet_key', { renew: true }).then(function(j){ b.disabled = false; if (j.ok) { setBm(j.key); toast('New button made. Drag it to your bookmarks bar again.'); } }).catch(function(){ b.disabled = false; }); };
+
+// ---------- "Add to Board" window, opened by the browser button ----------
+function addWindow(q){
+  var data = {}; try { data = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q.add))))); } catch(e) { data = {}; }
+  var key = String(q.bm || '');
+  document.body.innerHTML = '<div id="addWin" style="max-width:420px;margin:0 auto;padding:20px 16px;font-size:15px"></div>';
+  var w = el('addWin');
+  var page = { url: String(data.u || ''), title: String(data.t || ''), text: String(data.x || '') };
+  var send = function(extra){
+    w.innerHTML = '<p class="muted">Reading the page and scoring…</p>';
+    fetchAuth('add_person', Object.assign({ bm_key: key, via: 'bookmarklet', url: page.url, title: page.title, text: page.text }, extra || {})).then(function(j){
+      if (j.auth === 'need_login') { w.innerHTML = '<p>This button no longer works. Open Sourcing → Settings → Phone &amp; browser and drag a new one to your bookmarks bar.</p>'; return; }
+      if (j.need_role) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Add to which role?</h2><p class="muted" style="margin:0 0 12px">' + esc(page.title.slice(0, 90)) + '</p><div id="addRoles" style="display:flex;flex-direction:column;gap:8px"></div>' + (j.roles.length ? '' : '<p>' + esc(j.error) + '</p>');
+        j.roles.forEach(function(r){ var b = document.createElement('button'); b.className = 'btn'; b.style.cssText = 'height:auto;padding:10px 12px;text-align:left;justify-content:flex-start'; b.textContent = r.role + (r.location ? ' · ' + r.location : ''); b.onclick = function(){ send({ run_id: r.run_id }); }; el('addRoles').appendChild(b); }); return; }
+      if (j.already) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Already there</h2><p>' + esc(j.error) + '</p><button class="btn" onclick="window.close()">Close</button>'; return; }
+      if (!j.ok) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Could not add</h2><p>' + esc(j.error || 'The server did not answer.') + '</p><button class="btn" onclick="window.close()">Close</button>'; return; }
+      var p = j.person;
+      w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Added to ' + esc(j.role) + '</h2><div style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><div>' + sigBars(p.fit * 10, true) + '</div><div><b>' + esc(p.name) + '</b><div class="muted" style="font-size:13px">' + esc([p.title, p.company].filter(Boolean).join(' · ')) + '</div></div></div><p style="margin:0 0 10px">' + esc(p.summary) + '</p><p class="muted" style="font-size:13px;margin:0 0 14px">' + (p.email ? 'An email address was found, so they can be approved for outreach.' : 'No email address yet; Apollo or a CV can fill it in later.') + '</p><div style="display:flex;gap:8px"><a class="btn pri" style="text-decoration:none" href="' + esc(appUrl()) + '#list=' + esc(j.run_id) + '" target="_blank" rel="opener">Open the Board</a><button class="btn" onclick="window.close()">Close</button></div>';
+    });
+  };
+  if (!key || (!page.url && page.text.length < 40)) { w.innerHTML = '<p>Nothing to add. Open a profile page and click the button there.</p>'; return; }
+  send();
+}
+
 function loadTelegram(){
   var admin = ME.role === 'admin'; el('tgAdmin').classList.toggle('hide', !admin); el('tgCode').classList.add('hide');
   call('telegram_status').then(function(j){ if (!j.ok) return;
@@ -1592,10 +1649,17 @@ function loadOutreach(){
 // ---------- boot ----------
 chipList('fMust', S.must, 'must', 'must-have skills'); chipList('fNice', S.nice, '', 'nice-to-have skills'); chipList('fEx', S.ex, '', 'words to exclude');
 renderSources(); updateGo();
-fetchAuth('auth_state', {}).then(function(j){
-  if (!j.ok) { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(j.error || 'The server did not answer.')+'</p>'); return; }
-  showAuth(j.has_users ? 'login' : 'setup', j.need_code);
-});
+(function boot(){
+  var q = {}; (location.hash || '').replace(/^#/, '').split('&').forEach(function(kv){ var i = kv.indexOf('='); if (i > 0) q[kv.slice(0, i)] = kv.slice(i + 1); });
+  if (q.add) return addWindow(q);
+  var askState = function(){ fetchAuth('auth_state', {}).then(function(j){
+    if (!j.ok) { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(j.error || 'The server did not answer.')+'</p>'); return; }
+    showAuth(j.has_users ? 'login' : 'setup', j.need_code); }); };
+  if (q.k && /^[A-Za-z0-9._-]{16,}$/.test(q.k)) {
+    // a kept session from the page address (home-screen shortcuts open with it)
+    fetchAuth('me', { token: q.k }).then(function(j){ if (j.ok && j.user) { TOKEN = q.k; KEEP = true; ME = j.user; start(); } else { setHash(''); askState(); } });
+  } else askState();
+})();
 })();
 </script>
 </body>
