@@ -5658,13 +5658,12 @@ return [{ json: {
   key_skills: (Array.isArray(d.key_skills) ? d.key_skills : []).slice(0, 10).join(', ').slice(0, 400),
   email: email, contact_source: email ? 'From the page' : '', source: 'Added', profile_url: url,
   linkedin: /linkedin\.com\/in\//i.test(url) ? url : '', github: /github\.com\//i.test(url) ? url : '', resume_link: '',
-  outreach_status: '', approved: false, feedback: '',
-  _role: k.role } }];
+  outreach_status: '', approved: false, feedback: '' } }];
 """
 
 ADD_REPLY = r"""
-const r = $('Add Row').first().json;
-return [{ json: { response: { ok: true, role: r._role, run_id: r.run_id, person: { name: r.name, fit: r.fit_score, title: r.title, company: r.company, summary: r.summary.replace(/^Added[^.]*\.\s*/, ''), email: !!r.email } } } }];
+const r = $('Add Row').first().json, k = $('Add Prompt').first().json;
+return [{ json: { response: { ok: true, role: k.role, run_id: r.run_id, person: { name: r.name, fit: r.fit_score, title: r.title, company: r.company, summary: r.summary.replace(/^Added[^.]*\.\s*/, ''), email: !!r.email } } } }];
 """
 
 ADD_NO = r"""
@@ -5821,7 +5820,6 @@ def apply_round37(nodes, conns, routes_in):
     iff("Add OK?", [bx + 880, y], "={{ $json.ok }}", {"type": "boolean", "operation": "true", "singleValue": True})
     ai("Add Agent", [bx + 1100, y - 60]); code("Add Row", ADD_ROW, [bx + 1320, y - 60])
     sv = _node("Save Added", "n8n-nodes-base.dataTable", 1.1, [bx + 1540, y - 140], {"resource": "row", "operation": "insert", "dataTableId": _dt_ref("app_candidates"), "columns": _automap(), "options": {}}, onError="continueRegularOutput")
-    # the response row has one extra field; the table ignores it
     sv["parameters"]["columns"] = {"mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [], "attemptToConvertTypes": False, "convertFieldsToString": False}
     new.append(sv)
     code("Add Reply", ADD_REPLY, [bx + 1540, y + 20]); code("Add No", ADD_NO, [bx + 1100, y + 100])

@@ -1483,7 +1483,8 @@ test('R37: a person from a page is matched to a role by id or by the words in a 
   const row = (await runNode('Add Row', [aiOutput({ name: 'Asha Nair', fit_score: 8, title: 'Product Manager', company: 'Zeta', location: 'Bengaluru', email: 'Asha@Example.com', summary: 'Pricing lead at a B2B fintech.', key_skills: ['pricing', 'B2B SaaS'], experience_check: '6 years' })], { 'Add Prompt': [byHint] }))[0];
   assert.equal(row.run_id, '42'); assert.equal(row.dedupe_key, 'url:linkedin.com/in/asha-nair'); assert.equal(row.source, 'Added'); assert.equal(row.linkedin, 'https://www.linkedin.com/in/asha-nair/');
   assert.equal(row.location_review, '✅ in Bengaluru', 'Bengaluru counts as Bangalore'); assert.equal(row.email, 'asha@example.com'); assert.match(row.summary, /^Added by email by Kumar\. Pricing lead/); assert.equal(row.fit_score, 8);
-  const reply = (await runNode('Add Reply', [{}], { 'Add Row': [row] }))[0].response;
+  const reply = (await runNode('Add Reply', [{}], { 'Add Row': [row], 'Add Prompt': [byHint] }))[0].response;
+  assert.equal(reply.role, 'Product Manager, Bangalore'); assert.ok(!('_role' in row), 'only table columns go to the table');
   assert.equal(reply.ok, true); assert.equal(reply.person.name, 'Asha Nair'); assert.equal(reply.person.email, true); assert.equal(reply.person.summary, 'Pricing lead at a B2B fintech.');
   const noName = (await runNode('Add Row', [aiOutput({ fit_score: 'high' })], { 'Add Prompt': [Object.assign({}, byHint, { url: '', title: '(3) Ravi K | Backend | LinkedIn' })] }))[0];
   assert.equal(noName.name, 'Ravi K'); assert.equal(noName.fit_score, 5); assert.equal(noName.dedupe_key, 'nm:ravi k|'); assert.equal(noName.location_review, '🟡 Location not shown');
