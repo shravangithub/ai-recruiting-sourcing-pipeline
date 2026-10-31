@@ -1,6 +1,6 @@
 # How the backend fits together
 
-One n8n workflow, 336 steps, eleven ways in. Each "way in" is a trigger; everything it reaches is its
+One n8n workflow, 339 steps, eleven ways in. Each "way in" is a trigger; everything it reaches is its
 part of the canvas. When something looks wrong, open **Health** in the app first: it names the part.
 
 | Way in (trigger) | What it does | Steps | Runs |
@@ -10,7 +10,7 @@ part of the canvas. When something looks wrong, open **Health** in the app first
 | **On form submission** | The original n8n form: brief → check → search | 126* | When the form is sent |
 | **Outreach Schedule** | Sends the first email to people you approved | 13 | Every 15 min |
 | **Follow-up Schedule** | Sends the day 2, 4, 5 and 7 follow-ups inside your sending hours | 18 | Every 15 min |
-| **On Candidate Reply** | Spots replies in Gmail and stops follow-ups for that person; a teammate's forwarded CV or link is scored and added (Email In → Email Add → Email Answer) | 16 | Gmail poll, 15 min |
+| **On Candidate Reply** | Spots replies in Gmail and stops follow-ups for that person; a teammate's forwarded CV or link is scored and added, and "Search: <role>" starts a search (Email In → Email Add → Email Answer) | 19 | Gmail poll, 15 min |
 | **Weekly Report Schedule** | Emails admins last week's numbers | 11 | Monday 9:17 |
 | **Open Pixel** (`/webhook/sourcing-open`) | Counts opens, only if open tracking is on | 4 | When an email is opened |
 | **Apply Page Hook** (`/webhook/sourcing-apply`) | The public apply page of a role (only when opened on the Board) | 5 | When an applicant opens it |

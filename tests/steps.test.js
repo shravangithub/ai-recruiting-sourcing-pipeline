@@ -1556,3 +1556,43 @@ test('R37: voice notes are picked out, transcribed and treated as typed; a bare 
   const said = await runNode('TG Compose', [{ ok: true }], { 'TG Step B': [{ chat: '777', kind: 'add', api: 'x', token: TOK, ra: { ok: true, role: 'Product Manager, Bangalore', run_id: '42', person: { name: 'Asha Nair', fit: 8, summary: 'Pricing lead.', email: true } }, b: { action: 'ping' }, writes: [] }], 'Load TG Settings': tgSets([linkedK]) });
   assert.match(said.map((x) => x.json ? x.json.text : x.text).join('\n'), /Asha Nair added to Product Manager, Bangalore as a 80% match\.\nPricing lead\.\nHas an email/);
 });
+
+// ---------- Round 38: channels in the brief; search by email ----------
+test('R38: channels named in a Telegram brief are the channels searched, and the bot says which', async () => {
+  const j = await jobs([msg(777, 'Product manager in Bangalore, 5-8 years, B2B SaaS, on LinkedIn, GitHub and research papers')], tgSets([linkedK]));
+  assert.equal(j[0].kind, 'find'); assert.deepEqual(j[0].channels, ['LinkedIn', 'GitHub', 'Research papers']); assert.equal(j[0].veteran, false);
+  const v = await jobs([msg(777, 'Ex-servicemen for a security operations lead in Pune, everywhere')], tgSets([linkedK]));
+  assert.equal(v[0].channels.length, 25, 'everywhere = all channels'); assert.equal(v[0].veteran, true);
+  const none = await jobs([msg(777, 'Product manager in Bangalore, 5-8 years, B2B SaaS and pricing')], tgSets([linkedK]));
+  assert.deepEqual(none[0].channels, []);
+  const find = Object.assign({ chat: '777', who: {}, kind: 'find', api: 'x', token: TOK, brief: 'x', a: { action: 'intake', service_key: 'svc-key', as_email: 'k@x' }, b: null, writes: [] }, { channels: j[0].channels, veteran: false });
+  const [sb] = await runNode('TG Step B', [{ ok: true, criteria: { role: 'Product Manager', city: 'Bangalore', must: [], nice: [] }, sources: ['LinkedIn', 'Topmate'] }], { 'TG Jobs': [find] });
+  assert.deepEqual(sb.b.criteria.sources, ['LinkedIn', 'GitHub', 'Research papers'], 'the brief wins over the parser');
+  const [sb2] = await runNode('TG Step B', [{ ok: true, criteria: { role: 'Lead', city: 'Pune', must: [], nice: [] }, sources: ['LinkedIn'] }], { 'TG Jobs': [Object.assign({}, find, { channels: [], veteran: true })] });
+  assert.deepEqual(sb2.b.criteria.sources, ['LinkedIn']); assert.equal(sb2.b.criteria.veteran, 'Yes');
+  const said = await runNode('TG Compose', [{ ok: true, run_id: '9' }], { 'TG Step B': [Object.assign({}, sb, { ra: { ok: true, criteria: { role: 'Product Manager', city: 'Bangalore', must: [] }, sources: ['LinkedIn', 'Topmate'] } })], 'Load TG Settings': tgSets([linkedK]) });
+  assert.match(said.map((x) => x.text).join('\n'), /Searching LinkedIn, GitHub, Research papers\./);
+});
+
+test('R38: "Search: <role>" by email starts a search, with the channels named and the results sent back to the sender', async () => {
+  const users = [{ email: 'kumar@x.example', name: 'Kumar', status: 'active' }];
+  const sets = [{ key: 'service_key', value: 'svc-key' }];
+  const mails = [{ id: 'm9', from: 'kumar@x.example', subject: 'Search: Product Manager, Bangalore', text: '5-8 years, B2B SaaS and pricing. LinkedIn and GitHub only.' }];
+  const [e] = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
+  assert.equal(e.kind, 'search'); assert.match(e.brief, /^Product Manager, Bangalore\. 5-8 years/);
+  const [t] = await runNode('Email Text', [e], { 'Email In': [e] });
+  assert.equal(t.body.action, 'intake'); assert.equal(t.body.brief, e.brief); assert.equal(t.body.as_email, 'kumar@x.example');
+  const [sb] = await runNode('Email Search Body', [{ ok: true, criteria: { role: 'Product Manager', city: 'Bangalore', experience: '5-8 years', must: ['B2B SaaS', 'pricing'], nice: [] }, sources: ['LinkedIn', 'Topmate', 'ADPList'] }], { 'Email Text': [t] });
+  assert.equal(sb.body.action, 'search'); assert.deepEqual(sb.body.criteria.sources, ['LinkedIn', 'GitHub']); assert.equal(sb.body.criteria.notify, 'kumar@x.example'); assert.equal(sb.body.criteria.must, 'B2B SaaS, pricing'); assert.equal(sb.body.criteria.experience, '5-8 years');
+  const [bad] = await runNode('Email Search Body', [{ ok: false, error: 'No role found.' }], { 'Email Text': [t] });
+  assert.equal(bad.body, undefined); assert.match(bad.error, /No role/);
+  const [ok] = await runNode('Email Reply', [{ ok: true, run_id: '42' }], { 'Email Text': [t], 'Email Search Body': [sb] });
+  assert.match(ok.html, /Searching for <b>Product Manager, Bangalore<\/b> on LinkedIn, GitHub\./); assert.match(ok.html, /results email comes to this address/);
+  const [nope] = await runNode('Email Reply', [{}], { 'Email Text': [t], 'Email Search Body': [bad] });
+  assert.match(nope.html, /Could not read the brief: No role found/);
+  // the app passes a notify address through to the search criteria
+  const crit = await runNode('App Criteria', [{ body: { criteria: { role: 'PM', sources: ['LinkedIn'], notify: ' Kumar@X.example ' } } }]);
+  assert.equal(crit[0].notify, 'kumar@x.example');
+  const crit2 = await runNode('App Criteria', [{ body: { criteria: { role: 'PM', sources: ['LinkedIn'], notify: 'not-an-email' } } }]);
+  assert.equal(crit2[0].notify, '');
+});

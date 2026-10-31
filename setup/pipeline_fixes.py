@@ -5733,7 +5733,7 @@ if (j.ok && j.person) html = '<p><b>' + esc(j.person.name) + '</b> added to <b>'
 else if (j.need_role) html = '<p>Which role is this for? Put the role name in the subject and send it again. Your roles:</p><ul>' + (j.roles || []).map(function(r){ return '<li>' + esc(r.role + (r.location ? ', ' + r.location : '')) + '</li>'; }).join('') + '</ul>';
 else if (j.already) html = '<p>' + esc(j.error) + '</p>';
 else html = '<p>Could not add this one: ' + esc(j.error || 'the app did not answer') + '.</p><p>Send a profile link or the CV text with the role name in the subject.</p>';
-return [{ json: { message_id: e.message_id, html: html + '<p style="color:#888;font-size:12px">Sourcing, by email</p>' } }];
+return { json: { message_id: e.message_id, html: html + '<p style="color:#888;font-size:12px">Sourcing, by email</p>' } };
 """
 
 TG_VOICES = r"""
@@ -5749,7 +5749,7 @@ TG_VOICE_URL = r"""
 // Where to download the voice file from.
 const v = $('TG Voices').item.json;
 const path = ((($json || {}).result) || {}).file_path || '';
-return [{ json: Object.assign({}, v, { file_url: path ? 'https://api.telegram.org/file/bot' + v.token + '/' + path : '' }) }];
+return { json: Object.assign({}, v, { file_url: path ? 'https://api.telegram.org/file/bot' + v.token + '/' + path : '' }) };
 """
 
 TG_TRANSCRIPTS = r"""
@@ -5866,7 +5866,7 @@ def apply_round37(nodes, conns, routes_in):
     code("Email Text", EMAIL_TEXT, [tx + 1540, ey], once=False)
     ea = _node("Email Add", "n8n-nodes-base.httpRequest", 4.2, [tx + 1760, ey], {"method": "POST", "url": "={{ $json.api }}", "sendBody": True, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.body) }}", "options": {"timeout": 60000}}, onError="continueRegularOutput")
     new.append(ea)
-    code("Email Reply", EMAIL_REPLY, [tx + 1980, ey], once=False)
+    code("Email Reply", EMAIL_REPLY, [tx + 1980, ey], once=False)["parameters"]["mode"] = "runOnceForEachItem"
     er = _node("Email Answer", "n8n-nodes-base.gmail", 2.1, [tx + 2200, ey], {"resource": "message", "operation": "reply", "messageId": "={{ $json.message_id }}", "emailType": "html", "message": "={{ $json.html }}", "options": {"appendAttribution": False, "replyToSenderOnly": True}},
                credentials=json.loads(json.dumps(gcred)), onError="continueRegularOutput")
     new.append(er)
@@ -5883,7 +5883,7 @@ def apply_round37(nodes, conns, routes_in):
     code("TG Voices", TG_VOICES, [vx + 440, vy + 320])
     tf = _node("Telegram File Info", "n8n-nodes-base.httpRequest", 4.2, [vx + 660, vy + 320], {"url": "={{ $json.url }}", "options": {"timeout": 20000}}, onError="continueRegularOutput")
     new.append(tf)
-    code("TG Voice URL", TG_VOICE_URL, [vx + 880, vy + 320], once=False)
+    code("TG Voice URL", TG_VOICE_URL, [vx + 880, vy + 320], once=False)["parameters"]["mode"] = "runOnceForEachItem"
     dl = _node("Telegram File", "n8n-nodes-base.httpRequest", 4.2, [vx + 1100, vy + 320], {"url": "={{ $json.file_url }}", "options": {"timeout": 30000, "response": {"response": {"responseFormat": "file", "outputPropertyName": "data"}}}}, onError="continueRegularOutput")
     new.append(dl)
     tr = _node("Transcribe", "n8n-nodes-base.httpRequest", 4.2, [vx + 1320, vy + 320], {"method": "POST", "url": "https://api.openai.com/v1/audio/transcriptions", "authentication": "predefinedCredentialType", "nodeCredentialType": "openAiApi",
@@ -5912,3 +5912,99 @@ def apply_round37(nodes, conns, routes_in):
       "  if (x.kind === 'reply') {")
     nodes.extend(new)
     return nodes, conns, routes
+
+
+# ======================================================================
+# Round 38: channels named in a brief (Telegram, voice, email) are the
+# channels searched; "Search: <role>" by email starts a search and the
+# results email goes back to the sender.
+# ======================================================================
+CHANNELS_JS = r"""
+// Channels named in plain words -> the sourcing channels of the app.
+const CHANNEL_WORDS = [
+  ['LinkedIn', /linked ?in/i], ['GitHub', /git ?hub/i], ['Stack Overflow', /stack ?overflow/i], ['Google / Open Web', /\b(open web|google|the web)\b/i],
+  ['Hacker News', /hacker ?news/i], ['GitLab', /git ?lab/i], ['Kaggle', /kaggle/i], ['Hugging Face', /hugging ?face/i], ['Dev.to', /\bdev\.to\b/i],
+  ['Reddit', /reddit/i], ['X (Twitter)', /\b(twitter|x\.com)\b/i], ['Dribbble', /dribbble/i], ['Behance', /behance/i], ['Devfolio', /devfolio/i],
+  ['Unstop', /unstop/i], ['Devpost', /devpost/i], ['HackerEarth', /hacker ?earth/i], ['LeetCode', /leet ?code/i], ['CodeChef', /code ?chef/i],
+  ['Codeforces', /codeforces/i], ['Topmate', /topmate/i], ['ADPList', /adp ?list/i], ['Medium', /\bmedium\b/i],
+  ['Research papers', /\b(research papers?|papers|researchers?|openalex|publications?)\b/i], ['Speakers & experts', /\b(speakers?|experts?|conference talks?|sessionize)\b/i]];
+const ALL_CHANNELS = CHANNEL_WORDS.map(function(c){ return c[0]; });
+const channelsIn = function(text){
+  const t = String(text || '');
+  const named = CHANNEL_WORDS.filter(function(c){ return c[1].test(t); }).map(function(c){ return c[0]; });
+  const all = /\b(everywhere|all channels|all sources|every channel|every source)\b/i.test(t);
+  const veteran = /\b(veterans?|ex[- ]?service(men|man|women|woman)?|armed forces|ex[- ]?army|ex[- ]?navy|ex[- ]?air ?force)\b/i.test(t);
+  return { sources: all ? ALL_CHANNELS.slice() : named, only: /\bonly\b/i.test(t) && named.length > 0, all: all, veteran: veteran };
+};
+"""
+
+EMAIL_SEARCH_BODY = r"""
+// From what the brief parser understood, the search to start, with the channels the email named and the sender told.
+const e = $('Email Text').item.json, r = $json || {};
+if (!r.ok || !r.criteria) return { json: { ok: false, error: r.error || 'Could not read the brief.', message_id: e.message_id } };
+const c = r.criteria; const ch = channelsIn(e.brief);
+const EXP = ['0-2 years', '3-5 years', '5-8 years', '8+ years'];
+const sources = ch.sources.length ? ch.sources : ((r.sources || []).length ? r.sources : ['LinkedIn']);
+return { json: { message_id: e.message_id, role: c.role || '', city: c.city || '', sources: sources, body: { action: 'search', service_key: e.service_key, as_email: e.from, brief: e.brief, criteria: {
+  role: c.role || '', similar: 'Yes', experience: EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any', must: (c.must || []).join(', '), nice: (c.nice || []).join(', '),
+  city: c.city || '', region: c.region || (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', veteran: c.veteran || ch.veteran ? 'Yes' : '',
+  exclude: (c.exclude || []).join(', '), education: 'Any', sources: sources, notify: e.from,
+  rubric: (r.rubric || []).map(function(q){ return '- ' + q.criterion + ' (weight ' + (q.weight || 1) + '): ' + (q.how || ''); }).join('\n'), jd_text: '' } } } };
+"""
+
+
+def apply_round38(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round38 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    # the app's search accepts a notify address (the results email goes there)
+    R("App Criteria", "  notify: '',", "  notify: /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(c.notify || '').trim()) ? String(c.notify).trim().toLowerCase() : '',")
+
+    # Telegram: channels named in the brief
+    R("TG Jobs", "// ---- messages from people ----", CHANNELS_JS.strip() + "\n// ---- messages from people ----")
+    R("TG Jobs", "  if (brief.length >= 15) { job(chat, who, 'find', call('intake', { brief: brief, answers: {} }, who), { brief: brief }); return; }",
+      "  if (brief.length >= 15) { const ch = channelsIn(brief); job(chat, who, 'find', call('intake', { brief: brief, answers: {} }, who), { brief: brief, channels: ch.sources, veteran: ch.veteran }); return; }")
+    R("TG Step B", "veteran: c.veteran ? 'Yes' : '',", "veteran: c.veteran || x.veteran ? 'Yes' : '',")
+    R("TG Step B", "sources: (r.sources || []).length ? r.sources : ['LinkedIn'],", "sources: (x.channels || []).length ? x.channels : ((r.sources || []).length ? r.sources : ['LinkedIn']),")
+    R("TG Compose", "      '\\nSearching ' + (a.sources || []).length + ' channels. I’ll send the top 5 when it’s done, usually in a few minutes.'); }",
+      "      '\\nSearching ' + ((x.channels || []).length ? x.channels.join(', ') : (a.sources || []).length + ' channels') + '. I’ll send the top 5 when it’s done, usually in a few minutes.'); }")
+
+    # Email: "Search: <role>" starts a search
+    R("Email In", "  const subject = String(m.subject || '').replace(/^\\s*(fwd?|re)\\s*:\\s*/i, '').trim();",
+      "  const subject = String(m.subject || '').replace(/^\\s*(fwd?|re)\\s*:\\s*/i, '').trim();\n  const search = subject.match(/^(search|find|hire|hiring)\\s*[:\\-]\\s*(.+)$/i);")
+    R("Email In", "  out.push({ json: { message_id: String(m.id || ''), thread_id: String(m.threadId || ''), from: em, who: u.name, subject: subject, url: url, text: text.slice(0, 12000), api: API, service_key: sets.service_key } });",
+      "  out.push({ json: { message_id: String(m.id || ''), thread_id: String(m.threadId || ''), from: em, who: u.name, subject: subject, kind: search ? 'search' : 'add', brief: search ? (search[2].trim() + '. ' + text.slice(0, 1500)).trim() : '', url: url, text: text.slice(0, 12000), api: API, service_key: sets.service_key } });")
+    R("Email Text", "  return { json: Object.assign({}, e, { text: text.slice(0, 12000), body: { action: 'add_person', service_key: e.service_key, as_email: e.from, via: 'email', url: e.url, title: e.subject, text: text.slice(0, 12000), role_hint: e.subject } }) };",
+      "  if (e.kind === 'search') return { json: Object.assign({}, e, { body: { action: 'intake', service_key: e.service_key, as_email: e.from, brief: e.brief, answers: {} } }) };\n"
+      "  return { json: Object.assign({}, e, { text: text.slice(0, 12000), body: { action: 'add_person', service_key: e.service_key, as_email: e.from, via: 'email', url: e.url, title: e.subject, text: text.slice(0, 12000), role_hint: e.subject } }) };")
+    R("Email Reply", "let html;\nif (j.ok && j.person)",
+      "let html;\nif (e.kind === 'search') { const sb = $('Email Search Body').item.json;\n"
+      "  if (!sb.body) html = '<p>Could not read the brief: ' + esc(sb.error || 'no role found') + '.</p><p>Put the role after \"Search:\" in the subject and describe the person in the body, e.g. \"Product manager in Bangalore, 5-8 years, B2B SaaS, on LinkedIn and GitHub\".</p>';\n"
+      "  else if (!j.ok) html = '<p>The search could not start: ' + esc(j.error || 'the app did not answer') + '.</p>';\n"
+      "  else html = '<p>Searching for <b>' + esc([sb.role, sb.city].filter(Boolean).join(', ')) + '</b> on ' + esc(sb.sources.join(', ')) + '.</p><p>The results email comes to this address when it is done, usually in a few minutes, and the people are on the Board.</p>'; }\n"
+      "else if (j.ok && j.person)")
+    # wire: Email Add -> Email Search? -> (true) Email Search Body -> Email Start Search -> Email Reply ; (false) Email Reply
+    ex, ey = N["Email Add"]["position"]
+    cond = {"id": "email-search", "leftValue": "={{ $('Email Text').item.json.kind }}", "rightValue": "search", "operator": {"type": "string", "operation": "equals"}}
+    iff = _node("Email Search?", "n8n-nodes-base.if", 2.2, [ex + 220, ey], {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2}, "conditions": [cond], "combinator": "and"}, "looseTypeValidation": True, "options": {}})
+    body = _node("Email Search Body", "n8n-nodes-base.code", 2, [ex + 440, ey - 160], {"jsCode": CHANNELS_JS.strip() + "\n" + EMAIL_SEARCH_BODY, "mode": "runOnceForEachItem"})
+    start = _node("Email Start Search", "n8n-nodes-base.httpRequest", 4.2, [ex + 660, ey - 160], {"method": "POST", "url": "={{ $('Email Text').item.json.api }}", "sendBody": True, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.body || { action: 'ping' }) }}", "options": {"timeout": 60000}}, onError="continueRegularOutput")
+    for n in (iff, body, start):
+        nodes.append(n)
+    # move Email Reply and Email Answer right to make room
+    for nm in ("Email Reply", "Email Answer"):
+        N[nm]["position"] = [N[nm]["position"][0] + 660, N[nm]["position"][1]]
+    conns["Email Add"]["main"][0] = [{"node": "Email Search?", "type": "main", "index": 0}]
+    link("Email Search?", "Email Search Body", 0); link("Email Search?", "Email Reply", 1)
+    link("Email Search Body", "Email Start Search"); link("Email Start Search", "Email Reply")
+    return nodes, conns

@@ -69,7 +69,8 @@ outreach end to end.
 
 - **v1.8: where recruiters already are** (see [`RELEASES/v1.8.md`](RELEASES/v1.8.md)): an **Add to Board**
   button for the browser, forwarding a CV or profile link by email, voice notes on Telegram, and the app on
-  a phone's home screen, signed in for 30 days. All score with the same prompt as a search.
+  a phone's home screen, signed in for 30 days. All score with the same prompt as a search. Name channels in a
+  Telegram brief to pick them; "Search: <role>" by email starts a search.
 - **v1.7: source from your phone, on Telegram** (see [`RELEASES/v1.7.md`](RELEASES/v1.7.md)): text a brief
   to start a search, get the top 5 when it finishes, shortlist or approve by number, and answer candidate
   replies with a drafted message. No public address needed.
