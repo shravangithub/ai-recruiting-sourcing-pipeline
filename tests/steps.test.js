@@ -1431,9 +1431,10 @@ test('R36: answers are composed into messages and state, in plain text', async (
   const top = { chat: '777', kind: 'top', api: 'x', token: TOK, offset: 0, n: 5, ra: { ok: true, run: { run_id: '42', role: 'PM', location: 'Bangalore' }, cards }, b: { action: 'ping' }, writes: [] };
   const out = await runNode('TG Compose', [{ ok: true }, { ok: true }], { 'TG Step B': [Object.assign({}, sb, { ra: sb.ra, b: sb.b }), top], 'Load TG Settings': tgSets([linkedK]) }, {});
   const tg = out.filter((o) => o.to === 'tg'), db = out.filter((o) => o.to === 'db');
-  assert.equal(tg.length, 1); assert.equal(tg[0].chat_id, '777'); assert.equal(tg[0].url, 'https://api.telegram.org/bot' + TOK + '/sendMessage');
-  assert.match(tg[0].text, /Got it: Product Manager, Bangalore, 5-8 years\./); assert.match(tg[0].text, /1\. Asha Nair · 90%\nSenior PM at Kitebase\nOwns pricing\.\nhttps:\/\/linkedin\.com\/in\/asha/);
-  assert.ok(!/Raj/.test(tg[0].text), 'not-a-fit people are left out'); assert.match(tg[0].text, /2\. Neha K/);
+  assert.equal(tg.length, 3, 'got-it + header, the people, the actions'); assert.equal(tg[0].chat_id, '777'); assert.equal(tg[0].url, 'https://api.telegram.org/bot' + TOK + '/sendMessage');
+  const all = tg.map((t) => t.text).join('\n');
+  assert.match(tg[0].text, /Got it: Product Manager, Bangalore, 5-8 years\./); assert.match(tg[1].text, /^1\. Asha Nair · 90%\nSenior PM at Kitebase\nOwns pricing\.\nhttps:\/\/linkedin\.com\/in\/asha/);
+  assert.ok(!/Raj/.test(all), 'not-a-fit people are left out'); assert.match(tg[1].text, /2\. Neha K/); assert.match(tg[2].text, /^shortlist 1 3/);
   const state = JSON.parse(db.find((d) => d.key === 'tg:777:state').value);
   assert.equal(state.run_id, '42'); assert.deepEqual(state.list.map((c) => c.k), ['a', 'c']); assert.equal(state.offset, 2);
   assert.ok(db.some((d) => d.key === 'tg:run:' + sb.ra.run_id || d.key.indexOf('tg:run:') === 0));
@@ -1622,4 +1623,20 @@ test('R39: an email that asks for nothing, or a brief that cannot be read, gets 
   const s = Object.assign({}, got[0], { kind: 'search', message_id: 's1' });
   const [bad] = await runNode('Email Reply', [{}], { 'Email Text': [s], 'Email Search Body': [{ ok: false, error: 'No role found.' }] });
   assert.match(bad.html, /Could not read the brief: No role found/); assert.match(bad.html, /Two things you can do by email/);
+});
+
+// ---------- Round 40: delight ----------
+test('R40: Telegram lists arrive in bites of three, the welcome is one sample, and the results email names the top three', async () => {
+  const cards = [1,2,3,4,5].map((i) => ({ dedupe_key: 'k' + i, name: 'Person ' + i, fit_score: 10 - i, title: 'PM', company: 'Co', summary: 'Why.', email: 'x', stage: 'found' }));
+  const out = await runNode('TG Compose', [{ ok: true }], { 'TG Step B': [{ chat: '777', kind: 'finished', run_id: '42', key: 'tg:run:42', n: 5, offset: 0, api: 'x', token: TOK, ra: { ok: true, run: { run_id: '42', role: 'PM', location: 'Pune' }, cards }, b: { action: 'ping' }, writes: [] }], 'Load TG Settings': tgSets([linkedK]) });
+  const texts = out.map((x) => x.text).filter(Boolean);
+  assert.equal(texts.length, 4, 'header, 1-3, 4-5, actions'); assert.match(texts[0], /^Done: PM, Pune/); assert.match(texts[1], /^1\. Person 1[\s\S]*3\. Person 3/); assert.doesNotMatch(texts[1], /4\. Person/); assert.match(texts[2], /^4\. Person 4/); assert.match(texts[3], /^shortlist 1 3/);
+  const sets = tgSets([{ key: 'tglink:AB12CD', value: JSON.stringify({ email: 'priya@x.example', name: 'Priya', role: 'recruiter', exp: Date.now() + 60000 }) }]);
+  const w = (await jobs([msg(555, '/start ab12cd')], sets))[0].text;
+  assert.ok(w.length < 320, 'short welcome: ' + w.length); assert.match(w, /e\.g\.\n“Senior product manager/); assert.match(w, /Send “help”/);
+  const note = (await runNode('Results Note', [{}], { 'Sourcing Summary': [{ count: 12, search_role: 'PM', search_location: 'Pune', range_text: 'rows 2 to 13' }], 'Add Req Header': [{ match_summary: 'by source: LinkedIn 7 | x' }], 'Search Criteria': [{ 'Notify Email': 'k@x.example' }],
+    'Location Check & Rank': [{ candidate_name: 'Asha Nair', fit_score: 9, current_role: 'Senior PM', current_company: 'Northwind SaaS', match_summary: 'Owns pricing. Also on GitHub.' }, { candidate_name: 'Raj <b>', fit_score: 7 }, { candidate_name: 'Neha', fit_score: 8 }, { candidate_name: 'Ishaan', fit_score: 6 }] }))[0];
+  assert.equal(note.notify, 'k@x.example'); assert.match(note.top_html, /^<p><b>Top 3:<\/b><\/p><ol><li><b>Asha Nair<\/b> · 90% · Senior PM at Northwind SaaS<br><span[^>]*>Owns pricing\.<\/span><\/li><li><b>Neha<\/b> · 80%<\/li><li><b>Raj &lt;b&gt;<\/b> · 70%<\/li><\/ol>$/);
+  const empty = (await runNode('Results Note', [{}], { 'Sourcing Summary': [{ count: 0 }], 'Add Req Header': [{}], 'Search Criteria': [{}], 'Location Check & Rank': [{}] }))[0];
+  assert.equal(empty.top_html, '');
 });

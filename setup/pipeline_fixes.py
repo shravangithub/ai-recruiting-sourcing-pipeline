@@ -6059,3 +6059,45 @@ def apply_round39(nodes, conns):
     R("Email Reply", "else html = '<p>Could not add this one: ' + esc(j.error || 'the app did not answer') + '.</p><p>Send a profile link or the CV text with the role name in the subject.</p>';",
       "else html = '<p>Could not add this one: ' + esc(j.error || 'the app did not answer') + '.</p>' + HELP_HTML;")
     return nodes, conns
+
+
+# ======================================================================
+# Round 40: delight. Telegram lists in bites of three with a shorter
+# welcome; the results email names the top three.
+# ======================================================================
+RESULTS_TOP3 = r"""
+let top = [];
+try { top = $('Location Check & Rank').all().map(function(i){ return i.json || {}; }).filter(function(c){ return c.candidate_name; })
+  .sort(function(a, b){ return (Number(b.fit_score) || 0) - (Number(a.fit_score) || 0); }).slice(0, 3)
+  .map(function(c){ return { name: String(c.candidate_name), fit: Math.max(1, Math.min(10, Number(c.fit_score) || 0)) * 10, where: [c.current_role || c.current_title, c.current_company].filter(Boolean).join(' at '), why: String(c.match_summary || '').split(/(?<=[.!?])\s+/)[0].slice(0, 160) }; }); } catch (e) { top = []; }
+const esc = function(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+const top_html = top.length ? '<p><b>Top ' + top.length + ':</b></p><ol>' + top.map(function(t){ return '<li><b>' + esc(t.name) + '</b> · ' + t.fit + '%' + (t.where ? ' · ' + esc(t.where) : '') + (t.why ? '<br><span style="color:#555">' + esc(t.why) + '</span>' : '') + '</li>'; }).join('') + '</ol>' : '';
+"""
+
+
+def apply_round40(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round40 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    # Telegram: the list arrives in bites of three, the actions line once at the end
+    R("TG Compose", "  say(chat, (head || st.role) + '\\n\\n' + lines.join('\\n\\n') + '\\n\\nshortlist 1 3 · not fit 2 · approve 1 · more');",
+      "  say(chat, (head || st.role));\n  for (let b = 0; b < lines.length; b += 3) say(chat, '\\u0000' + lines.slice(b, b + 3).join('\\n\\n'));\n  say(chat, '\\u0000shortlist 1 3 · not fit 2 · approve 1 · more');")
+    # a message starting with \u0000 goes out on its own, in order; the rest of a chat's messages are joined as before
+    R("TG Compose", "Object.keys(msgs).forEach(function(chat){ out.push({ json: { to: 'tg', chat_id: chat, text: msgs[chat].join('\\n\\n').slice(0, 4000), url: 'https://api.telegram.org/bot' + token + '/sendMessage' } }); });",
+      "Object.keys(msgs).forEach(function(chat){ const groups = []; msgs[chat].forEach(function(t){ if (t.charAt(0) === '\\u0000') groups.push([t.slice(1)]); else if (groups.length && !groups[groups.length - 1].own) groups[groups.length - 1].push(t); else { const g = [t]; groups.push(g); } if (t.charAt(0) === '\\u0000') groups[groups.length - 1].own = true; });\n"
+      "  groups.forEach(function(g){ out.push({ json: { to: 'tg', chat_id: chat, text: g.join('\\n\\n').slice(0, 4000), url: 'https://api.telegram.org/bot' + token + '/sendMessage' } }); }); });")
+    # a shorter welcome: one sample
+    R("TG Jobs", "const WELCOME = function(name){ return 'Connected as ' + name + '. ' + SAMPLES + '\\n\\nSend “help” for the full list of commands.'; };",
+      "const WELCOME = function(name){ return 'Connected as ' + name + '. Describe the role the way you\\u2019d tell a colleague, typed or as a voice note, e.g.\\n\\u201cSenior product manager in Bangalore, 5 to 8 years, pricing for B2B SaaS. Look on LinkedIn and GitHub.\\u201d\\n\\nPaste a profile link to add that person. Send \\u201chelp\\u201d for everything else.'; };")
+    # results email: the top three inline
+    R("Results Note", "const count = Number(s.count) || 0;", RESULTS_TOP3.strip() + "\nconst count = Number(s.count) || 0;")
+    R("Results Note", "  by_source: bySource.trim(), notify: notify } }];", "  by_source: bySource.trim(), notify: notify, top_html: top_html } }];")
+    m = N["Results Email"]["parameters"]["message"]
+    old = "<p><a href=\"https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit\">Open the results sheet</a>"
+    assert m.count(old) == 1, m[:200]
+    N["Results Email"]["parameters"]["message"] = m.replace(old, "{{ $('Results Note').first().json.top_html || '' }}" + old)
+    return nodes, conns

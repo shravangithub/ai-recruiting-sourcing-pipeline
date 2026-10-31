@@ -261,6 +261,17 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .pool .pb i{display:block;height:8px;border-radius:4px;background:#C8C9CE}
 .pool .pb i.hl{background:var(--red)}
 .win{padding:12px;border-radius:12px;background:var(--char);color:#fff;display:flex;flex-direction:column;gap:4px;font-size:12px}
+.cav.t0{background:#FDE8E6;color:#8E2A22}.cav.t1{background:#E6EEF8;color:#1B4D8C}.cav.t2{background:#E6F4EC;color:#1E6B3F}.cav.t3{background:#FBF1DC;color:#7A5410}.cav.t4{background:#EEE8F7;color:#4E3A8C}.cav.t5{background:#E3F2F3;color:#116466}.cav.t6{background:#F7E8F0;color:#8A2D5A}.cav.t7{background:#ECECEE;color:#3A3A40}
+.done{display:flex;gap:14px;align-items:center;flex-wrap:wrap;width:100%;padding:14px 18px;border-radius:14px;background:linear-gradient(90deg,#1E7A4A,#27AE60);color:#fff;animation:rise .5s ease-out}
+.done b{font-size:18px}.done .btn{background:#fff;color:#1E7A4A;border:0;height:36px}.done .x{margin-left:auto;background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:200}
+.bsum{font-size:14px;line-height:1.5;background:#FAFAFB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bmore{background:transparent;border:0;color:var(--red2);font:600 13px Inter,sans-serif;cursor:pointer;padding:0;text-align:left}
+@media (max-width:640px){#bWrap .bcol:not(.bbrief):not(.pshow){display:none}#bWrap .bcol{max-width:none;min-width:0}.rail button.psel{outline:2px solid var(--ink);outline-offset:1px}}
+.hsample{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;background:#EFEFF1;border-radius:14px}
+.hsample .c{background:#fff;border-radius:10px;padding:8px 10px;font-size:12px;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.hsample .c b{font-size:13px}.hsample .h{font:600 12px Inter,sans-serif;color:#6B6C72;padding:2px 2px 6px;border-top:3px solid var(--tone);border-radius:3px 3px 0 0}
 .slot{height:30px;padding:0 10px;border-radius:8px;border:1px solid #D4D4D8;background:#fff;font:600 12px Inter,sans-serif;cursor:pointer}
 .slot:hover{border-color:var(--red)}
 .senti{font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px}
@@ -278,6 +289,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .st{font-size:12px;font-weight:600;padding:4px 8px;border-radius:6px;white-space:nowrap;background:#F1F1F3;color:var(--char)}
 .st.ok{background:var(--okbg);color:var(--ok)}.st.bad{background:var(--badbg);color:var(--bad)}.st.warn{background:var(--warnbg);color:var(--warn)}
 @media (max-width:640px){main{padding:24px 16px 120px}header{padding:12px 16px}.urow{grid-template-columns:1fr}.bulk{padding:12px 16px}}
+@media (max-width:640px){header{gap:10px;padding:10px 16px}header>nav{flex-wrap:nowrap;overflow-x:auto;width:100%;order:3;scrollbar-width:none}header>nav::-webkit-scrollbar{display:none}#cmdBtn,#viewers{display:none!important}#who{margin-left:auto}}
 @media (max-width:640px){.rail{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;height:auto}.rail button,.rail button:first-child,.rail button:last-child{clip-path:none;border-radius:10px;min-width:0;padding:8px 10px;height:52px}.rail button:not(:first-child){padding-left:10px}.rail button span{white-space:normal;line-height:1.1}}
 </style>
 </head>
@@ -363,6 +375,12 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" type="button" data-go="search">Run your first search</button></div>
     </div>
     <div class="kpis" id="hKpis"></div>
+    <section class="card panel hide" id="hSample"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h2>What a finished role looks like</h2><span class="muted" style="font-size:13px">a sample, with made-up people · yours takes about a minute</span></div>
+      <div class="hsample">
+        <div><div class="h" style="--tone:#C8C9CE">Found · 12</div><div class="c"><b>Asha Nair</b><span>Senior PM at Northwind SaaS</span><span style="color:#27AE60;font-weight:700">90% match</span></div><div class="c" style="margin-top:8px"><b>Karan Malhotra</b><span>Technical PM at Meridian Pay</span><span style="color:#8BC34A;font-weight:700">80% match</span></div></div>
+        <div><div class="h" style="--tone:#9BB3D4">Shortlisted · 4</div><div class="c"><b>Rohan Mehta</b><span>PM at Kitebase · Warm intro via Priya</span><span style="color:#27AE60;font-weight:700">90% match</span></div></div>
+        <div><div class="h" style="--tone:#1E7A4A">Replied · 1</div><div class="c"><b>Kavya Iyer</b><span>“Happy to talk, is the role hybrid?”</span><span style="color:#1E7A4A;font-weight:700">Draft reply ready</span></div></div>
+      </div></section>
     <div id="hRunning"></div>
     <div class="grid2">
       <div style="display:flex;flex-direction:column;gap:20px">
@@ -805,6 +823,7 @@ function pct(c){
   c._pct = Math.max(5, Math.min(98, Math.round(p)));
   return c._pct;
 }
+function tint(s){ s = String(s||'').toLowerCase().replace(/\b(pvt|private|ltd|limited|inc|llp|technologies|technology|india)\b/g,''); var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 8; }
 function initials(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(s){ return s[0]; }).join('').toUpperCase(); }
 function checks(c){
   var out = (S.listMust||[]).slice(0,4).map(function(s){ return seen(c, s) ? '<span class="cy">'+esc(s)+'</span>' : '<span class="cq">'+esc(s)+'?</span>'; });
@@ -961,7 +980,9 @@ function loadBoard(runId){
   clearTimeout(B.poll);
   call('board', { run_id: runId || '' }).then(function(j){
     if (!j.ok) { toast(j.error || 'Could not load the board.'); return; }
+    var was = B.data && B.data.run && B.data.run.status === 'running' && String(B.data.run.run_id) === String((j.run||{}).run_id);
     B.data = j; B.runId = String((j.run && j.run.run_id) || runId || '');
+    if (was && j.run && j.run.status === 'done') { B.justDone = true; confetti(); }
     if (B.pastFor !== B.runId && j.run && j.run.status !== 'running' && (j.roles||[]).length > 1) { B.pastFor = B.runId; B.past = null; var cr0 = j.criteria || {}; loadPast(B, { role: j.run.role || cr0.role || '', must: bList(cr0.must || j.run.must), city: j.run.location || '', run_id: B.runId }); }
     var cr = j.criteria || {};
     S.listMust = bList(cr.must || (j.run && j.run.must)); S.listNice = bList(cr.nice); S.listCity = !!String((j.run && j.run.location) || '').trim();
@@ -996,7 +1017,7 @@ function bCard(c){
   var shown = tags.slice(0,2).join('') + (tags.length > 2 ? '<span class="btag" title="'+esc(tags.slice(2).map(function(t){ return t.replace(/<[^>]+>/g,''); }).join(', '))+'">+'+(tags.length-2)+'</span>' : '');
   var sub = c.title && c.company ? c.title + ' at ' + c.company : (c.title || c.company || '');
   return '<button type="button" class="bcard'+(B.open===c.dedupe_key?' on':'')+'" draggable="true" data-card="'+esc(c.dedupe_key)+'" aria-label="'+esc(c.name+', '+p+'% match')+'">'+
-    '<span class="cav">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
+    '<span class="cav t'+tint(c.company||c.name)+'">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
     '<span class="cname">'+esc(c.name)+'</span><span class="csub">'+esc(sub.slice(0,90))+'</span><span class="ctags">'+shown+'</span>'+
     sigBars(p, false)+'</button>';
 }
@@ -1011,6 +1032,7 @@ function renderBoard(){
     '<button type="button" class="f'+(B.view==='map'?' on':'')+'" data-bf="map" aria-pressed="'+(B.view==='map')+'">Map</button>';
   renderPulse(cards);
   var html = '<section class="bcol bbrief" aria-label="Brief">'+briefPanel()+'</section>';
+
   if (B.view === 'map' && !B.newRole) { el('bWrap').innerHTML = html + renderMap(cards); if (B.open) openCard(B.open, true); return; }
   COLS.forEach(function(col){
     var list = cards.filter(function(c){ return c.stage === col[0] && (B.showOut || !c.snoozed); }).sort(function(a,b){ return bPct(b)-bPct(a); });
@@ -1027,7 +1049,17 @@ function renderBoard(){
   if (B.showOut) { var out = cards.filter(function(c){ return c.stage === 'not_fit'; });
     html += '<section class="bcol" data-col="not_fit" aria-label="Not a fit" style="--tone:#C8C9CE"><div class="bcolh">Not a fit<span class="n">'+out.length+'</span></div>'+out.map(bCard).join('')+'</section>'; }
   el('bWrap').innerHTML = html;
+  if (window.innerWidth <= 640) { var pc = B.pcol || 'found', pcEl = el('bWrap').querySelector('[data-col="'+pc+'"]') || el('bWrap').querySelector('[data-col]'); if (pcEl) pcEl.classList.add('pshow'); var rb = document.querySelector('[data-rail="'+pc+'"]'); if (rb) rb.classList.add('psel'); }
   if (B.open) openCard(B.open, true);
+}
+function confetti(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var cv = document.createElement('canvas'); cv.className = 'confetti'; cv.width = innerWidth; cv.height = innerHeight; document.body.appendChild(cv);
+  var ctx = cv.getContext('2d'), cols = ['#B3261E','#27AE60','#F2C94C','#1B4D8C','#F2994A'], ps = [];
+  for (var i = 0; i < 120; i++) ps.push({ x: innerWidth/2 + (Math.random()-.5)*300, y: innerHeight*0.35, vx: (Math.random()-.5)*14, vy: -Math.random()*12-4, r: 4+Math.random()*5, c: cols[i%5], a: Math.random()*6 });
+  var t0 = Date.now(); (function f(){ var t = (Date.now()-t0)/1000; ctx.clearRect(0,0,cv.width,cv.height);
+    ps.forEach(function(p){ p.x += p.vx; p.y += p.vy; p.vy += .45; p.vx *= .99; p.a += .1; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, 1 - t/2.2); ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*.6); ctx.restore(); });
+    if (t < 2.3) requestAnimationFrame(f); else cv.remove(); })();
 }
 // ----- pulse: how this role is doing, and what happens if you approve the strong ones -----
 function renderPulse(cards){
@@ -1049,7 +1081,10 @@ function renderPulse(cards){
     '<span><b>'+(rate === null ? '—' : rate + '%')+'</b>reply rate'+(team ? ', your team averages '+team+'%' : '')+'</span>',
     best ? '<span><b>'+esc(best.replace('Google / Open Web','Open web'))+'</b>finds the most good people ('+bySrc[best].good+')</span>' : '',
     j.best_time ? '<span>Replies usually arrive <b style="font-size:14px;margin:0">'+esc(j.best_time)+'</b></span>' : ''].filter(Boolean).join('');
-  pe.innerHTML = rail + '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;width:100%"><div class="stats" style="flex:1 1 420px">'+st+'</div>' +
+  var doneBanner = '';
+  if (B.justDone && !B.newRole) { var all0 = j.cards||[], strong0 = all0.filter(function(c){ return bPct(c) >= 80; }).length, em0 = all0.filter(function(c){ return c.email; }).length;
+    doneBanner = '<div class="done" role="status"><b>Done: '+all0.length+' people found</b><span>'+strong0+' strong (80%+) · '+em0+' with an email address</span>'+(strong0?'<button type="button" class="btn" id="bShortStrong">Shortlist the '+strong0+' strong</button>':'')+'<button type="button" class="x" id="bDoneX" aria-label="Dismiss">×</button></div>'; }
+  pe.innerHTML = doneBanner + rail + '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;width:100%"><div class="stats" style="flex:1 1 420px">'+st+'</div>' +
     (ready.length ? '<div class="fc"><span style="font-size:13px;line-height:1.45">Approve the <b>'+ready.length+'</b> shortlisted with emails and you can expect about <b>'+Math.max(1, exp)+'</b> '+(Math.max(1,exp) === 1 ? 'reply' : 'replies')+' within 7 days<span style="color:#BDBEC3"> · at '+r+'% '+(rate !== null && contacted.length >= 5 ? 'this role\'s' : 'your team\'s')+' reply rate</span></span><button type="button" class="btn" id="bApproveAll">Approve '+ready.length+'</button></div>'
       : '<div class="fc" style="background:#fff;color:var(--muted);border:1.5px dashed #D4D4D8;flex:0 1 420px"><span style="font-size:13px">Shortlist people who have an email to see how many replies to expect.</span></div>') + '</div>';
 }
@@ -1167,7 +1202,13 @@ function briefPanel(){
   var srcs = bList(cr.sources || run.sources);
   var found = {}; (j.cards||[]).forEach(function(c){ found[c.source] = (found[c.source]||0) + 1; });
   if (!B.srcSel) B.srcSel = srcs.slice();
-  return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+esc(run.started_at ? 'run '+ago(run.started_at) : '')+'</span></div>'+
+  var briefTxt = j.brief || [run.role, run.location, run.must].filter(Boolean).join(' · ') || 'No brief saved for this role.';
+  if (!B.briefOpen) return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+esc(run.started_at ? 'run '+ago(run.started_at) : '')+'</span></div>'+
+    '<p class="bsum" style="margin:0" title="'+esc(briefTxt)+'">'+esc(briefTxt)+'</p>'+
+    '<div class="chips">'+bList(cr.must || run.must).slice(0,3).map(function(x){ return '<span class="crit must">'+esc(x)+'</span>'; }).join('')+[cr.experience && cr.experience!=='Any' ? cr.experience : '', run.location].filter(Boolean).map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div>'+
+    '<button type="button" class="bmore" id="bMore">Channels, what-ifs, apply page and more ↓</button>'+
+    '<button type="button" class="btn pri" id="bAgain" style="height:36px">Find more people</button>';
+  return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+esc(run.started_at ? 'run '+ago(run.started_at) : '')+'</span><button type="button" class="bmore" id="bMore" style="margin-left:auto">Less ↑</button></div>'+
     '<p style="margin:0;font-size:14px;line-height:1.5;background:#FAFAFB;border:1px solid var(--line);border-radius:10px;padding:10px 12px">'+esc(j.brief || [run.role, run.location, run.must].filter(Boolean).join(' · ') || 'No brief saved for this search.')+'</p>'+
     '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Searched for</span><div class="chips">'+
       bList(cr.must || run.must).map(function(x){ return '<span class="crit must">'+esc(x)+' · must</span>'; }).join('')+bList(cr.nice).map(function(x){ return '<span class="crit nice">'+esc(x)+' · nice</span>'; }).join('')+'</div>'+
@@ -1243,6 +1284,7 @@ el('bWrap').addEventListener('click', function(e){
   if ((t = e.target.closest('[data-nbq]'))) { var q = B.nb.q[+t.dataset.nbq]; B.nb.answers = B.nb.answers || {}; B.nb.answers[q.text] = t.dataset.a; B.nb.q.splice(+t.dataset.nbq,1); nbIntake(); return; }
   if (e.target.closest('#chAll')) { e.preventDefault(); B.allCh = !B.allCh; renderBrief(); return; }
   if (e.target.closest('#nbGo')) { nbSearch(e.target.closest('#nbGo')); return; }
+  if (e.target.closest('#bMore')) { B.briefOpen = !B.briefOpen; renderBoard(); return; }
   if (e.target.closest('#nbCancel')) { B.newRole = false; B.nb = null; renderBoard(); return; }
   if (e.target.closest('#bAgain')) { rerun(false); return; }
   if (e.target.closest('#bLike')) { findLike(); return; }
@@ -1258,7 +1300,9 @@ el('bWrap').addEventListener('click', function(e){
   if ((t = e.target.closest('[data-card]'))) { openCard(t.dataset.card); }
 });
 el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) { approveAll(b); return; }
-  var r = e.target.closest('[data-rail]'); if (!r) return; var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
+  if (e.target.closest('#bDoneX')) { B.justDone = false; renderBoard(); return; }
+  if (e.target.closest('#bShortStrong')) { B.justDone = false; ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'found' && bPct(c) >= 80; }).forEach(function(c){ moveCard(c.dedupe_key, 'shortlisted'); }); return; }
+  var r = e.target.closest('[data-rail]'); if (!r) return; if (window.innerWidth <= 640) { B.pcol = r.dataset.rail; renderBoard(); return; } var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
   col.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
   col.classList.add('flash'); setTimeout(function(){ col.classList.remove('flash'); }, 1200); });
 el('bFilters').onclick = function(e){ var b = e.target.closest('[data-bf]'); if (!b) return; if (b.dataset.bf === 'out') B.showOut = !B.showOut; else if (b.dataset.bf === 'map') B.view = B.view === 'map' ? '' : 'map'; else B.filter = b.dataset.bf; renderBoard(); };
@@ -1282,7 +1326,7 @@ function moveCard(key, stage){
   var c = cardOf(key); if (!c || c.stage === stage) return;
   if (stage === 'approved') { approveCard(c); return; }
   if (stage === 'shortlisted' || stage === 'not_fit') call('feedback', { run_id: B.runId, dedupe_key: key, vote: stage === 'shortlisted' ? 'up' : 'down' }).catch(function(){});
-  saveCard(c, { stage: stage }, function(){ toast(c.name + ' → ' + STAGE_NAME[stage] + (stage==='shortlisted' ? '. The ranking learns from this.' : '')); });
+  saveCard(c, { stage: stage }, function(){ toast(c.name + ' → ' + STAGE_NAME[stage] + (stage==='shortlisted' ? '. The ranking learns from this.' : (stage==='hired' ? ' 🎉 From a brief to a hire.' : ''))); if (stage === 'hired') confetti(); });
 }
 function approveCard(c, force){
   if (!c.email) { toast('No email for ' + c.name + ' yet, so they cannot be approved.'); return; }
@@ -1472,6 +1516,10 @@ function loadHome(){
     S.homeLoaded = true;
     var w=j.week, t=j.totals;
     el('hWelcome').classList.toggle('hide', t.searches > 0);
+    var fresh = !(t.searches > 0);
+    el('hSample').classList.toggle('hide', !fresh); el('hKpis').classList.toggle('hide', fresh);
+    el('hAtt').closest('section').classList.toggle('hide', fresh); el('hSrc').closest('section').classList.toggle('hide', fresh);
+    el('hAtt').closest('.grid2').style.gridTemplateColumns = fresh ? '1fr' : ''; el('hAtt').closest('.grid2').firstElementChild.classList.toggle('hide', fresh);
     el('hKpis').innerHTML = [[w.searches,'searches this week'],[w.people,'people found this week'],[w.strong,'strong matches this week'],[t.active,'in follow-up now'],[t.replied,'replies'+(t.contacted?' · '+t.reply_rate+'% reply rate':'')]]
       .map(function(k,i){ return '<div class="card kpi"><b'+(i===4?' ':'')+'>'+k[0]+'</b><span>'+esc(k[1])+'</span></div>'; }).join('');
     el('hRunning').innerHTML = (j.running||[]).map(function(r){ return '<a href="#" class="card" data-run="'+esc(r.run_id)+'" data-status="running" style="display:flex;align-items:center;gap:12px;padding:14px 18px;text-decoration:none;color:var(--ink)"><span class="spin"></span><b>'+esc(r.role||'Search')+(r.location?' · '+esc(r.location):'')+'</b><span class="muted" style="font-size:13px">searching now</span><span style="margin-left:auto;font-weight:600;font-size:13px;color:var(--red)">Watch live →</span></a>'; }).join('');
