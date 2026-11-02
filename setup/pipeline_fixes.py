@@ -6101,3 +6101,38 @@ def apply_round40(nodes, conns):
     assert m.count(old) == 1, m[:200]
     N["Results Email"]["parameters"]["message"] = m.replace(old, "{{ $('Results Note').first().json.top_html || '' }}" + old)
     return nodes, conns
+
+
+# ======================================================================
+# Round 41: the reply-stop path reads the Gmail trigger's full-format
+# "from" (an object, not a string) and never crashes on a mail it cannot
+# use. Found on launch day: a self-sent test mail made Stop Fields return
+# [] in per-item mode ("'json' property isn't an object"), which halted
+# the whole execution, so email-in never ran either.
+# ======================================================================
+EXTRACT_SENDER_41 = r"""
+// who sent this mail: the trigger's full format gives an object, the simple one a string
+const f = $json.from || $json.From || '';
+const raw = typeof f === 'string' ? f
+  : (f && (f.text || (Array.isArray(f.value) && f.value[0] && f.value[0].address))) || JSON.stringify(f || '');
+const m = String(raw).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+const email = m ? m[0].toLowerCase() : '';
+return { json: { sender_email: email, subject: $json.subject || '', thread_id: $json.threadId || '' } };
+"""
+
+STOP_FIELDS_41 = r"""
+// a reply came in: stop that person's sequence (mails with no readable sender are skipped)
+return $input.all().map(function(i){ return String((i.json || {}).sender_email || '').toLowerCase(); })
+  .filter(Boolean).map(function(e){ return { json: { email: e, status: 'replied', status_text: 'Replied' } }; });
+"""
+
+
+def apply_round41(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    N["Extract Sender"]["parameters"]["jsCode"] = EXTRACT_SENDER_41
+    N["Stop Fields"]["parameters"] = {"jsCode": STOP_FIELDS_41}   # run once for all items
+    # the reply path must never take email-in (or anything else) down with it
+    for nm in ("Extract Sender", "Stop Fields", "Find Candidate Row"):
+        if nm in N:
+            N[nm]["onError"] = "continueRegularOutput"
+    return nodes, conns

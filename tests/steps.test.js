@@ -1640,3 +1640,16 @@ test('R40: Telegram lists arrive in bites of three, the welcome is one sample, a
   const empty = (await runNode('Results Note', [{}], { 'Sourcing Summary': [{ count: 0 }], 'Add Req Header': [{}], 'Search Criteria': [{}], 'Location Check & Rank': [{}] }))[0];
   assert.equal(empty.top_html, '');
 });
+
+// ---------- Round 41: the reply-stop path on the trigger's full format ----------
+test('R41: Extract Sender reads an object "from", and Stop Fields skips mails with no sender instead of crashing', async () => {
+  const full = await runNode('Extract Sender', [{ from: { value: [{ address: 'Asha@Example.com', name: 'Asha' }], text: 'Asha <Asha@Example.com>' }, subject: 'Re: hi', threadId: 't1' }]);
+  assert.equal(full[0].json ? full[0].json.sender_email : full[0].sender_email, 'asha@example.com');
+  const simple = await runNode('Extract Sender', [{ From: 'Raj <raj@x.example>', subject: 's' }]);
+  assert.equal((simple[0].json || simple[0]).sender_email, 'raj@x.example');
+  const valueOnly = await runNode('Extract Sender', [{ from: { value: [{ address: 'neha@x.example' }] } }]);
+  assert.equal((valueOnly[0].json || valueOnly[0]).sender_email, 'neha@x.example');
+  const stop = await runNode('Stop Fields', [{ sender_email: 'asha@example.com' }, { sender_email: '' }, {}]);
+  assert.deepEqual(stop, [{ email: 'asha@example.com', status: 'replied', status_text: 'Replied' }]);
+  assert.deepEqual(await runNode('Stop Fields', [{ sender_email: '' }]), []);
+});
