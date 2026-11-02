@@ -1067,7 +1067,7 @@
   {
    "parameters": {
     "mode": "runOnceForEachItem",
-    "jsCode": "const raw = $json.from || $json.From || '';\nconst m = String(raw).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/);\nconst email = m ? m[0].toLowerCase() : '';\nreturn { json: { sender_email: email, subject: $json.subject || '', thread_id: $json.threadId || '' } };"
+    "jsCode": "\n// who sent this mail: the trigger's full format gives an object, the simple one a string\nconst f = $json.from || $json.From || '';\nconst raw = typeof f === 'string' ? f\n  : (f && (f.text || (Array.isArray(f.value) && f.value[0] && f.value[0].address))) || JSON.stringify(f || '');\nconst m = String(raw).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/);\nconst email = m ? m[0].toLowerCase() : '';\nreturn { json: { sender_email: email, subject: $json.subject || '', thread_id: $json.threadId || '' } };\n"
    },
    "id": "56fd9488-87a1-4a03-b54e-05448a7468aa",
    "name": "Extract Sender",
@@ -1076,7 +1076,8 @@
    "position": [
     224,
     400
-   ]
+   ],
+   "onError": "continueRegularOutput"
   },
   {
    "parameters": {
@@ -4379,8 +4380,7 @@
   },
   {
    "parameters": {
-    "jsCode": "\n// a reply came in: stop that person's sequence\nconst e = String($json.sender_email || '').toLowerCase();\nif (!e) return [];\nreturn { json: { email: e, status: 'replied', status_text: 'Replied' } };\n",
-    "mode": "runOnceForEachItem"
+    "jsCode": "\n// a reply came in: stop that person's sequence (mails with no readable sender are skipped)\nreturn $input.all().map(function(i){ return String((i.json || {}).sender_email || '').toLowerCase(); })\n  .filter(Boolean).map(function(e){ return { json: { email: e, status: 'replied', status_text: 'Replied' } }; });\n"
    },
    "id": "fix-stop-fields",
    "name": "Stop Fields",
@@ -4389,7 +4389,8 @@
    "position": [
     444,
     240
-   ]
+   ],
+   "onError": "continueRegularOutput"
   },
   {
    "parameters": {
