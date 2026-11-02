@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B4D8C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sourcing">
+<link rel="icon" href="sourcing-app-icon">
+<link rel="apple-touch-icon" href="sourcing-app-icon">
 <title>Sourcing</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -254,6 +261,17 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .pool .pb i{display:block;height:8px;border-radius:4px;background:#C8C9CE}
 .pool .pb i.hl{background:var(--red)}
 .win{padding:12px;border-radius:12px;background:var(--char);color:#fff;display:flex;flex-direction:column;gap:4px;font-size:12px}
+.cav.t0{background:#FDE8E6;color:#8E2A22}.cav.t1{background:#E6EEF8;color:#1B4D8C}.cav.t2{background:#E6F4EC;color:#1E6B3F}.cav.t3{background:#FBF1DC;color:#7A5410}.cav.t4{background:#EEE8F7;color:#4E3A8C}.cav.t5{background:#E3F2F3;color:#116466}.cav.t6{background:#F7E8F0;color:#8A2D5A}.cav.t7{background:#ECECEE;color:#3A3A40}
+.done{display:flex;gap:14px;align-items:center;flex-wrap:wrap;width:100%;padding:14px 18px;border-radius:14px;background:linear-gradient(90deg,#1E7A4A,#27AE60);color:#fff;animation:rise .5s ease-out}
+.done b{font-size:18px}.done .btn{background:#fff;color:#1E7A4A;border:0;height:36px}.done .x{margin-left:auto;background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:200}
+.bsum{font-size:14px;line-height:1.5;background:#FAFAFB;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bmore{background:transparent;border:0;color:var(--red2);font:600 13px Inter,sans-serif;cursor:pointer;padding:0;text-align:left}
+@media (max-width:640px){#bWrap .bcol:not(.bbrief):not(.pshow){display:none}#bWrap .bcol{max-width:none;min-width:0}.rail button.psel{outline:2px solid var(--ink);outline-offset:1px}}
+.hsample{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;background:#EFEFF1;border-radius:14px}
+.hsample .c{background:#fff;border-radius:10px;padding:8px 10px;font-size:12px;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.hsample .c b{font-size:13px}.hsample .h{font:600 12px Inter,sans-serif;color:#6B6C72;padding:2px 2px 6px;border-top:3px solid var(--tone);border-radius:3px 3px 0 0}
 .slot{height:30px;padding:0 10px;border-radius:8px;border:1px solid #D4D4D8;background:#fff;font:600 12px Inter,sans-serif;cursor:pointer}
 .slot:hover{border-color:var(--red)}
 .senti{font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px}
@@ -271,6 +289,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .st{font-size:12px;font-weight:600;padding:4px 8px;border-radius:6px;white-space:nowrap;background:#F1F1F3;color:var(--char)}
 .st.ok{background:var(--okbg);color:var(--ok)}.st.bad{background:var(--badbg);color:var(--bad)}.st.warn{background:var(--warnbg);color:var(--warn)}
 @media (max-width:640px){main{padding:24px 16px 120px}header{padding:12px 16px}.urow{grid-template-columns:1fr}.bulk{padding:12px 16px}}
+@media (max-width:640px){header{gap:10px;padding:10px 16px}header>nav{flex-wrap:nowrap;overflow-x:auto;width:100%;order:3;scrollbar-width:none}header>nav::-webkit-scrollbar{display:none}#cmdBtn,#viewers{display:none!important}#who{margin-left:auto}}
+@media (max-width:640px){.rail{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;height:auto}.rail button,.rail button:first-child,.rail button:last-child{clip-path:none;border-radius:10px;min-width:0;padding:8px 10px;height:52px}.rail button:not(:first-child){padding-left:10px}.rail button span{white-space:normal;line-height:1.1}}
 </style>
 </head>
 <body>
@@ -297,6 +317,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
     <form onsubmit="return false">
       <label class="lbl" for="lEmail">Work email</label><input id="lEmail" type="text" autocomplete="username" inputmode="email">
       <label class="lbl" for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password">
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0 12px;cursor:pointer"><input type="checkbox" id="lKeep" style="width:auto;margin:0"> Stay signed in on this device for 30 days</label>
       <button id="lBtn" class="btn pri" type="submit">Sign in</button>
     </form>
     <p class="muted" style="font-size:13px;margin:10px 0 0">Forgot your password? Ask an admin to reset it in Settings → Team.</p>
@@ -354,6 +375,12 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" type="button" data-go="search">Run your first search</button></div>
     </div>
     <div class="kpis" id="hKpis"></div>
+    <section class="card panel hide" id="hSample"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h2>What a finished role looks like</h2><span class="muted" style="font-size:13px">a sample, with made-up people · yours takes about a minute</span></div>
+      <div class="hsample">
+        <div><div class="h" style="--tone:#C8C9CE">Found · 12</div><div class="c"><b>Asha Nair</b><span>Senior PM at Northwind SaaS</span><span style="color:#27AE60;font-weight:700">90% match</span></div><div class="c" style="margin-top:8px"><b>Karan Malhotra</b><span>Technical PM at Meridian Pay</span><span style="color:#8BC34A;font-weight:700">80% match</span></div></div>
+        <div><div class="h" style="--tone:#9BB3D4">Shortlisted · 4</div><div class="c"><b>Rohan Mehta</b><span>PM at Kitebase · Warm intro via Priya</span><span style="color:#27AE60;font-weight:700">90% match</span></div></div>
+        <div><div class="h" style="--tone:#1E7A4A">Replied · 1</div><div class="c"><b>Kavya Iyer</b><span>“Happy to talk, is the role hybrid?”</span><span style="color:#1E7A4A;font-weight:700">Draft reply ready</span></div></div>
+      </div></section>
     <div id="hRunning"></div>
     <div class="grid2">
       <div style="display:flex;flex-direction:column;gap:20px">
@@ -379,7 +406,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
   </section>
   <section id="v-settings" class="hide" style="display:flex;flex-direction:column;gap:18px">
     <h1 style="font-size:30px;font-weight:800">Settings</h1>
-    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="services">Connected services</button></div>
+    <div class="stabs" id="sTabs"><button data-st="account" class="on">Your account</button><button data-st="team">Team</button><button data-st="sending">Sending</button><button data-st="telegram">Telegram</button><button data-st="phone">Phone &amp; browser</button><button data-st="services">Connected services</button></div>
     <div class="card panel" data-sp="account">
       <div class="frow"><div><b>Name</b></div><div id="acName"></div></div>
       <div class="frow"><div><b>Email</b></div><div id="acEmail"></div></div>
@@ -407,9 +434,23 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Daily limit</b><div class="help">Most follow-ups sent in one day (1–200)</div></div><input id="snCap" type="text" inputmode="numeric" style="max-width:120px"></div>
       <div class="frow"><div><b>Weekdays only</b></div><div><button type="button" class="tog on" id="snWk" aria-pressed="true" aria-label="Weekdays only"><i></i></button></div></div>
       <div class="frow"><div><b>Never email the same person twice within</b><div class="help">Across all roles. Protects your sender reputation.</div></div><div style="display:flex;gap:8px;align-items:center"><input id="snRe" type="text" inputmode="numeric" style="max-width:90px"><span class="muted">days</span></div></div>
-      <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
+      <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default. The same public address makes apply pages reachable.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
       <div class="frow"><div><b>Follow-up schedule</b></div><div class="muted" style="font-size:14px">Days 2, 4, 5 and 7, in the same Gmail thread. Stops on reply or bounce. <a href="#" data-go="outreach">Edit the wording →</a></div></div>
       <div style="display:flex;gap:10px;align-items:center"><button class="btn pri" type="button" id="snSave">Save sending settings</button><span id="snMsg" class="muted" style="font-size:13px"></span></div>
+    </div>
+    <div class="card panel hide" data-sp="phone">
+      <h2 style="font-size:20px;margin:0 0 4px">Phone &amp; browser</h2>
+      <p class="muted" style="margin:0 0 14px;font-size:14px">Three more ways in, all scored the same way as a search.</p>
+      <div class="frow"><div><b>On your phone</b><div class="help">Open this page on your phone, sign in with “Stay signed in” ticked, then add it to the home screen (Share → Add to Home Screen on iPhone; ⋮ → Add to Home screen on Android). It opens like an app, already signed in.</div></div><div class="muted" style="font-size:13px;max-width:480px" id="phUrl"></div></div>
+      <div class="frow"><div><b>Add to Board from any page</b><div class="help">Drag this button to your bookmarks bar. On a LinkedIn, GitHub or any profile page, click it: the person is scored for a role and added to Found.</div></div><div style="max-width:480px"><a id="bmLink" class="btn" href="#" draggable="true" style="height:38px;display:inline-flex;align-items:center;text-decoration:none">Add to Board</a><div class="help" id="bmHelp" style="margin-top:8px">Loading your button…</div><button type="button" class="btn" id="bmRenew" style="margin-top:8px;height:32px;font-size:13px">Make a new button (the old one stops working)</button></div></div>
+      <div class="frow"><div><b>By email</b><div class="help">Forward a CV or a profile link to the team’s connected mailbox with the role name in the subject (e.g. “Fwd: Backend Engineer, Pune”). You get a reply with the score, and the person lands in Found. Only teammates in this workspace can do this.</div></div><div class="muted" style="font-size:13px;max-width:480px" id="phMail">The mailbox is the one connected in n8n for outreach.</div></div>
+      <div class="frow"><div><b>Voice notes on Telegram</b><div class="help">Once Telegram is connected, hold the mic and describe the role; the bot transcribes it and searches. Send a profile link to add that person to the role you’re on.</div></div><div></div></div>
+    </div>
+    <div class="card panel hide" data-sp="telegram">
+      <h2 style="font-size:20px;margin:0 0 4px">Telegram</h2>
+      <p class="muted" style="margin:0 0 14px;font-size:14px">Search, shortlist and answer candidates from your phone. The bot talks to this workspace from inside n8n, so it works even without a public address.</p>
+      <div class="frow" id="tgMine"><div><b>Your phone</b><div class="help" id="tgMineHelp">Connect your Telegram to use the bot.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:480px"><button type="button" class="btn" id="tgConnect" style="height:38px;align-self:flex-start">Connect Telegram</button><div id="tgCode" class="hide" style="padding:12px 14px;border-radius:10px;background:var(--ground);font-size:14px;line-height:1.5"></div></div></div>
+      <div class="frow" id="tgAdmin"><div><b>The bot</b><div class="help">Admins only. In Telegram, open BotFather, send /newbot, and paste the token it gives you here. One bot serves the whole team.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:480px"><input id="tgTok" type="password" placeholder="123456789:AAH…" autocomplete="off"><input id="tgBot" type="text" placeholder="Bot username, e.g. acme_sourcing_bot (optional)"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn" id="tgSave" style="height:38px">Save</button><button type="button" class="btn" id="tgRemove" style="height:38px">Remove bot</button><span id="tgMsg" class="muted" style="font-size:13px"></span></div><div id="tgStatus" class="muted" style="font-size:13px"></div></div></div>
     </div>
     <div class="card panel hide" data-sp="services">
       <p class="muted" style="margin:0;font-size:14px">The services your n8n uses, and when each one last worked in a search. Keys and passwords stay in n8n's credential store; to change one, open n8n → Credentials.</p>
@@ -545,6 +586,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 (function(){
 var API = '__API__';
 var SHEET_URL = '__SHEET_URL__';
+var CHANNEL_WORDS = [['LinkedIn',/linked ?in/i],['GitHub',/git ?hub/i],['Stack Overflow',/stack ?overflow/i],['Google / Open Web',/\b(open web|google|the web)\b/i],['Hacker News',/hacker ?news/i],['GitLab',/git ?lab/i],['Kaggle',/kaggle/i],['Hugging Face',/hugging ?face/i],['Dev.to',/\bdev\.to\b/i],['Reddit',/reddit/i],['X (Twitter)',/\b(twitter|x\.com)\b/i],['Dribbble',/dribbble/i],['Behance',/behance/i],['Devfolio',/devfolio/i],['Unstop',/unstop/i],['Devpost',/devpost/i],['HackerEarth',/hacker ?earth/i],['LeetCode',/leet ?code/i],['CodeChef',/code ?chef/i],['Codeforces',/codeforces/i],['Topmate',/topmate/i],['ADPList',/adp ?list/i],['Medium',/\bmedium\b/i],['Research papers',/\b(research papers?|papers|researchers?|openalex|publications?)\b/i],['Speakers & experts',/\b(speakers?|experts?|conference talks?|sessionize)\b/i]];
+function channelsIn(t){ t = String(t||''); if (/\b(everywhere|all channels|all sources|every channel|every source)\b/i.test(t)) return CHANNEL_WORDS.map(function(c){ return c[0]; }); return CHANNEL_WORDS.filter(function(c){ return c[1].test(t); }).map(function(c){ return c[0]; }); }
 var PLATFORMS = ['LinkedIn','GitHub','Stack Overflow','Google / Open Web','Hacker News','GitLab','Kaggle','Hugging Face','Dev.to','Reddit','X (Twitter)','Dribbble','Behance','Devfolio','Unstop','Devpost','HackerEarth','LeetCode','CodeChef','Codeforces','Topmate','ADPList','Medium','Research papers','Speakers & experts'];
 var YIELD = {'LinkedIn':'~25','GitHub':'~40','Stack Overflow':'~35','Google / Open Web':'~12','Hacker News':'~14','GitLab':'~11','Kaggle':'~28','Hugging Face':'~27','Dev.to':'~8','Reddit':'~14','X (Twitter)':'~13','Dribbble':'~10','Behance':'~20','Devfolio':'new','Unstop':'new','Devpost':'new','HackerEarth':'new','LeetCode':'new','CodeChef':'new','Codeforces':'new','Topmate':'new','ADPList':'new','Medium':'new','Research papers':'new','Speakers & experts':'new'};
 var REGIONS = ['Global (all regions)','India','United States','United Kingdom','Canada','Australia','Germany','France','Netherlands','Singapore','United Arab Emirates','Ireland'];
@@ -552,7 +595,10 @@ var el = function(id){ return document.getElementById(id); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
 var store = { get: function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del: function(k){ try { localStorage.removeItem(k); } catch(e){} } };
 var TOKEN = '';
+var KEEP = false;
 var ME = null;
+function hashOf(frag){ var k = KEEP && TOKEN ? 'k=' + TOKEN : ''; var h = [frag, k].filter(Boolean).join('&'); return h ? '#' + h : location.pathname + location.search; }
+function setHash(frag){ history.replaceState(null, '', hashOf(frag)); }
 var S = { must:[], nice:[], ex:[], similar:[], sources:['LinkedIn','GitHub'], answers:{}, questions:[], rubric:[], touched:{}, runId:null, list:[], filter:'rec', sel:{}, votes:{}, open:null };
 
 function toast(t){ var e=el('toast'); e.textContent=t; e.classList.remove('hide'); clearTimeout(toast.t); toast.t=setTimeout(function(){ e.classList.add('hide'); }, 3200); }
@@ -582,7 +628,7 @@ function signedIn(j){
 function busy(btn, on, txt){ btn.disabled = on; if (txt) btn.textContent = txt; }
 el('lBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Signing in…');
   var pw = el('lPass').value;
-  fetchAuth('login', { email: el('lEmail').value, password: pw }).then(function(j){ busy(b, false, 'Sign in'); if (!j.ok) { el('gateErr').textContent = j.error; return; } S.tempPw = pw; el('lPass').value=''; signedIn(j); }); };
+  fetchAuth('login', { email: el('lEmail').value, password: pw, remember: el('lKeep').checked }).then(function(j){ busy(b, false, 'Sign in'); if (!j.ok) { el('gateErr').textContent = j.error; return; } S.tempPw = pw; el('lPass').value=''; KEEP = el('lKeep').checked; signedIn(j); }); };
 el('sBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Creating…');
   fetchAuth('setup_admin', { name: el('sName').value, email: el('sEmail').value, password: el('sPass').value, code: el('sCode').value }).then(function(j){ busy(b, false, 'Create workspace'); if (!j.ok) { el('gateErr').textContent = j.error; return; } el('sPass').value=''; S.firstRun = true; signedIn(j); }); };
 el('cBtn').onclick = function(){ var b=this; el('gateErr').textContent=''; busy(b, true, 'Saving…');
@@ -591,7 +637,7 @@ function fetchAuth(action, data){
   return fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(Object.assign({ action: action }, data)) })
     .then(function(r){ return r.json(); }).catch(function(){ return { ok:false, error:'The server did not answer. Is the pipeline switched on?' }; });
 }
-el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; showAuth('login'); };
+el('logout').onclick = function(){ call('logout').catch(function(){}); TOKEN=''; ME=null; KEEP=false; setHash(''); showAuth('login'); };
 
 function start(){
   setTimeout(function(){ call('health').then(function(j){ if (j.ok) setHealthDot(j.overall); }).catch(function(){}); }, 1500);
@@ -601,7 +647,8 @@ function start(){
   el('whoAv').textContent = initials(ME.name); el('whoName').textContent = ME.name; el('whoRole').textContent = ME.role === 'admin' ? 'Admin' : 'Recruiter';
   el('seqEdit').classList.toggle('hide', ME.role !== 'admin');
   var h = location.hash || '';
-  var m = h.match(/^#run=(\w+)/), l = h.match(/^#list=(\w+)/);
+  var m = h.match(/[#&]run=(\w+)/), l = h.match(/[#&]list=(\w+)/);
+  if (KEEP) setHash(m ? 'run=' + m[1] : (l ? 'list=' + l[1] : ''));
   if (m) { S.runId = m[1]; go('run'); } else if (l) openList(l[1]); else go(S.firstRun ? 'home' : 'board');
   loadRuns();
 }
@@ -621,7 +668,7 @@ function go(v){
   if (v === 'board') loadBoard(B.runId);
   if (v === 'settings') openSettings(S.stab || 'account');
   if (v === 'health') loadHealth();
-  if (v === 'search' || v === 'home' || v === 'settings' || v === 'board' || v === 'health') history.replaceState(null,'',location.pathname+location.search);
+  if (v === 'search' || v === 'home' || v === 'settings' || v === 'board' || v === 'health') setHash('');
   window.scrollTo(0,0);
 }
 document.addEventListener('click', function(e){ var t = e.target.closest('[data-go]'); if (t) { e.preventDefault(); go(t.dataset.go); } });
@@ -715,7 +762,7 @@ el('go').onclick = function(){
     b.textContent='Find candidates'; b.disabled=false;
     if (!j.ok) { el('searchErr').textContent = j.error || 'Could not start the search.'; return; }
     S.runId = String(j.run_id); S.runTitle = crit.role + (crit.city ? ' · ' + crit.city : '');
-    history.replaceState(null,'','#run=' + S.runId); go('run');
+    setHash('run=' + S.runId); go('run');
   }).catch(function(e){ b.textContent='Find candidates'; b.disabled=false; if (e.message!=='locked') el('searchErr').textContent = e.message; });
 };
 
@@ -753,7 +800,7 @@ function loadRuns(){
     el('allRuns').innerHTML = rs.map(runCard).join('') || '<div class="empty card">No searches yet.</div>';
   }).catch(function(){});
 }
-document.addEventListener('click', function(e){ var a=e.target.closest('[data-run]'); if(!a) return; e.preventDefault(); S.runId=a.dataset.run; if (a.dataset.status==='done') openList(S.runId); else { history.replaceState(null,'','#run='+S.runId); go('run'); } });
+document.addEventListener('click', function(e){ var a=e.target.closest('[data-run]'); if(!a) return; e.preventDefault(); S.runId=a.dataset.run; if (a.dataset.status==='done') openList(S.runId); else { setHash('run='+S.runId); go('run'); } });
 
 // ---------- shortlist ----------
 // Match % = the AI's score, adjusted by what the checks actually found, so a
@@ -776,6 +823,7 @@ function pct(c){
   c._pct = Math.max(5, Math.min(98, Math.round(p)));
   return c._pct;
 }
+function tint(s){ s = String(s||'').toLowerCase().replace(/\b(pvt|private|ltd|limited|inc|llp|technologies|technology|india)\b/g,''); var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 8; }
 function initials(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(s){ return s[0]; }).join('').toUpperCase(); }
 function checks(c){
   var out = (S.listMust||[]).slice(0,4).map(function(s){ return seen(c, s) ? '<span class="cy">'+esc(s)+'</span>' : '<span class="cq">'+esc(s)+'?</span>'; });
@@ -902,7 +950,7 @@ el('bulkGo').onclick = function(){
 };
 function openList(id){
   S.runId = id; S.sel = {}; S.open = null; S.filter='rec';
-  history.replaceState(null,'','#list='+id);
+  setHash('list='+id);
   go('list'); el('lRows').innerHTML='<tr><td colspan="8" class="empty"><span class="spin" style="display:inline-block"></span></td></tr>';
   call('results', { run_id: id }).then(function(j){
     var r = j.run || {};
@@ -932,7 +980,9 @@ function loadBoard(runId){
   clearTimeout(B.poll);
   call('board', { run_id: runId || '' }).then(function(j){
     if (!j.ok) { toast(j.error || 'Could not load the board.'); return; }
+    var was = B.data && B.data.run && B.data.run.status === 'running' && String(B.data.run.run_id) === String((j.run||{}).run_id);
     B.data = j; B.runId = String((j.run && j.run.run_id) || runId || '');
+    if (was && j.run && j.run.status === 'done') { B.justDone = true; confetti(); }
     if (B.pastFor !== B.runId && j.run && j.run.status !== 'running' && (j.roles||[]).length > 1) { B.pastFor = B.runId; B.past = null; var cr0 = j.criteria || {}; loadPast(B, { role: j.run.role || cr0.role || '', must: bList(cr0.must || j.run.must), city: j.run.location || '', run_id: B.runId }); }
     var cr = j.criteria || {};
     S.listMust = bList(cr.must || (j.run && j.run.must)); S.listNice = bList(cr.nice); S.listCity = !!String((j.run && j.run.location) || '').trim();
@@ -967,7 +1017,7 @@ function bCard(c){
   var shown = tags.slice(0,2).join('') + (tags.length > 2 ? '<span class="btag" title="'+esc(tags.slice(2).map(function(t){ return t.replace(/<[^>]+>/g,''); }).join(', '))+'">+'+(tags.length-2)+'</span>' : '');
   var sub = c.title && c.company ? c.title + ' at ' + c.company : (c.title || c.company || '');
   return '<button type="button" class="bcard'+(B.open===c.dedupe_key?' on':'')+'" draggable="true" data-card="'+esc(c.dedupe_key)+'" aria-label="'+esc(c.name+', '+p+'% match')+'">'+
-    '<span class="cav">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
+    '<span class="cav t'+tint(c.company||c.name)+'">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
     '<span class="cname">'+esc(c.name)+'</span><span class="csub">'+esc(sub.slice(0,90))+'</span><span class="ctags">'+shown+'</span>'+
     sigBars(p, false)+'</button>';
 }
@@ -982,6 +1032,7 @@ function renderBoard(){
     '<button type="button" class="f'+(B.view==='map'?' on':'')+'" data-bf="map" aria-pressed="'+(B.view==='map')+'">Map</button>';
   renderPulse(cards);
   var html = '<section class="bcol bbrief" aria-label="Brief">'+briefPanel()+'</section>';
+
   if (B.view === 'map' && !B.newRole) { el('bWrap').innerHTML = html + renderMap(cards); if (B.open) openCard(B.open, true); return; }
   COLS.forEach(function(col){
     var list = cards.filter(function(c){ return c.stage === col[0] && (B.showOut || !c.snoozed); }).sort(function(a,b){ return bPct(b)-bPct(a); });
@@ -998,7 +1049,17 @@ function renderBoard(){
   if (B.showOut) { var out = cards.filter(function(c){ return c.stage === 'not_fit'; });
     html += '<section class="bcol" data-col="not_fit" aria-label="Not a fit" style="--tone:#C8C9CE"><div class="bcolh">Not a fit<span class="n">'+out.length+'</span></div>'+out.map(bCard).join('')+'</section>'; }
   el('bWrap').innerHTML = html;
+  if (window.innerWidth <= 640) { var pc = B.pcol || 'found', pcEl = el('bWrap').querySelector('[data-col="'+pc+'"]') || el('bWrap').querySelector('[data-col]'); if (pcEl) pcEl.classList.add('pshow'); var rb = document.querySelector('[data-rail="'+pc+'"]'); if (rb) rb.classList.add('psel'); }
   if (B.open) openCard(B.open, true);
+}
+function confetti(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var cv = document.createElement('canvas'); cv.className = 'confetti'; cv.width = innerWidth; cv.height = innerHeight; document.body.appendChild(cv);
+  var ctx = cv.getContext('2d'), cols = ['#B3261E','#27AE60','#F2C94C','#1B4D8C','#F2994A'], ps = [];
+  for (var i = 0; i < 120; i++) ps.push({ x: innerWidth/2 + (Math.random()-.5)*300, y: innerHeight*0.35, vx: (Math.random()-.5)*14, vy: -Math.random()*12-4, r: 4+Math.random()*5, c: cols[i%5], a: Math.random()*6 });
+  var t0 = Date.now(); (function f(){ var t = (Date.now()-t0)/1000; ctx.clearRect(0,0,cv.width,cv.height);
+    ps.forEach(function(p){ p.x += p.vx; p.y += p.vy; p.vy += .45; p.vx *= .99; p.a += .1; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, 1 - t/2.2); ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*.6); ctx.restore(); });
+    if (t < 2.3) requestAnimationFrame(f); else cv.remove(); })();
 }
 // ----- pulse: how this role is doing, and what happens if you approve the strong ones -----
 function renderPulse(cards){
@@ -1020,7 +1081,10 @@ function renderPulse(cards){
     '<span><b>'+(rate === null ? '—' : rate + '%')+'</b>reply rate'+(team ? ', your team averages '+team+'%' : '')+'</span>',
     best ? '<span><b>'+esc(best.replace('Google / Open Web','Open web'))+'</b>finds the most good people ('+bySrc[best].good+')</span>' : '',
     j.best_time ? '<span>Replies usually arrive <b style="font-size:14px;margin:0">'+esc(j.best_time)+'</b></span>' : ''].filter(Boolean).join('');
-  pe.innerHTML = rail + '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;width:100%"><div class="stats" style="flex:1 1 420px">'+st+'</div>' +
+  var doneBanner = '';
+  if (B.justDone && !B.newRole) { var all0 = j.cards||[], strong0 = all0.filter(function(c){ return bPct(c) >= 80; }).length, em0 = all0.filter(function(c){ return c.email; }).length;
+    doneBanner = '<div class="done" role="status"><b>Done: '+all0.length+' people found</b><span>'+strong0+' strong (80%+) · '+em0+' with an email address</span>'+(strong0?'<button type="button" class="btn" id="bShortStrong">Shortlist the '+strong0+' strong</button>':'')+'<button type="button" class="x" id="bDoneX" aria-label="Dismiss">×</button></div>'; }
+  pe.innerHTML = doneBanner + rail + '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;width:100%"><div class="stats" style="flex:1 1 420px">'+st+'</div>' +
     (ready.length ? '<div class="fc"><span style="font-size:13px;line-height:1.45">Approve the <b>'+ready.length+'</b> shortlisted with emails and you can expect about <b>'+Math.max(1, exp)+'</b> '+(Math.max(1,exp) === 1 ? 'reply' : 'replies')+' within 7 days<span style="color:#BDBEC3"> · at '+r+'% '+(rate !== null && contacted.length >= 5 ? 'this role\'s' : 'your team\'s')+' reply rate</span></span><button type="button" class="btn" id="bApproveAll">Approve '+ready.length+'</button></div>'
       : '<div class="fc" style="background:#fff;color:var(--muted);border:1.5px dashed #D4D4D8;flex:0 1 420px"><span style="font-size:13px">Shortlist people who have an email to see how many replies to expect.</span></div>') + '</div>';
 }
@@ -1058,6 +1122,17 @@ function poolPanel(){
   var max = Math.max(1, full + (rows[0] ? rows[0].gain : 0));
   return '<div class="pool"><span class="lbl">What if · of '+all.length+' found</span><div class="pb"><span><b>'+full+'</b> show every must-have</span><span></span></div><div class="pb" style="grid-template-columns:minmax(0,1fr)"><i class="hl" style="width:'+Math.round(100*full/max)+'%"></i></div>'+
     rows.slice(0,3).map(function(r){ return '<div class="pb"><span>Make <b>'+esc(r.m)+'</b> nice-to-have</span><span style="font-weight:700;text-align:right">+'+r.gain+'</span></div><div class="pb" style="grid-template-columns:minmax(0,1fr)"><i style="width:'+Math.round(100*(full+r.gain)/max)+'%"></i></div>'; }).join('')+'</div>';
+}
+// ----- the public apply page of this role -----
+function applyUrl(){ var j = B.data || {}, base = String(j.public_url || '').replace(/\/+$/, '') || location.origin;
+  return base + '/webhook/sourcing-apply?r=' + encodeURIComponent(B.runId); }
+function applyPanel(){
+  var j = B.data || {}, a = j.apply || {}; if (!j.run) return '';
+  var local = !j.public_url;
+  return '<div class="past" style="background:var(--ground)"><button type="button" class="opt" id="apOpen" aria-pressed="'+(!!a.open)+'" style="background:transparent;padding:0"><span class="tog'+(a.open?' on':'')+'"><i></i></span><span><b>Apply page</b><br><span class="muted" style="font-size:12px">'+(a.open ? 'Open. ' + (a.applied ? a.applied + ' applied so far.' : 'No applications yet.') : 'Closed. Open it to share a link where people can apply.')+'</span></span></button>'+
+    (a.open ? '<div style="display:flex;gap:6px"><label for="apLink" style="position:absolute;left:-9999px">Apply link</label><input id="apLink" type="text" readonly value="'+esc(applyUrl())+'" style="font-size:12px;padding:6px 8px;height:32px"><button type="button" class="btn" id="apCopy" style="height:32px;padding:0 10px;font-size:12px">Copy</button></div>'+
+      (local ? '<span class="w" style="font-size:12px;color:var(--muted)">This link only works on this computer until n8n has a public address (Settings, Sending). See the guide in docs/PUBLIC-ACCESS.md.</span>' : '<span class="w" style="font-size:12px;color:var(--muted)">Applicants are scored like everyone else and land in Found, marked Applied.</span>') : '')+
+    '</div>';
 }
 // ----- people from earlier searches -----
 function loadPast(holder, q){
@@ -1112,7 +1187,8 @@ function briefPanel(){
       nb.nice.map(function(x,i){ return '<button type="button" class="crit nice" data-mv="nice:'+i+'" title="Make it a must-have">'+esc(x)+' · nice</button>'; }).join('') : '';
     var facts = crit ? [crit.experience !== 'Any' ? crit.experience : '', crit.city, (crit.similar_titles||[]).length ? '+ ' + crit.similar_titles.slice(0,2).join(', ') : '', (crit.exclude||[]).map(function(x){ return '− ' + x; }).join(' '), crit.colleges].filter(Boolean) : [];
     return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+(nb.busy?'<span class="spin" style="display:inline-block;width:10px;height:10px"></span> reading…':(crit?'read as below':'type or paste'))+'</span></div>'+
-      '<label for="nbBrief" style="position:absolute;left:-9999px">Brief</label><textarea id="nbBrief" rows="4" style="font-size:14px;line-height:1.5;background:#FAFAFB" placeholder="e.g. Area Sales Manager in Pune, 5–8 years, B2B SaaS. Ideally an MBA. No freshers.">'+esc(nb.brief)+'</textarea>'+
+      '<label for="nbBrief" style="position:absolute;left:-9999px">Brief</label><textarea id="nbBrief" rows="4" style="font-size:14px;line-height:1.5;background:#FAFAFB" placeholder="e.g. Area Sales Manager in Pune, 5–8 years, B2B SaaS. Ideally an MBA. No freshers. Look on LinkedIn and GitHub.">'+esc(nb.brief)+'</textarea>'+
+      (crit ? '' : '<div class="muted" style="font-size:12px;margin-top:-4px">Say the role, place, years and must-haves the way you’d tell a colleague. Name channels to pick them (“on LinkedIn and GitHub”, “include research papers”, “everywhere”); say “ex-servicemen” for a veteran search.</div>')+
       (nb.q.length ? nb.q.map(function(q,qi){ return '<div class="q"><b>'+esc(q.text)+'</b><div class="qopts">'+q.options.map(function(o){ return '<button type="button" data-nbq="'+qi+'" data-a="'+esc(o)+'">'+esc(o)+'</button>'; }).join('')+'</div></div>'; }).join('') : '')+
       (crit ? '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Read as · tap to switch must / nice</span><div class="chips">'+chips+'</div><div class="chips">'+facts.map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>' : '')+
       (crit ? '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Target companies (optional, up to 5)</span><input id="nbCos" type="text" value="'+esc(nb.companies||'')+'" placeholder="e.g. Kitebase, Northwind SaaS"></label>'+
@@ -1126,12 +1202,19 @@ function briefPanel(){
   var srcs = bList(cr.sources || run.sources);
   var found = {}; (j.cards||[]).forEach(function(c){ found[c.source] = (found[c.source]||0) + 1; });
   if (!B.srcSel) B.srcSel = srcs.slice();
-  return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+esc(run.started_at ? 'run '+ago(run.started_at) : '')+'</span></div>'+
+  var briefTxt = j.brief || [run.role, run.location, run.must].filter(Boolean).join(' · ') || 'No brief saved for this role.';
+  if (!B.briefOpen) return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+esc(run.started_at ? 'run '+ago(run.started_at) : '')+'</span></div>'+
+    '<p class="bsum" style="margin:0" title="'+esc(briefTxt)+'">'+esc(briefTxt)+'</p>'+
+    '<div class="chips">'+bList(cr.must || run.must).slice(0,3).map(function(x){ return '<span class="crit must">'+esc(x)+'</span>'; }).join('')+[cr.experience && cr.experience!=='Any' ? cr.experience : '', run.location].filter(Boolean).map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div>'+
+    '<button type="button" class="bmore" id="bMore">Channels, what-ifs, apply page and more ↓</button>'+
+    '<button type="button" class="btn pri" id="bAgain" style="height:36px">Find more people</button>';
+  return '<div class="bcolh" style="color:var(--red2)">Brief<span class="n" style="color:var(--red2)">'+esc(run.started_at ? 'run '+ago(run.started_at) : '')+'</span><button type="button" class="bmore" id="bMore" style="margin-left:auto">Less ↑</button></div>'+
     '<p style="margin:0;font-size:14px;line-height:1.5;background:#FAFAFB;border:1px solid var(--line);border-radius:10px;padding:10px 12px">'+esc(j.brief || [run.role, run.location, run.must].filter(Boolean).join(' · ') || 'No brief saved for this search.')+'</p>'+
     '<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">Searched for</span><div class="chips">'+
       bList(cr.must || run.must).map(function(x){ return '<span class="crit must">'+esc(x)+' · must</span>'; }).join('')+bList(cr.nice).map(function(x){ return '<span class="crit nice">'+esc(x)+' · nice</span>'; }).join('')+'</div>'+
       '<div class="chips">'+[cr.experience && cr.experience!=='Any' ? cr.experience : '', run.location, cr.colleges, cr.employer ? 'At ' + cr.employer : '', cr.veteran === 'Yes' ? 'Veterans only' : ''].filter(Boolean).map(function(f){ return '<span class="btag">'+esc(f)+'</span>'; }).join('')+'</div></div>'+
     poolPanel()+
+    applyPanel()+
     pastPanel(B.past, 'role')+
     channelList(B.srcSel, found)+
     '<button type="button" class="btn pri" id="bAgain">Find more people</button>'+
@@ -1156,7 +1239,8 @@ function nbIntake(){
     if (!nb.touchedCos) nb.companies = nb.crit.companies || ''; if (!nb.touchedVet) nb.veteran = !!nb.crit.veteran;
     loadPast(nb, { role: nb.crit.role || '', must: nb.must, city: nb.crit.city || '', run_id: '' });
     nb.q = (j.questions||[]).filter(function(q){ return q && q.text; }).slice(0,2);
-    if (!nb.touchedSrc && (j.sources||[]).length) nb.sources = j.sources.filter(function(p){ return PLATFORMS.indexOf(p)!==-1; });
+    var named = channelsIn(nb.brief);
+    if (!nb.touchedSrc && named.length) nb.sources = named; else if (!nb.touchedSrc && (j.sources||[]).length) nb.sources = j.sources.filter(function(p){ return PLATFORMS.indexOf(p)!==-1; });
     renderBrief();
   }).catch(function(e){ nb.busy = false; renderBrief(); if (e.message!=='locked') toast(e.message); });
 }
@@ -1200,9 +1284,14 @@ el('bWrap').addEventListener('click', function(e){
   if ((t = e.target.closest('[data-nbq]'))) { var q = B.nb.q[+t.dataset.nbq]; B.nb.answers = B.nb.answers || {}; B.nb.answers[q.text] = t.dataset.a; B.nb.q.splice(+t.dataset.nbq,1); nbIntake(); return; }
   if (e.target.closest('#chAll')) { e.preventDefault(); B.allCh = !B.allCh; renderBrief(); return; }
   if (e.target.closest('#nbGo')) { nbSearch(e.target.closest('#nbGo')); return; }
+  if (e.target.closest('#bMore')) { B.briefOpen = !B.briefOpen; renderBoard(); return; }
   if (e.target.closest('#nbCancel')) { B.newRole = false; B.nb = null; renderBoard(); return; }
   if (e.target.closest('#bAgain')) { rerun(false); return; }
   if (e.target.closest('#bLike')) { findLike(); return; }
+  if (e.target.closest('#apOpen')) { var a0 = (B.data||{}).apply || {}, on = !a0.open, run = (B.data||{}).run || {};
+    call('apply_settings', { run_id: B.runId, open: on, intro: a0.intro || '', role: [run.role, run.location].filter(Boolean).join(', ') }).then(function(j){
+      if (!j.ok) { toast(j.error || 'Could not save.'); return; } B.data.apply = Object.assign({}, a0, j.apply, { applied: a0.applied || 0 }); renderBrief(); toast(on ? 'Apply page open. Copy the link to share it.' : 'Apply page closed.'); }).catch(function(e){ if (e.message!=='locked') toast(e.message); }); return; }
+  if (e.target.closest('#apCopy')) { var inp = el('apLink'); inp.select(); try { navigator.clipboard.writeText(inp.value).then(function(){ toast('Link copied.'); }, function(){ document.execCommand('copy'); toast('Link copied.'); }); } catch (x) { try { document.execCommand('copy'); toast('Link copied.'); } catch (y) { toast('Select the link and copy it.'); } } return; }
   if (e.target.closest('#nbVet')) { B.nb.veteran = !B.nb.veteran; B.nb.touchedVet = true; if (B.nb.veteran && B.nb.sources.indexOf('LinkedIn') === -1) B.nb.sources.unshift('LinkedIn'); renderBrief(); return; }
   if ((t = e.target.closest('[data-past]'))) { var hp = B.newRole ? B.nb.past : B.past; if (hp) { if (t.checked) hp.pick[t.dataset.past] = 1; else delete hp.pick[t.dataset.past]; renderBrief(); } return; }
   if (e.target.closest('#pastAll')) { e.preventDefault(); var hp2 = B.newRole ? B.nb.past : B.past; if (hp2) { hp2.all = !hp2.all; renderBrief(); } return; }
@@ -1211,7 +1300,9 @@ el('bWrap').addEventListener('click', function(e){
   if ((t = e.target.closest('[data-card]'))) { openCard(t.dataset.card); }
 });
 el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) { approveAll(b); return; }
-  var r = e.target.closest('[data-rail]'); if (!r) return; var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
+  if (e.target.closest('#bDoneX')) { B.justDone = false; renderBoard(); return; }
+  if (e.target.closest('#bShortStrong')) { B.justDone = false; ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'found' && bPct(c) >= 80; }).forEach(function(c){ moveCard(c.dedupe_key, 'shortlisted'); }); return; }
+  var r = e.target.closest('[data-rail]'); if (!r) return; if (window.innerWidth <= 640) { B.pcol = r.dataset.rail; renderBoard(); return; } var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
   col.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
   col.classList.add('flash'); setTimeout(function(){ col.classList.remove('flash'); }, 1200); });
 el('bFilters').onclick = function(e){ var b = e.target.closest('[data-bf]'); if (!b) return; if (b.dataset.bf === 'out') B.showOut = !B.showOut; else if (b.dataset.bf === 'map') B.view = B.view === 'map' ? '' : 'map'; else B.filter = b.dataset.bf; renderBoard(); };
@@ -1235,7 +1326,7 @@ function moveCard(key, stage){
   var c = cardOf(key); if (!c || c.stage === stage) return;
   if (stage === 'approved') { approveCard(c); return; }
   if (stage === 'shortlisted' || stage === 'not_fit') call('feedback', { run_id: B.runId, dedupe_key: key, vote: stage === 'shortlisted' ? 'up' : 'down' }).catch(function(){});
-  saveCard(c, { stage: stage }, function(){ toast(c.name + ' → ' + STAGE_NAME[stage] + (stage==='shortlisted' ? '. The ranking learns from this.' : '')); });
+  saveCard(c, { stage: stage }, function(){ toast(c.name + ' → ' + STAGE_NAME[stage] + (stage==='shortlisted' ? '. The ranking learns from this.' : (stage==='hired' ? ' 🎉 From a brief to a hire.' : ''))); if (stage === 'hired') confetti(); });
 }
 function approveCard(c, force){
   if (!c.email) { toast('No email for ' + c.name + ' yet, so they cannot be approved.'); return; }
@@ -1425,6 +1516,10 @@ function loadHome(){
     S.homeLoaded = true;
     var w=j.week, t=j.totals;
     el('hWelcome').classList.toggle('hide', t.searches > 0);
+    var fresh = !(t.searches > 0);
+    el('hSample').classList.toggle('hide', !fresh); el('hKpis').classList.toggle('hide', fresh);
+    el('hAtt').closest('section').classList.toggle('hide', fresh); el('hSrc').closest('section').classList.toggle('hide', fresh);
+    el('hAtt').closest('.grid2').style.gridTemplateColumns = fresh ? '1fr' : ''; el('hAtt').closest('.grid2').firstElementChild.classList.toggle('hide', fresh);
     el('hKpis').innerHTML = [[w.searches,'searches this week'],[w.people,'people found this week'],[w.strong,'strong matches this week'],[t.active,'in follow-up now'],[t.replied,'replies'+(t.contacted?' · '+t.reply_rate+'% reply rate':'')]]
       .map(function(k,i){ return '<div class="card kpi"><b'+(i===4?' ':'')+'>'+k[0]+'</b><span>'+esc(k[1])+'</span></div>'; }).join('');
     el('hRunning').innerHTML = (j.running||[]).map(function(r){ return '<a href="#" class="card" data-run="'+esc(r.run_id)+'" data-status="running" style="display:flex;align-items:center;gap:12px;padding:14px 18px;text-decoration:none;color:var(--ink)"><span class="spin"></span><b>'+esc(r.role||'Search')+(r.location?' · '+esc(r.location):'')+'</b><span class="muted" style="font-size:13px">searching now</span><span style="margin-left:auto;font-weight:600;font-size:13px;color:var(--red)">Watch live →</span></a>'; }).join('');
@@ -1458,7 +1553,64 @@ function openSettings(tab){
   if (tab==='team') loadTeam();
   if (tab==='sending') loadSending();
   if (tab==='services') loadServices();
+  if (tab==='telegram') loadTelegram();
+  if (tab==='phone') loadPhone();
 }
+function appUrl(){ return location.origin === 'null' ? (document.baseURI || location.href).split('#')[0] : location.origin + location.pathname + location.search; }
+function loadPhone(){
+  el('phUrl').textContent = appUrl();
+  call('bookmarklet_key').then(function(j){ if (!j.ok) { el('bmHelp').textContent = j.error || 'Could not make your button.'; return; } setBm(j.key); }).catch(function(){});
+}
+function setBm(key){
+  var js = "javascript:void(window.open(" + JSON.stringify(appUrl()) + "+'#add='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({u:location.href,t:document.title,x:(document.body.innerText||'').slice(0,12000)})))))+'&bm=" + key + "','sourcing_add','width=460,height=640,popup=1'))";
+  el('bmLink').setAttribute('href', js);
+  el('bmHelp').innerHTML = 'The button is yours alone; it adds people as ' + esc(ME.name) + '. If the bookmarks bar is hidden, press Ctrl+Shift+B (⌘+Shift+B on a Mac).';
+}
+el('bmLink').onclick = function(e){ e.preventDefault(); toast('Drag this button to your bookmarks bar rather than clicking it here.'); };
+el('bmRenew').onclick = function(){ var b = this; b.disabled = true; call('bookmarklet_key', { renew: true }).then(function(j){ b.disabled = false; if (j.ok) { setBm(j.key); toast('New button made. Drag it to your bookmarks bar again.'); } }).catch(function(){ b.disabled = false; }); };
+
+// ---------- "Add to Board" window, opened by the browser button ----------
+function addWindow(q){
+  var data = {}; try { data = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q.add))))); } catch(e) { data = {}; }
+  var key = String(q.bm || '');
+  document.body.innerHTML = '<div id="addWin" style="max-width:420px;margin:0 auto;padding:20px 16px;font-size:15px"></div>';
+  var w = el('addWin');
+  var page = { url: String(data.u || ''), title: String(data.t || ''), text: String(data.x || '') };
+  var send = function(extra){
+    w.innerHTML = '<p class="muted">Reading the page and scoring…</p>';
+    fetchAuth('add_person', Object.assign({ bm_key: key, via: 'bookmarklet', url: page.url, title: page.title, text: page.text }, extra || {})).then(function(j){
+      if (j.auth === 'need_login') { w.innerHTML = '<p>This button no longer works. Open Sourcing → Settings → Phone &amp; browser and drag a new one to your bookmarks bar.</p>'; return; }
+      if (j.need_role) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Add to which role?</h2><p class="muted" style="margin:0 0 12px">' + esc(page.title.slice(0, 90)) + '</p><div id="addRoles" style="display:flex;flex-direction:column;gap:8px"></div>' + (j.roles.length ? '' : '<p>' + esc(j.error) + '</p>');
+        j.roles.forEach(function(r){ var b = document.createElement('button'); b.className = 'btn'; b.style.cssText = 'height:auto;padding:10px 12px;text-align:left;justify-content:flex-start'; b.textContent = r.role + (r.location ? ' · ' + r.location : ''); b.onclick = function(){ send({ run_id: r.run_id }); }; el('addRoles').appendChild(b); }); return; }
+      if (j.already) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Already there</h2><p>' + esc(j.error) + '</p><p class="muted" style="font-size:13px">Open the Board to shortlist or approve them. Each click adds the person on the page you’re on, once per role.</p><button class="btn" onclick="window.close()">Close</button>'; return; }
+      if (!j.ok) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Could not add</h2><p>' + esc(j.error || 'The server did not answer.') + '</p><button class="btn" onclick="window.close()">Close</button>'; return; }
+      var p = j.person;
+      w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Added to ' + esc(j.role) + '</h2><div style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><div>' + sigBars(p.fit * 10, true) + '</div><div><b>' + esc(p.name) + '</b><div class="muted" style="font-size:13px">' + esc([p.title, p.company].filter(Boolean).join(' · ')) + '</div></div></div><p style="margin:0 0 10px">' + esc(p.summary) + '</p><p class="muted" style="font-size:13px;margin:0 0 14px">' + (p.email ? 'An email address was found, so they can be approved for outreach.' : 'No email address yet; Apollo or a CV can fill it in later.') + '</p><div style="display:flex;gap:8px"><a class="btn pri" style="text-decoration:none" href="' + esc(appUrl()) + '#list=' + esc(j.run_id) + '" target="_blank" rel="opener">Open the Board</a><button class="btn" onclick="window.close()">Close</button></div>';
+    });
+  };
+  if (!key || (!page.url && page.text.length < 40)) { w.innerHTML = '<h2 style="font-size:20px;margin:0 0 6px">Add to Board</h2><p>Nothing to add here. Open a LinkedIn, GitHub or any profile page and click the button there: the person is scored for one of your roles and added to Found.</p><p class="muted" style="font-size:13px">To start a search, use the app, Telegram or an email with “Search:” in the subject.</p>'; return; }
+  send();
+}
+
+function loadTelegram(){
+  var admin = ME.role === 'admin'; el('tgAdmin').classList.toggle('hide', !admin); el('tgCode').classList.add('hide');
+  call('telegram_status').then(function(j){ if (!j.ok) return;
+    el('tgMineHelp').textContent = !j.has_token ? 'An admin needs to add the bot first.' : (j.me_linked ? 'Connected. Open the bot in Telegram and send "help".' : 'Connect your Telegram to use the bot.');
+    el('tgConnect').disabled = !j.has_token; el('tgConnect').textContent = j.me_linked ? 'Connect another phone' : 'Connect Telegram';
+    el('tgTok').value = ''; el('tgTok').placeholder = j.has_token ? 'Saved. Paste a new token to replace it.' : '123456789:AAH…'; el('tgBot').value = j.bot || '';
+    var lp = j.last_poll ? ago(j.last_poll.split(' error:')[0]) : 'never';
+    el('tgStatus').textContent = (j.has_token ? 'Last checked Telegram: ' + lp + (/ error:/.test(j.last_poll||'') ? ' (' + j.last_poll.split(' error:')[1].trim() + ')' : '') + '. ' : '') + (j.linked.length ? 'Connected: ' + j.linked.join(', ') + '.' : 'Nobody is connected yet.');
+  }).catch(function(){});
+}
+el('tgConnect').onclick = function(){ var b = this; b.disabled = true;
+  call('telegram_code').then(function(j){ b.disabled = false; if (!j.ok) { toast(j.error || 'Could not make a code.'); return; }
+    el('tgCode').classList.remove('hide');
+    el('tgCode').innerHTML = '1. Open Telegram and find <b>' + (j.bot ? '@' + esc(j.bot) : 'the team’s bot (ask your admin for its name)') + '</b>.' + (j.bot ? ' <a href="https://t.me/' + esc(j.bot) + '" target="_blank" rel="noopener">Open it</a>.' : '') +
+      '<br>2. Send it this message:<br><code style="font-size:16px;font-weight:700;letter-spacing:.04em">/start ' + esc(j.code) + '</code><br><span class="muted">The code works for ' + j.minutes + ' minutes. It may take up to half a minute to reply.</span>'; }).catch(function(){ b.disabled = false; }); };
+el('tgSave').onclick = function(){ var tok = el('tgTok').value.trim(), body = { bot: el('tgBot').value }; if (tok) body.bot_token = tok; el('tgMsg').textContent = 'Saving…';
+  call('telegram_settings', body).then(function(j){ el('tgMsg').textContent = j.ok ? 'Saved.' : j.error; if (j.ok) loadTelegram(); }).catch(function(e){ el('tgMsg').textContent = e.message; }); };
+el('tgRemove').onclick = function(){ if (!confirm('Remove the bot? Nobody will be able to use it until a token is added again.')) return;
+  call('telegram_settings', { bot_token: '', bot: '' }).then(function(j){ el('tgMsg').textContent = j.ok ? 'Removed.' : j.error; loadTelegram(); }).catch(function(){}); };
 el('sTabs').onclick = function(e){ var b=e.target.closest('[data-st]'); if (b) openSettings(b.dataset.st); };
 el('acCosSave').onclick = function(){ el('acCosMsg').textContent='Saving…'; call('save_profile', { companies: el('acCos').value }).then(function(j){ if (j.ok) { ME.companies = j.companies; el('acCosMsg').textContent='Saved.'; } else el('acCosMsg').textContent=j.error; }).catch(function(){}); };
 el('acSave').onclick = function(){ var b=this; el('acMsg').textContent='Saving…';
@@ -1550,10 +1702,17 @@ function loadOutreach(){
 // ---------- boot ----------
 chipList('fMust', S.must, 'must', 'must-have skills'); chipList('fNice', S.nice, '', 'nice-to-have skills'); chipList('fEx', S.ex, '', 'words to exclude');
 renderSources(); updateGo();
-fetchAuth('auth_state', {}).then(function(j){
-  if (!j.ok) { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(j.error || 'The server did not answer.')+'</p>'); return; }
-  showAuth(j.has_users ? 'login' : 'setup', j.need_code);
-});
+(function boot(){
+  var q = {}; (location.hash || '').replace(/^#/, '').split('&').forEach(function(kv){ var i = kv.indexOf('='); if (i > 0) q[kv.slice(0, i)] = kv.slice(i + 1); });
+  if (q.add) return addWindow(q);
+  var askState = function(){ fetchAuth('auth_state', {}).then(function(j){
+    if (!j.ok) { document.body.insertAdjacentHTML('beforeend','<p class="empty">'+esc(j.error || 'The server did not answer.')+'</p>'); return; }
+    showAuth(j.has_users ? 'login' : 'setup', j.need_code); }); };
+  if (q.k && /^[A-Za-z0-9._-]{16,}$/.test(q.k)) {
+    // a kept session from the page address (home-screen shortcuts open with it)
+    fetchAuth('me', { token: q.k }).then(function(j){ if (j.ok && j.user) { TOKEN = q.k; KEEP = true; ME = j.user; start(); } else { setHash(''); askState(); } });
+  } else askState();
+})();
 })();
 </script>
 </body>
