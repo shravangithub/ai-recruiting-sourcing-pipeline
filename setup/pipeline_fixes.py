@@ -6130,7 +6130,7 @@ return $input.all().map(function(i){ return String((i.json || {}).sender_email |
 def apply_round41(nodes, conns):
     N = {n["name"]: n for n in nodes}
     N["Extract Sender"]["parameters"]["jsCode"] = EXTRACT_SENDER_41
-    N["Stop Fields"]["parameters"] = {"jsCode": STOP_FIELDS_41}   # run once for all items
+    N["Stop Fields"]["parameters"] = {"jsCode": STOP_FIELDS_41, "mode": "runOnceForAllItems"}
     # the reply path must never take email-in (or anything else) down with it
     for nm in ("Extract Sender", "Stop Fields", "Find Candidate Row"):
         if nm in N:
