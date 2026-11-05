@@ -6791,6 +6791,11 @@ def apply_round44(nodes, conns):
     R("Assist Write Prompt", "  else if (!listed.length && f.with_email && people.length) { facts.outcome = 'Nobody on this role has an email address yet (' + people.filter(function(p){ return p.stage !== 'not_fit'; }).length + ' people found). Say so, then give the best ones anyway.';",
       "  else if (!listed.length && f.with_email && people.length) { facts.outcome = 'Nobody on this role has an email address yet (' + people.filter(function(p){ return p.stage !== 'not_fit'; }).length + ' people found). Say so, give the best ones anyway, and say you can draft a LinkedIn note for any of them (by number).';")
 
+    # a started search is about the new search, not the role the thread was on before
+    R("Assist Write Prompt", "  else { const c = sb.b.criteria; newRun = String(rb.run_id || ''); facts.outcome = 'Search started.'; facts.done = ['Started a new search.'];",
+      "  else { const c = sb.b.criteria; newRun = String(rb.run_id || ''); delete facts.role; facts.done = ['Started a new search.'];")
+    R("Assist Write Prompt", "  'Start with the answer itself; do not repeat their message back,", "  'Start with the answer itself; never copy FACTS labels (Outcome, Next, done); do not repeat their message back,")
+
     # 6. the inbox is checked every minute
     N["On Candidate Reply"]["parameters"]["pollTimes"] = {"item": [{"mode": "everyX", "value": 1, "unit": "minutes"}]}
     return nodes, conns

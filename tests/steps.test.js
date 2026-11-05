@@ -1795,7 +1795,7 @@ test('R43: the answer is written only from facts: the people filtered as asked, 
   assert.equal(w3.facts.person.name, 'Ravi Menon'); assert.deepEqual(w3.facts.person.others_above, ['Asha Rao 90%']);
   const sb = { b: { action: 'search', criteria: { role: 'Java Backend Engineer', city: 'Pune', experience: '8+ years', must: 'Java', nice: '', sources: ['GitHub'], veteran: '' } } };
   const [w4] = await write({ action: 'search', run_id: '' }, { ok: true, criteria: { role: 'Java Backend Engineer' } }, { ok: true, run_id: '99' }, sb);
-  assert.equal(w4.facts.outcome, 'Search started.'); assert.equal(w4.new_run, '99'); assert.deepEqual(w4.facts.search.channels, ['GitHub']); assert.match(w4.facts.next, /results email/);
+  assert.deepEqual(w4.facts.done, ['Started a new search.']); assert.equal(w4.facts.role, undefined, 'the old role stays out'); assert.equal(w4.new_run, '99'); assert.deepEqual(w4.facts.search.channels, ['GitHub']); assert.match(w4.facts.next, /results email/);
   const [w5] = await write({ action: 'search', run_id: '' }, { ok: false, error: 'The AI could not be reached' });
   assert.match(w5.facts.outcome, /could not be read: The AI could not be reached/);
   const [w6] = await write({ action: 'add_person' }, { ok: false, need_role: true, roles: [{ role: 'PM', location: 'Pune' }] });
