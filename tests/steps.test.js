@@ -1881,3 +1881,16 @@ test('R43: a search with no role in the message asks which role instead of repea
   const [c] = await runNode('Assist Act', [aiOut({ action: 'search', brief: 'Java Backend Engineer, Bangalore, 8+ years', confidence: 0.9 })], { 'Assist Prompt': [k3] });
   assert.equal(c.plan.action, 'search', 'a change to the search in a conversation still searches');
 });
+
+test('R43: a teammate replying to our email is read, though it quotes our mark; our own mails stay skipped', async () => {
+  const users = [{ email: 'kumar@x.example', name: 'Kumar', status: 'active' }];
+  const sets = [{ key: 'service_key', value: 'svc-key' }];
+  const mails = [
+    { id: 'r1', from: 'kumar@x.example', subject: 'Re: 25 candidates ready: QA Automation Engineer in Chennai', labelIds: ['INBOX'],
+      text: 'only the ones with an email pls\n\nOn Fri, 6 Nov 2026, Kumar wrote:\n> Your search for QA Automation Engineer has finished.\n> sourcing-bot run:4736',
+      html: '<div>only the ones with an email pls</div><div class="gmail_quote"><p>Your search for QA has finished.</p><div style="display:none">sourcing-bot run:4736</div></div>' },
+    { id: 'b1', from: 'kumar@x.example', subject: '25 candidates ready: QA Automation Engineer in Chennai', labelIds: ['INBOX'], text: 'Your search for QA has finished.', html: '<p>Your search</p><div style="display:none">sourcing-bot run:4736</div>' },
+    { id: 'b2', from: 'kumar@x.example', subject: 'quick one', labelIds: ['INBOX'], text: 'Started a new search', html: '<p>Started a new search</p><div style="display:none">sourcing-bot run:4736</div>' }];
+  const got = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
+  assert.deepEqual(got.map((x) => x.message_id), ['r1']);
+});

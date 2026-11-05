@@ -6154,8 +6154,11 @@ EMAIL_IN_GUARD_42 = r"""
 // Mail the pipeline sent itself (results, replies, weekly report) is never read back in:
 // it carries a hidden mark; older mails are known by their wording.
 const BOT_RE = /sourcing-bot|Sourcing, by email|Your search for .{1,200} has finished|Your hiring week/i;
-const BOT_SUBJECT = /^\s*(re:\s*)*(\d+ candidates ready|no candidates found|weekly hiring report|search stopped)\b/i;
-const isBot = function(m){ return BOT_RE.test(String(m.html || '') + ' ' + String(m.text || m.textPlain || '')) || BOT_SUBJECT.test(String(m.subject || '')); };
+const BOT_SUBJECT = /^\s*(\d+ candidates ready|no candidates found|weekly hiring report|search stopped)\b/i;
+// only the new part of a mail counts: a teammate's reply quotes ours, mark and all
+const newPart = function(m){ const h = String(m.html || '').split(/<div[^>]+class="?gmail_quote|<blockquote|<div[^>]+id="?divRplyFwdMsg|<hr[^>]*>\s*<div[^>]*>\s*<b>From:/i)[0];
+  const t = String(m.text || m.textPlain || '').split(/\n\s*On [^\n]{3,200}wrote:|\n\s*>|\n-{2,}\s*Original Message|\nFrom: [^\n]+\nSent: /i)[0]; return h + ' ' + t; };
+const isBot = function(m){ return BOT_RE.test(newPart(m)) || BOT_SUBJECT.test(String(m.subject || '')); };
 // Only mail that arrived in the inbox (the trigger also sees sent mail), and nothing older than 3 days.
 const inInbox = function(m){ return !Array.isArray(m.labelIds) || m.labelIds.indexOf('INBOX') !== -1; };
 const fresh = function(m){ const t = Number(m.internalDate) || Date.parse(m.date || '') || 0; return !t || Date.now() - t < 3 * 864e5; };
