@@ -1653,3 +1653,65 @@ test('R41: Extract Sender reads an object "from", and Stop Fields skips mails wi
   assert.deepEqual(stop, [{ email: 'asha@example.com', status: 'replied', status_text: 'Replied' }]);
   assert.deepEqual(await runNode('Stop Fields', [{ sender_email: '' }]), []);
 });
+
+// ---------- Round 42: the pipeline never reads its own mail; failed pages and stopped searches ----------
+test('R42: email-in skips mail the pipeline sent itself, sent-only and old mail, and replies in a search thread', async () => {
+  const users = [{ email: 'kumar@x.example', name: 'Kumar', status: 'active' }];
+  const sets = [{ key: 'service_key', value: 'svc-key' }];
+  const now = Date.now();
+  const mails = [
+    { id: 'ok1', from: 'kumar@x.example', subject: 'Search: Java Backend Engineer, Pune', text: '5-8 years, Spring', labelIds: ['INBOX', 'SENT', 'UNREAD'], internalDate: String(now) },
+    { id: 'read', from: 'kumar@x.example', subject: 'Search: QA Engineer, Pune', text: 'Selenium', labelIds: ['INBOX', 'SENT'], internalDate: String(now) },
+    { id: 'mark', from: 'kumar@x.example', subject: 'Search: Java Backend Engineer, Pune', html: '<p>Searching for <b>Java</b></p><div style="display:none">sourcing-bot</div>', labelIds: ['INBOX'] },
+    { id: 'legacy', from: 'kumar@x.example', subject: 'Search: TEST PM', text: 'Searching for PM on LinkedIn. Sourcing, by email', labelIds: ['INBOX'] },
+    { id: 'results', from: 'kumar@x.example', subject: '26 candidates ready: PM in Bangalore', text: 'Top 3: https://www.linkedin.com/in/a/', labelIds: ['INBOX'] },
+    { id: 'weekly', from: 'kumar@x.example', subject: 'Weekly hiring report, 29 Oct – 5 Nov', text: 'Your hiring week', labelIds: ['INBOX'] },
+    { id: 'sentonly', from: 'kumar@x.example', subject: 'Hello Asha', text: 'https://www.linkedin.com/in/asha/ we have a role', labelIds: ['SENT'] },
+    { id: 'old', from: 'kumar@x.example', subject: 'Search: SRE, Pune', text: 'k8s', labelIds: ['INBOX'], internalDate: String(now - 5 * 864e5) },
+    { id: 'reply', from: 'kumar@x.example', subject: 'Re: Search: Java Backend Engineer, Pune', text: 'thanks, also add Kafka please and more details here', labelIds: ['INBOX'] }];
+  const got = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
+  assert.deepEqual(got.map((x) => x.message_id), ['ok1', 'read', 'reply'], 'read mail counts; the pipeline\'s own, sent-only and old mail do not');
+  assert.equal(got[0].kind, 'search'); assert.equal(got[1].kind, 'search');
+  assert.notEqual(got[2].kind, 'search', 'a reply in a search thread does not start the search again');
+});
+
+test('R42: a Google page that failed is retried once, and the error no longer stops the search', async () => {
+  const sent = [{ serper_body: { q: 'site:leetcode.com/u bangalore', page: 1, num: 10, gl: 'in' } }, { serper_body: { q: 'site:medium.com/@ java', page: 1, num: 10 } }];
+  const out = await runNode('Empty Pages', [{ error: { message: 'Scraping failed.' } }, { searchParameters: { q: 'site:medium.com/@ java', num: 10, page: 1 }, organic: [{ link: 'a' }] }], { 'Build Search Query': sent });
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].serper_body, sent[0].serper_body);
+});
+
+test('R42: searches still "running" after 30 minutes are marked stopped, and one email says which', async () => {
+  const old = new Date(Date.now() - 45 * 6e4).toISOString(), recent = new Date(Date.now() - 5 * 6e4).toISOString();
+  const rows = [{ run_id: '11', status: 'running', role: 'Java Backend Engineer', location: 'Bangalore', started_at: old },
+    { run_id: '12', status: 'running', role: 'PM', started_at: recent }, { run_id: '13', status: 'done', started_at: old }, { error: { message: 'no table' } }];
+  const st = await runNode('Stale Check', rows);
+  assert.deepEqual(st.map((r) => r.run_id), ['11']);
+  assert.equal(st[0].status, 'stopped'); assert.match(st[0].note, /stopped before it finished/);
+  const [n] = await runNode('Stale Note', [{}], { 'Stale Check': st });
+  assert.match(n.subject, /^Search stopped: Java Backend Engineer/);
+  assert.match(n.html, /<b>Java Backend Engineer<\/b> in Bangalore/);
+  assert.deepEqual(await runNode('Stale Note', [{}], { 'Stale Check': [] }), []);
+});
+
+test('R42: an experience range written in the brief is kept as written', async () => {
+  const t = { message_id: 'm', from: 'kumar@x.example', brief: 'Senior Product Manager, Bangalore. 6-10 years, B2B SaaS', service_key: 'k' };
+  const [sb] = await runNode('Email Search Body', [{ ok: true, criteria: { role: 'Senior Product Manager', city: 'Bangalore', experience: '5-8 years', must: [], nice: [] } }], { 'Email Text': [t] });
+  assert.equal(sb.body.criteria.experience, '6-10 years');
+  const t2 = Object.assign({}, t, { brief: 'SRE in Pune, 8+ yrs, Kubernetes' });
+  const [sb2] = await runNode('Email Search Body', [{ ok: true, criteria: { role: 'SRE', city: 'Pune', experience: '8+ years', must: [], nice: [] } }], { 'Email Text': [t2] });
+  assert.equal(sb2.body.criteria.experience, '8+ years');
+  const t3 = Object.assign({}, t, { brief: 'SRE in Pune, Kubernetes' });
+  const [sb3] = await runNode('Email Search Body', [{ ok: true, criteria: { role: 'SRE', city: 'Pune', experience: '3-5 years', must: [], nice: [] } }], { 'Email Text': [t3] });
+  assert.equal(sb3.body.criteria.experience, '3-5 years');
+});
+
+test('R42: everything the pipeline mails to the team carries the hidden mark; the inbox is polled every 5 minutes, read or unread', async () => {
+  const wf = require('../setup/pipeline.workflow.json');
+  const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
+  for (const nm of ['Results Email', 'Email Answer', 'Send Weekly Report', 'Stale Email']) assert.match(N[nm].parameters.message, /sourcing-bot<\/div>$/, nm);
+  const t = N['On Candidate Reply'].parameters;
+  assert.equal(t.pollTimes.item[0].value, 5); assert.equal(t.filters.readStatus, 'both'); assert.deepEqual(t.filters.labelIds, ['INBOX']);
+  assert.equal(N['Serper Search'].onError, 'continueRegularOutput');
+});

@@ -805,7 +805,8 @@
      "id": "__CRED_SERPER__",
      "name": "Sourcing · Serper"
     }
-   }
+   },
+   "onError": "continueRegularOutput"
   },
   {
    "parameters": {
@@ -1038,14 +1039,17 @@
      "item": [
       {
        "mode": "everyX",
-       "value": 15,
+       "value": 5,
        "unit": "minutes"
       }
      ]
     },
     "simple": false,
     "filters": {
-     "readStatus": "unread"
+     "readStatus": "both",
+     "labelIds": [
+      "INBOX"
+     ]
     },
     "options": {}
    },
@@ -3099,7 +3103,7 @@
   },
   {
    "parameters": {
-    "jsCode": "\n// Pages that came back empty (Google sometimes returns nothing for a valid\n// query): send them once more after a short pause.\nconst out = [];\n$input.all().forEach(function(it, i) {\n  const j = it.json || {};\n  const sp = j.searchParameters;\n  if (sp && sp.q && !(j.organic && j.organic.length)) {\n    const body = { q: sp.q, num: sp.num || 10, page: sp.page || 1 };\n    if (sp.gl) body.gl = sp.gl;\n    out.push({ json: { serper_body: body }, pairedItem: { item: i } });\n  }\n});\nreturn out;\n"
+    "jsCode": "\n// Pages that came back empty (Google sometimes returns nothing for a valid\n// query) or failed outright (\"Scraping failed\"): send them once more after a\n// short pause. A failed page no longer stops the search.\nconst sent = (function(){ try { return $('Build Search Query').all(); } catch (e) { return []; } })();\nconst out = [];\n$input.all().forEach(function(it, i) {\n  const j = it.json || {};\n  const sp = j.searchParameters;\n  if (sp && sp.q && !(j.organic && j.organic.length)) {\n    const body = { q: sp.q, num: sp.num || 10, page: sp.page || 1 };\n    if (sp.gl) body.gl = sp.gl;\n    out.push({ json: { serper_body: body }, pairedItem: { item: i } });\n  } else if (j.error && !sp) {\n    const orig = sent[i] && sent[i].json && sent[i].json.serper_body;\n    if (orig) out.push({ json: { serper_body: orig }, pairedItem: { item: i } });\n  }\n});\nreturn out;\n"
    },
    "id": "fix-empty-pages",
    "name": "Empty Pages",
@@ -3656,7 +3660,7 @@
    "parameters": {
     "sendTo": "={{ $('Results Note').first().json.notify || $json.emailAddress }}",
     "subject": "={{ $('Results Note').first().json.count ? $('Results Note').first().json.count + ' candidates ready' : 'No candidates found' }}: {{ $('Results Note').first().json.role }}{{ $('Results Note').first().json.location ? ' in ' + $('Results Note').first().json.location : '' }}",
-    "message": "=<p>Your search for <b>{{ $('Results Note').first().json.role }}</b>{{ $('Results Note').first().json.location ? ' in ' + $('Results Note').first().json.location : '' }} has finished.</p><p><b>{{ $('Results Note').first().json.count }}</b> candidates{{ $('Results Note').first().json.by_source ? ' (' + $('Results Note').first().json.by_source + ')' : '' }}. {{ $('Results Note').first().json.range_text }}</p>{{ $('Results Note').first().json.top_html || '' }}<p><a href=\"https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit\">Open the results sheet</a> and tick <b>Send Email?</b> on the people you want to contact.</p>",
+    "message": "=<p>Your search for <b>{{ $('Results Note').first().json.role }}</b>{{ $('Results Note').first().json.location ? ' in ' + $('Results Note').first().json.location : '' }} has finished.</p><p><b>{{ $('Results Note').first().json.count }}</b> candidates{{ $('Results Note').first().json.by_source ? ' (' + $('Results Note').first().json.by_source + ')' : '' }}. {{ $('Results Note').first().json.range_text }}</p>{{ $('Results Note').first().json.top_html || '' }}<p><a href=\"https://docs.google.com/spreadsheets/d/__SHEET_ID__/edit\">Open the results sheet</a> and tick <b>Send Email?</b> on the people you want to contact.</p><div style=\"display:none;font-size:0;line-height:0;color:transparent\">sourcing-bot</div>",
     "options": {
      "appendAttribution": false
     }
@@ -7991,7 +7995,7 @@
     "sendTo": "={{ $json.to }}",
     "subject": "={{ $json.subject }}",
     "emailType": "html",
-    "message": "={{ $json.html }}",
+    "message": "={{ $json.html }}<div style=\"display:none;font-size:0;line-height:0;color:transparent\">sourcing-bot</div>",
     "options": {
      "appendAttribution": false
     }
@@ -8584,7 +8588,7 @@
   },
   {
    "parameters": {
-    "jsCode": "\n// What the first call said, and whether a second one is needed.\nconst jobs = $('TG Jobs').all().map(function(i){ return i.json; });\nconst res = $input.all().map(function(i){ return i.json || {}; });\nreturn jobs.map(function(x, i){\n  const r = res[i] || {}; x.ra = r;\n  if (x.kind === 'find' && r.ok) {\n    const c = r.criteria || {};\n    const EXP = ['0-2 years', '3-5 years', '5-8 years', '8+ years'];\n    x.b = Object.assign({ action: 'search', service_key: x.a.service_key, as_email: x.a.as_email }, { brief: x.brief, criteria: {\n      role: c.role || '', similar: 'Yes', experience: EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any', must: (c.must || []).join(', '), nice: (c.nice || []).join(', '),\n      city: c.city || '', region: c.region || (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', veteran: c.veteran || x.veteran ? 'Yes' : '',\n      exclude: (c.exclude || []).join(', '), education: 'Any', sources: (x.channels || []).length ? x.channels : ((r.sources || []).length ? r.sources : ['LinkedIn']),\n      rubric: (r.rubric || []).map(function(q){ return '- ' + q.criterion + ' (weight ' + (q.weight || 1) + '): ' + (q.how || ''); }).join('\\n'), jd_text: '' } });\n  }\n  if (!x.b) x.b = { action: 'ping', service_key: (x.a || {}).service_key || '', as_email: (x.a || {}).as_email || '' };\n  return { json: x };\n});\n"
+    "jsCode": "// An experience range written in the brief (\"6-10 years\", \"8+ yrs\") is kept as written.\nconst expFrom = function(text){ const t = String(text || '');\n  let m = t.match(/\\b(\\d{1,2})\\s*(?:-|–|—|to)\\s*(\\d{1,2})\\s*\\+?\\s*(?:years?|yrs?)\\b/i); if (m && Number(m[1]) < Number(m[2])) return m[1] + '-' + m[2] + ' years';\n  m = t.match(/\\b(\\d{1,2})\\s*\\+\\s*(?:years?|yrs?)\\b/i); if (m) return m[1] + '+ years';\n  return ''; };\n\n// What the first call said, and whether a second one is needed.\nconst jobs = $('TG Jobs').all().map(function(i){ return i.json; });\nconst res = $input.all().map(function(i){ return i.json || {}; });\nreturn jobs.map(function(x, i){\n  const r = res[i] || {}; x.ra = r;\n  if (x.kind === 'find' && r.ok) {\n    const c = r.criteria || {};\n    const EXP = ['0-2 years', '3-5 years', '5-8 years', '8+ years'];\n    x.b = Object.assign({ action: 'search', service_key: x.a.service_key, as_email: x.a.as_email }, { brief: x.brief, criteria: {\n      role: c.role || '', similar: 'Yes', experience: expFrom(x.brief) || (EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any'), must: (c.must || []).join(', '), nice: (c.nice || []).join(', '),\n      city: c.city || '', region: c.region || (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', veteran: c.veteran || x.veteran ? 'Yes' : '',\n      exclude: (c.exclude || []).join(', '), education: 'Any', sources: (x.channels || []).length ? x.channels : ((r.sources || []).length ? r.sources : ['LinkedIn']),\n      rubric: (r.rubric || []).map(function(q){ return '- ' + q.criterion + ' (weight ' + (q.weight || 1) + '): ' + (q.how || ''); }).join('\\n'), jd_text: '' } });\n  }\n  if (!x.b) x.b = { action: 'ping', service_key: (x.a || {}).service_key || '', as_email: (x.a || {}).as_email || '' };\n  return { json: x };\n});\n"
    },
    "id": "fix-tg-step-b",
    "name": "TG Step B",
@@ -9045,7 +9049,7 @@
   },
   {
    "parameters": {
-    "jsCode": "\n// Emails from teammates to the connected Gmail: \"role name\" in the subject, a profile link or CV inside.\nconst users = $('Load Email Users').all().map(function(i){ return i.json || {}; }).filter(function(u){ return u.email && u.status === 'active'; });\nconst sets = {}; $('Load Email Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });\nconst API = String(sets.self_url || 'http://localhost:5678').replace(/\\/+$/, '') + '/webhook/sourcing-app-api';\nconst out = [];\n$('On Candidate Reply').all().forEach(function(i){\n  const m = i.json || {};\n  const fromRaw = typeof m.from === 'string' ? m.from : ((m.from || {}).text || JSON.stringify(m.from || ''));\n  const em = (String(fromRaw).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/) || [''])[0].toLowerCase();\n  const u = users.find(function(x){ return String(x.email).toLowerCase() === em; });\n  if (!u || !sets.service_key) return;\n  const subject = String(m.subject || '').replace(/^\\s*(fwd?|re)\\s*:\\s*/i, '').trim();\n  const search = subject.match(/^(search|find|hire|hiring)\\s*[:\\-]\\s*(.+)$/i);\n  let text = String(m.text || m.textPlain || '');\n  if (!text && m.html) text = String(m.html).replace(/<style[\\s\\S]*?<\\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');\n  text = text.replace(/\\s+/g, ' ').trim();\n  const url = (text.match(/https?:\\/\\/(www\\.)?(linkedin\\.com\\/in\\/|github\\.com\\/|[a-z0-9.-]+\\.[a-z]{2,}\\/)[^\\s<>\")]+/i) || [''])[0].replace(/[.,;:]+$/, '');\n  const nothing = !search && !url && text.replace(/\\s+/g, '').length < 40 && !/attach/i.test(text) || /^(help|how|\\?)$/i.test(subject);\n  out.push({ json: { message_id: String(m.id || ''), thread_id: String(m.threadId || ''), from: em, who: u.name, subject: subject, kind: search ? 'search' : (nothing ? 'help' : 'add'), brief: search ? (search[2].trim() + '. ' + text.slice(0, 1500)).trim() : '', url: url, text: text.slice(0, 12000), api: API, service_key: sets.service_key } });\n});\nreturn out;\n"
+    "jsCode": "\n// Emails from teammates to the connected Gmail: \"role name\" in the subject, a profile link or CV inside.\nconst users = $('Load Email Users').all().map(function(i){ return i.json || {}; }).filter(function(u){ return u.email && u.status === 'active'; });\nconst sets = {}; $('Load Email Settings').all().forEach(function(i){ const r = i.json || {}; if (r.key) sets[r.key] = String(r.value == null ? '' : r.value); });\nconst API = String(sets.self_url || 'http://localhost:5678').replace(/\\/+$/, '') + '/webhook/sourcing-app-api';\nconst out = [];\n// Mail the pipeline sent itself (results, replies, weekly report) is never read back in:\n// it carries a hidden mark; older mails are known by their wording.\nconst BOT_RE = /sourcing-bot|Sourcing, by email|Your search for .{1,200} has finished|Your hiring week/i;\nconst BOT_SUBJECT = /^\\s*(re:\\s*)*(\\d+ candidates ready|no candidates found|weekly hiring report|search stopped)\\b/i;\nconst isBot = function(m){ return BOT_RE.test(String(m.html || '') + ' ' + String(m.text || m.textPlain || '')) || BOT_SUBJECT.test(String(m.subject || '')); };\n// Only mail that arrived in the inbox (the trigger also sees sent mail), and nothing older than 3 days.\nconst inInbox = function(m){ return !Array.isArray(m.labelIds) || m.labelIds.indexOf('INBOX') !== -1; };\nconst fresh = function(m){ const t = Number(m.internalDate) || Date.parse(m.date || '') || 0; return !t || Date.now() - t < 3 * 864e5; };\n$('On Candidate Reply').all().forEach(function(i){\n  const m = i.json || {};\n  if (isBot(m) || !inInbox(m) || !fresh(m)) return;\n  const fromRaw = typeof m.from === 'string' ? m.from : ((m.from || {}).text || JSON.stringify(m.from || ''));\n  const em = (String(fromRaw).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/) || [''])[0].toLowerCase();\n  const u = users.find(function(x){ return String(x.email).toLowerCase() === em; });\n  if (!u || !sets.service_key) return;\n  const isReply = /^\\s*re\\s*:/i.test(String(m.subject || ''));\n  const subject = String(m.subject || '').replace(/^\\s*(fwd?|re)\\s*:\\s*/i, '').trim();\n  const search = isReply ? null : subject.match(/^(search|find|hire|hiring)\\s*[:\\-]\\s*(.+)$/i);\n  let text = String(m.text || m.textPlain || '');\n  if (!text && m.html) text = String(m.html).replace(/<style[\\s\\S]*?<\\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');\n  text = text.replace(/\\s+/g, ' ').trim();\n  const url = (text.match(/https?:\\/\\/(www\\.)?(linkedin\\.com\\/in\\/|github\\.com\\/|[a-z0-9.-]+\\.[a-z]{2,}\\/)[^\\s<>\")]+/i) || [''])[0].replace(/[.,;:]+$/, '');\n  const nothing = !search && !url && text.replace(/\\s+/g, '').length < 40 && !/attach/i.test(text) || /^(help|how|\\?)$/i.test(subject);\n  out.push({ json: { message_id: String(m.id || ''), thread_id: String(m.threadId || ''), from: em, who: u.name, subject: subject, kind: search ? 'search' : (nothing ? 'help' : 'add'), brief: search ? (search[2].trim() + '. ' + text.slice(0, 1500)).trim() : '', url: url, text: text.slice(0, 12000), api: API, service_key: sets.service_key } });\n});\nreturn out;\n"
    },
    "id": "fix-email-in",
    "name": "Email In",
@@ -9187,7 +9191,7 @@
     "operation": "reply",
     "messageId": "={{ $json.message_id }}",
     "emailType": "html",
-    "message": "={{ $json.html }}",
+    "message": "={{ $json.html }}<div style=\"display:none;font-size:0;line-height:0;color:transparent\">sourcing-bot</div>",
     "options": {
      "appendAttribution": false,
      "replyToSenderOnly": true
@@ -9403,7 +9407,7 @@
   },
   {
    "parameters": {
-    "jsCode": "// Channels named in plain words -> the sourcing channels of the app.\nconst CHANNEL_WORDS = [\n  ['LinkedIn', /linked ?in/i], ['GitHub', /git ?hub/i], ['Stack Overflow', /stack ?overflow/i], ['Google / Open Web', /\\b(open web|google|the web)\\b/i],\n  ['Hacker News', /hacker ?news/i], ['GitLab', /git ?lab/i], ['Kaggle', /kaggle/i], ['Hugging Face', /hugging ?face/i], ['Dev.to', /\\bdev\\.to\\b/i],\n  ['Reddit', /reddit/i], ['X (Twitter)', /\\b(twitter|x\\.com)\\b/i], ['Dribbble', /dribbble/i], ['Behance', /behance/i], ['Devfolio', /devfolio/i],\n  ['Unstop', /unstop/i], ['Devpost', /devpost/i], ['HackerEarth', /hacker ?earth/i], ['LeetCode', /leet ?code/i], ['CodeChef', /code ?chef/i],\n  ['Codeforces', /codeforces/i], ['Topmate', /topmate/i], ['ADPList', /adp ?list/i], ['Medium', /\\bmedium\\b/i],\n  ['Research papers', /\\b(research papers?|papers|researchers?|openalex|publications?)\\b/i], ['Speakers & experts', /\\b(speakers?|experts?|conference talks?|sessionize)\\b/i]];\nconst ALL_CHANNELS = CHANNEL_WORDS.map(function(c){ return c[0]; });\nconst channelsIn = function(text){\n  const t = String(text || '');\n  const named = CHANNEL_WORDS.filter(function(c){ return c[1].test(t); }).map(function(c){ return c[0]; });\n  const all = /\\b(everywhere|all channels|all sources|every channel|every source)\\b/i.test(t);\n  const veteran = /\\b(veterans?|ex[- ]?service(men|man|women|woman)?|armed forces|ex[- ]?army|ex[- ]?navy|ex[- ]?air ?force)\\b/i.test(t);\n  return { sources: all ? ALL_CHANNELS.slice() : named, only: /\\bonly\\b/i.test(t) && named.length > 0, all: all, veteran: veteran };\n};\n\n// From what the brief parser understood, the search to start, with the channels the email named and the sender told.\nconst e = $('Email Text').item.json, r = $json || {};\nif (!r.ok || !r.criteria) return { json: { ok: false, error: r.error || 'Could not read the brief.', message_id: e.message_id } };\nconst c = r.criteria; const ch = channelsIn(e.brief);\nconst EXP = ['0-2 years', '3-5 years', '5-8 years', '8+ years'];\nconst sources = ch.sources.length ? ch.sources : ((r.sources || []).length ? r.sources : ['LinkedIn']);\nreturn { json: { message_id: e.message_id, role: c.role || '', city: c.city || '', sources: sources, body: { action: 'search', service_key: e.service_key, as_email: e.from, brief: e.brief, criteria: {\n  role: c.role || '', similar: 'Yes', experience: EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any', must: (c.must || []).join(', '), nice: (c.nice || []).join(', '),\n  city: c.city || '', region: c.region || (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', veteran: c.veteran || ch.veteran ? 'Yes' : '',\n  exclude: (c.exclude || []).join(', '), education: 'Any', sources: sources, notify: e.from,\n  rubric: (r.rubric || []).map(function(q){ return '- ' + q.criterion + ' (weight ' + (q.weight || 1) + '): ' + (q.how || ''); }).join('\\n'), jd_text: '' } } } };\n",
+    "jsCode": "// An experience range written in the brief (\"6-10 years\", \"8+ yrs\") is kept as written.\nconst expFrom = function(text){ const t = String(text || '');\n  let m = t.match(/\\b(\\d{1,2})\\s*(?:-|–|—|to)\\s*(\\d{1,2})\\s*\\+?\\s*(?:years?|yrs?)\\b/i); if (m && Number(m[1]) < Number(m[2])) return m[1] + '-' + m[2] + ' years';\n  m = t.match(/\\b(\\d{1,2})\\s*\\+\\s*(?:years?|yrs?)\\b/i); if (m) return m[1] + '+ years';\n  return ''; };\n// Channels named in plain words -> the sourcing channels of the app.\nconst CHANNEL_WORDS = [\n  ['LinkedIn', /linked ?in/i], ['GitHub', /git ?hub/i], ['Stack Overflow', /stack ?overflow/i], ['Google / Open Web', /\\b(open web|google|the web)\\b/i],\n  ['Hacker News', /hacker ?news/i], ['GitLab', /git ?lab/i], ['Kaggle', /kaggle/i], ['Hugging Face', /hugging ?face/i], ['Dev.to', /\\bdev\\.to\\b/i],\n  ['Reddit', /reddit/i], ['X (Twitter)', /\\b(twitter|x\\.com)\\b/i], ['Dribbble', /dribbble/i], ['Behance', /behance/i], ['Devfolio', /devfolio/i],\n  ['Unstop', /unstop/i], ['Devpost', /devpost/i], ['HackerEarth', /hacker ?earth/i], ['LeetCode', /leet ?code/i], ['CodeChef', /code ?chef/i],\n  ['Codeforces', /codeforces/i], ['Topmate', /topmate/i], ['ADPList', /adp ?list/i], ['Medium', /\\bmedium\\b/i],\n  ['Research papers', /\\b(research papers?|papers|researchers?|openalex|publications?)\\b/i], ['Speakers & experts', /\\b(speakers?|experts?|conference talks?|sessionize)\\b/i]];\nconst ALL_CHANNELS = CHANNEL_WORDS.map(function(c){ return c[0]; });\nconst channelsIn = function(text){\n  const t = String(text || '');\n  const named = CHANNEL_WORDS.filter(function(c){ return c[1].test(t); }).map(function(c){ return c[0]; });\n  const all = /\\b(everywhere|all channels|all sources|every channel|every source)\\b/i.test(t);\n  const veteran = /\\b(veterans?|ex[- ]?service(men|man|women|woman)?|armed forces|ex[- ]?army|ex[- ]?navy|ex[- ]?air ?force)\\b/i.test(t);\n  return { sources: all ? ALL_CHANNELS.slice() : named, only: /\\bonly\\b/i.test(t) && named.length > 0, all: all, veteran: veteran };\n};\n\n// From what the brief parser understood, the search to start, with the channels the email named and the sender told.\nconst e = $('Email Text').item.json, r = $json || {};\nif (!r.ok || !r.criteria) return { json: { ok: false, error: r.error || 'Could not read the brief.', message_id: e.message_id } };\nconst c = r.criteria; const ch = channelsIn(e.brief);\nconst EXP = ['0-2 years', '3-5 years', '5-8 years', '8+ years'];\nconst sources = ch.sources.length ? ch.sources : ((r.sources || []).length ? r.sources : ['LinkedIn']);\nreturn { json: { message_id: e.message_id, role: c.role || '', city: c.city || '', sources: sources, body: { action: 'search', service_key: e.service_key, as_email: e.from, brief: e.brief, criteria: {\n  role: c.role || '', similar: 'Yes', experience: expFrom(e.brief) || (EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any'), must: (c.must || []).join(', '), nice: (c.nice || []).join(', '),\n  city: c.city || '', region: c.region || (c.city ? 'India' : 'Global (all regions)'), industry: '', employer: c.companies || '', colleges: c.colleges || '', veteran: c.veteran || ch.veteran ? 'Yes' : '',\n  exclude: (c.exclude || []).join(', '), education: 'Any', sources: sources, notify: e.from,\n  rubric: (r.rubric || []).map(function(q){ return '- ' + q.criterion + ' (weight ' + (q.weight || 1) + '): ' + (q.how || ''); }).join('\\n'), jd_text: '' } } } };\n",
     "mode": "runOnceForEachItem"
    },
    "id": "fix-email-search-body",
@@ -9435,6 +9439,174 @@
     -1880
    ],
    "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "minutes",
+       "minutesInterval": 5
+      }
+     ]
+    }
+   },
+   "id": "fix-stale-runs-schedule",
+   "name": "Stale Runs Schedule",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.2,
+   "position": [
+    -660,
+    1124
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "get",
+    "dataTableId": {
+     "__rl": true,
+     "value": "app_runs",
+     "mode": "name"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "status",
+       "condition": "eq",
+       "keyValue": "running"
+      }
+     ]
+    },
+    "returnAll": true
+   },
+   "id": "fix-load-running-runs",
+   "name": "Load Running Runs",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    -440,
+    1124
+   ],
+   "onError": "continueRegularOutput",
+   "alwaysOutputData": false
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// Searches still \"running\" long after they started have stopped (a service failed,\n// n8n restarted, the laptop slept): mark them stopped so the Board and Telegram say so.\nconst LIMIT_MIN = 30;\nconst out = [];\n$input.all().forEach(function(i){\n  const r = i.json || {};\n  if (!r.run_id || String(r.status) !== 'running') return;\n  const t = Date.parse(r.started_at || r.createdAt || '') || 0;\n  if (!t || Date.now() - t < LIMIT_MIN * 6e4) return;\n  out.push({ json: { run_id: String(r.run_id), status: 'stopped', finished_at: new Date().toISOString(),\n    note: 'This search stopped before it finished, usually because a search service (Google search, OpenAI) returned an error. Check the keys in n8n, then run it again.',\n    role: r.role || '', location: r.location || '', started_at: r.started_at || '' } });\n});\nreturn out;\n"
+   },
+   "id": "fix-stale-check",
+   "name": "Stale Check",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -220,
+    1124
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "row",
+    "operation": "update",
+    "dataTableId": {
+     "__rl": true,
+     "value": "app_runs",
+     "mode": "name"
+    },
+    "matchType": "allConditions",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "run_id",
+       "condition": "eq",
+       "keyValue": "={{ $json.run_id }}"
+      }
+     ]
+    },
+    "columns": {
+     "mappingMode": "autoMapInputData",
+     "value": {},
+     "matchingColumns": [],
+     "schema": [],
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false
+    },
+    "options": {}
+   },
+   "id": "fix-save-stale-runs",
+   "name": "Save Stale Runs",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    0,
+    1124
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "\n// One email listing the searches that were marked stopped.\nconst rows = $('Stale Check').all().map(function(i){ return i.json || {}; });\nif (!rows.length) return [];\nconst esc = function(s){ return String(s == null ? '' : s).replace(/[&<>\"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]; }); };\nconst fmt = function(s){ const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };\nconst list = rows.map(function(r){ return '<li><b>' + esc(r.role || 'A search') + '</b>' + (r.location ? ' in ' + esc(r.location) : '') + (r.started_at ? ', started ' + esc(fmt(r.started_at)) : '') + '</li>'; }).join('');\nconst n = rows.length;\nreturn [{ json: { subject: 'Search stopped: ' + (rows[0].role || 'a search') + (n > 1 ? ' and ' + (n - 1) + ' more' : ''),\n  html: '<p>' + (n > 1 ? 'These searches' : 'This search') + ' stopped before finishing:</p><ul>' + list + '</ul>' +\n    '<p>This usually means a search service returned an error: an API key that was changed or ran out of credits (Google search via Serper, OpenAI), or n8n stopped while it ran. ' +\n    'Open n8n, check the keys under Overview → Credentials, then run the search again.</p><p>The Board shows ' + (n > 1 ? 'them' : 'it') + ' as Stopped.</p>' } }];\n",
+    "mode": "runOnceForAllItems"
+   },
+   "id": "fix-stale-note",
+   "name": "Stale Note",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    220,
+    1124
+   ],
+   "executeOnce": true
+  },
+  {
+   "parameters": {
+    "url": "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "gmailOAuth2",
+    "options": {}
+   },
+   "id": "fix-stale-address",
+   "name": "Stale Address",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    440,
+    1124
+   ],
+   "onError": "continueRegularOutput",
+   "credentials": {
+    "gmailOAuth2": {
+     "id": "__CRED_GMAIL__",
+     "name": "Sourcing · Gmail"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "sendTo": "={{ $json.emailAddress }}",
+    "subject": "={{ $('Stale Note').first().json.subject }}",
+    "emailType": "html",
+    "message": "={{ $('Stale Note').first().json.html }}<div style=\"display:none;font-size:0;line-height:0;color:transparent\">sourcing-bot</div>",
+    "options": {
+     "appendAttribution": false
+    }
+   },
+   "id": "fix-stale-email",
+   "name": "Stale Email",
+   "type": "n8n-nodes-base.gmail",
+   "typeVersion": 2.1,
+   "position": [
+    660,
+    1124
+   ],
+   "onError": "continueRegularOutput",
+   "credentials": {
+    "gmailOAuth2": {
+     "id": "__CRED_GMAIL__",
+     "name": "Sourcing · Gmail"
+    }
+   }
   }
  ],
  "connections": {
@@ -13073,6 +13245,72 @@
     [
      {
       "node": "Email Reply",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Stale Runs Schedule": {
+   "main": [
+    [
+     {
+      "node": "Load Running Runs",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load Running Runs": {
+   "main": [
+    [
+     {
+      "node": "Stale Check",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Stale Check": {
+   "main": [
+    [
+     {
+      "node": "Save Stale Runs",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Save Stale Runs": {
+   "main": [
+    [
+     {
+      "node": "Stale Note",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Stale Note": {
+   "main": [
+    [
+     {
+      "node": "Stale Address",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Stale Address": {
+   "main": [
+    [
+     {
+      "node": "Stale Email",
       "type": "main",
       "index": 0
      }
