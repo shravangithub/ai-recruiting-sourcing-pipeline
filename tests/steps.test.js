@@ -1749,7 +1749,7 @@ test('R43: the assistant sees the conversation, the roles and the people on the 
 });
 
 test('R43: the plan becomes the right call; unclear or failed plans ask instead of acting', async () => {
-  const [k] = await aPrompt({ text: 'x', subject: 'Fwd: profile', url: 'https://www.linkedin.com/in/asha/' });
+  const [k] = await aPrompt({ text: 'java devs for pune please, kafka', subject: 'Fwd: profile', url: 'https://www.linkedin.com/in/asha/' });
   const act = (plan) => runNode('Assist Act', [plan], { 'Assist Prompt': [k] });
   const [s] = await act(aiOut({ action: 'search', brief: 'Java backend engineer in Pune, 8+ years, Kafka', channels: ['GitHub', 'Stack Overflow', 'Myspace'], role_n: 1, confidence: 0.9 }));
   assert.equal(s.a.action, 'intake'); assert.equal(s.a.brief, 'Java backend engineer in Pune, 8+ years, Kafka'); assert.equal(s.a.service_key, 'svc-key'); assert.equal(s.a.as_email, 'kumar@x.example');
@@ -1864,8 +1864,20 @@ test('R43: comparisons, things it cannot do, and filters it was not asked for', 
   assert.equal(p.plan.cannot, 'stop the search'); assert.equal(p.plan.filter.stage, '', 'a default stage is not a filter'); assert.equal(p.plan.filter.min_fit, 0);
   const write = (plan) => runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [{ plan: Object.assign({ run_id: '42', filter: {}, channels: [], candidates: [] }, plan) }], 'Assist Call A': [{}], 'Assist Step B': [{ b: { action: 'ping' } }] });
   const [w] = await write({ action: 'answer', cannot: 'stop the search' });
-  assert.deepEqual(w.facts.done, ['Nothing was changed.']); assert.match(w.facts.cannot_do_here, /^stop the search\. Say plainly you cannot do this from email/);
+  assert.deepEqual(w.facts.done, []); assert.match(w.facts.cannot_do_here, /^stop the search: you cannot do this from email; it is done on the Board/);
   assert.equal(w.facts.roles[0].run_id, undefined, 'no internal ids reach the writer'); assert.match(w.system, /Never say anything was done/);
   const [c] = await write({ action: 'explain', candidates: [1, 2] });
   assert.deepEqual(c.facts.compare.map((x) => x.name), ['Asha Rao', 'Ravi Menon']);
+});
+
+test('R43: a search with no role in the message asks which role instead of repeating the last search', async () => {
+  const [k] = await aPrompt({ text: 'can u find ppl' });
+  const [a] = await runNode('Assist Act', [aiOut({ action: 'search', brief: 'TEST Java Backend Engineer, Bangalore. 5-8 years', confidence: 0.8 })], { 'Assist Prompt': [k] });
+  assert.equal(a.plan.action, 'clarify'); assert.match(a.plan.question, /Which role/); assert.equal(a.a.action, 'ping');
+  const [k2] = await aPrompt({ text: 'Need 5 senior PMs in Bangalore, B2B SaaS' });
+  const [b] = await runNode('Assist Act', [aiOut({ action: 'search', brief: 'Senior Product Manager in Bangalore, B2B SaaS', confidence: 0.9 })], { 'Assist Prompt': [k2] });
+  assert.equal(b.plan.action, 'search');
+  const [k3] = await aPrompt({ text: 'make it 8+ years', history: [{ from: 'assistant', text: 'Searching for Java Backend Engineer' }] });
+  const [c] = await runNode('Assist Act', [aiOut({ action: 'search', brief: 'Java Backend Engineer, Bangalore, 8+ years', confidence: 0.9 })], { 'Assist Prompt': [k3] });
+  assert.equal(c.plan.action, 'search', 'a change to the search in a conversation still searches');
 });
