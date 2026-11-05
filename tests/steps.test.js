@@ -1937,3 +1937,13 @@ test('R44: a person added by link is rated on the same requirements', async () =
   const row = (await runNode('Add Row', [aiOutput({ name: 'Asha Nair', title: 'Product Manager', criteria: [{ c: 1, s: 3, e: 'product manager' }, { c: 2, s: 1 }, { c: 3, s: 3, e: 'pricing' }, { c: 4, s: 2, e: '6 years' }, { c: 5, s: 1 }] })], { 'Add Prompt': [k] }))[0];
   assert.equal(row.fit_score, 7.2, '26 of 36 weighted points'); assert.match(row.summary, /Scored: Role: Product Manager ✓ \("product manager"\); B2B SaaS \?; pricing ✓/);
 });
+
+test('R44: the assistant drafts a LinkedIn note for someone without an email, and says nothing was sent', async () => {
+  const [k] = await aPrompt({ text: 'draft a linkedin note for #2', focus_run_id: '42' });
+  assert.match(k.system, /draft_message = write a LinkedIn note/); assert.match(k.system, /"draft a linkedin note for #2"/);
+  const [a] = await runNode('Assist Act', [aiOut({ action: 'draft_message', candidate_i: 2, confidence: 0.95 })], { 'Assist Prompt': [k] });
+  assert.equal(a.plan.action, 'draft_message'); assert.equal(a.a.action, 'ping', 'drafting sends nothing');
+  const [w] = await runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [a], 'Assist Call A': [{}], 'Assist Step B': [{ b: { action: 'ping' } }] });
+  assert.equal(w.facts.draft_for.name, 'Ravi Menon'); assert.equal(w.facts.draft_for.has_email, false); assert.match(w.facts.role_brief, /Java backend engineer in Bangalore/);
+  assert.match(w.facts.write, /connection note under 280 characters/); assert.match(w.facts.write, /nothing has been sent/); assert.deepEqual(w.facts.done, []);
+});

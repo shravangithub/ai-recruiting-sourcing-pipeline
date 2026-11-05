@@ -6769,6 +6769,28 @@ def apply_round44(nodes, conns):
     R("Email Reply", "</b> as a ' + (j.person.fit * 10) + '% match.", "</b> as a ' + Math.round(j.person.fit * 10) + '% match.")
     R("Assist Write Prompt", "fit_percent: ra.person.fit * 10,", "fit_percent: Math.round(ra.person.fit * 10),")
 
-    # 5. the inbox is checked every minute
+    # 5. no email? the assistant drafts a LinkedIn note the recruiter sends themselves
+    R("Assist Prompt", '{"action": "search" | "add_person" | "show_candidates" | "explain" | "status" | "answer" | "help" | "clarify",',
+      '{"action": "search" | "add_person" | "show_candidates" | "explain" | "draft_message" | "status" | "answer" | "help" | "clarify",')
+    R("Assist Prompt", "explain = about one person (why ranked so, details, compare). ",
+      "explain = about one person (why ranked so, details, compare). draft_message = write a LinkedIn note or message to one person for the recruiter to send themselves. ")
+    R("Assist Prompt", """'"stop the java search" / "email #1 for me" -> answer, cannot "stop a search" / "email a candidate"\\n' +""",
+      """'"draft a linkedin note for #2" / "what should I message #1" -> draft_message, candidate_i 2 / 1\\n' +\n  '"stop the java search" / "email #1 for me" -> answer, cannot "stop a search" / "email a candidate"\\n' +""")
+    R("Assist Act", "const ACTIONS = ['search', 'add_person', 'show_candidates', 'explain', 'status', 'answer', 'help', 'clarify'];",
+      "const ACTIONS = ['search', 'add_person', 'show_candidates', 'explain', 'draft_message', 'status', 'answer', 'help', 'clarify'];")
+    R("Assist Write Prompt", "else if (pl.action === 'status') facts.roles",
+      "else if (pl.action === 'draft_message') { const c = people.find(function(p){ return p.i === pl.candidate_i; });\n"
+      "  if (!c) facts.outcome = 'Not sure which person they mean. Ask by number or name.';\n"
+      "  else { facts.draft_for = { name: c.name, headline: [c.title, c.company].filter(Boolean).join(' at '), evidence: c.why, link: c.link, has_email: c.email };\n"
+      "    facts.role_brief = k.saved_brief || (role ? role.role + (role.location ? ', ' + role.location : '') : '');\n"
+      "    facts.sender = (k.me || {}).name || '';\n"
+      "    facts.write = 'Write two drafts for the recruiter to send themselves on LinkedIn: (1) a connection note under 280 characters, (2) a short message under 90 words. Personal: name one specific thing from their evidence. Say what the role is, no salary or claims not in the facts, a light question at the end. Label them Connection note and Message. Say that nothing has been sent.'; } }\n"
+      "else if (pl.action === 'status') facts.roles")
+    R("Assist Write Prompt", "'Show the people found (\"top 5\", \"only with email\") and explain any of them', ",
+      "'Show the people found (\"top 5\", \"only with email\") and explain any of them', 'Draft a LinkedIn note to anyone, for you to send', ")
+    R("Assist Write Prompt", "  else if (!listed.length && f.with_email && people.length) { facts.outcome = 'Nobody on this role has an email address yet (' + people.filter(function(p){ return p.stage !== 'not_fit'; }).length + ' people found). Say so, then give the best ones anyway.';",
+      "  else if (!listed.length && f.with_email && people.length) { facts.outcome = 'Nobody on this role has an email address yet (' + people.filter(function(p){ return p.stage !== 'not_fit'; }).length + ' people found). Say so, give the best ones anyway, and say you can draft a LinkedIn note for any of them (by number).';")
+
+    # 6. the inbox is checked every minute
     N["On Candidate Reply"]["parameters"]["pollTimes"] = {"item": [{"mode": "everyX", "value": 1, "unit": "minutes"}]}
     return nodes, conns
