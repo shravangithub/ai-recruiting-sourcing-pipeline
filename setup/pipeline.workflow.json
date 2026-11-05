@@ -4798,8 +4798,8 @@
   {
    "parameters": {
     "mode": "expression",
-    "numberOutputs": 19,
-    "output": "={{ [\"reply\", \"claim\", \"intake\", \"search\", \"status\", \"results\", \"runs\", \"approve\", \"feedback\", \"outreach\", \"templates\", \"save_templates\", \"dashboard\", \"board\", \"thread\", \"send_reply\", \"kit\", \"past_people\", \"add_person\"].indexOf($json.route) }}"
+    "numberOutputs": 21,
+    "output": "={{ [\"reply\", \"claim\", \"intake\", \"search\", \"status\", \"results\", \"runs\", \"approve\", \"feedback\", \"outreach\", \"templates\", \"save_templates\", \"dashboard\", \"board\", \"thread\", \"send_reply\", \"kit\", \"past_people\", \"health\", \"weekly_preview\", \"add_person\"].indexOf($json.route) }}"
    },
    "id": "fix-app-route",
    "name": "App Route",
@@ -11350,16 +11350,18 @@
       "node": "Load Report Settings",
       "type": "main",
       "index": 0
-     },
+     }
+    ],
+    [
      {
-      "node": "Load Add Settings",
+      "node": "Load Report Settings",
       "type": "main",
       "index": 0
      }
     ],
     [
      {
-      "node": "Load Report Settings",
+      "node": "Load Add Settings",
       "type": "main",
       "index": 0
      }

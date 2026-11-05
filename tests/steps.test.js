@@ -1715,3 +1715,16 @@ test('R42: everything the pipeline mails to the team carries the hidden mark; th
   assert.equal(t.pollTimes.item[0].value, 5); assert.equal(t.filters.readStatus, 'both'); assert.deepEqual(t.filters.labelIds, ['INBOX']);
   assert.equal(N['Serper Search'].onError, 'continueRegularOutput');
 });
+
+test('R42: every app route has its own output: add_person never runs the weekly report, health and weekly_preview reach it', async () => {
+  const wf = require('../setup/pipeline.workflow.json');
+  const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
+  const routes = JSON.parse(N['App Route'].parameters.output.match(/(\[[^\]]+\])/)[1]);
+  assert.equal(new Set(routes).size, routes.length, 'no route listed twice');
+  assert.equal(N['App Route'].parameters.numberOutputs, routes.length);
+  const outs = wf.connections['App Route'].main;
+  const to = (r) => (outs[routes.indexOf(r)] || []).map((c) => c.node);
+  for (const r of ['health', 'weekly_preview']) assert.deepEqual(to(r), ['Load Report Settings'], r);
+  assert.deepEqual(to('add_person'), ['Load Add Settings'], 'add_person goes only to its own steps');
+  assert.equal(outs.length, routes.length, 'no output beyond the route list');
+});
