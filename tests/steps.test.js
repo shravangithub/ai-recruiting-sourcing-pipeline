@@ -1381,7 +1381,7 @@ test('R36: the bot only polls Telegram with a saved token, and remembers where i
   assert.match(e[0].value, /error: Unauthorized/); assert.equal(e.length, 1);
 });
 
-test('R36: strangers are turned away, a code links a teammate, and plain text starts a search', async () => {
+test('R36: strangers are turned away, a code links a teammate, and plain text goes to the assistant', async () => {
   const sets = tgSets([{ key: 'tglink:AB12CD', value: JSON.stringify({ email: 'priya@x.example', name: 'Priya', role: 'recruiter', exp: Date.now() + 60000 }) }]);
   const j1 = await jobs([msg(555, 'roles')], sets);
   assert.equal(j1[0].kind, 'say'); assert.match(j1[0].text, /private/);
@@ -1389,11 +1389,11 @@ test('R36: strangers are turned away, a code links a teammate, and plain text st
   assert.match(j2[0].text, /Connected as Priya/); assert.equal(j2[0].writes[0].key, 'tg:555'); assert.equal(j2[0].writes[1].value, '');
   assert.match((await jobs([msg(555, '/start ZZZZZZ')], sets))[0].text, /private/);
   const j3 = await jobs([msg(777, 'Product manager in Bangalore, 5-8 years, B2B SaaS and pricing')], tgSets([linkedK]));
-  assert.equal(j3[0].kind, 'find'); assert.equal(j3[0].a.action, 'intake'); assert.equal(j3[0].a.as_email, 'kumar@x.example'); assert.equal(j3[0].a.service_key, 'svc-key');
+  assert.equal(j3[0].kind, 'assist'); assert.equal(j3[0].a.action, 'assist'); assert.equal(j3[0].a.as_email, 'kumar@x.example'); assert.equal(j3[0].a.service_key, 'svc-key'); assert.equal(j3[0].a.channel, 'telegram'); assert.match(j3[0].a.text, /^Product manager in Bangalore/);
   assert.equal((await jobs([msg(777, 'roles')], tgSets([linkedK])))[0].a.action, 'board');
   assert.equal((await jobs([msg(777, 'status')], tgSets([linkedK])))[0].a.action, 'health');
   assert.match((await jobs([msg(777, 'top')], tgSets([linkedK])))[0].text, /No role yet/);
-  assert.match((await jobs([msg(777, 'ok')], tgSets([linkedK])))[0].text, /Not sure/);
+  assert.equal((await jobs([msg(777, 'ok')], tgSets([linkedK])))[0].kind, 'assist');
 });
 
 test('R36: numbered commands act on the last list, and drafts can be sent or parked', async () => {
@@ -1529,7 +1529,7 @@ test('R37: forwarded emails from teammates are scored, with the CV text when one
   assert.equal(none.length, 0, 'nothing without a service key');
   const withPdf = await runNode('Email Text', [{ text: 'ASHA NAIR\nProduct manager, 6 years.  Pricing.' }], { 'Email In': [got[1]] });
   assert.match(withPdf[0].text, /^ATTACHED CV:\nASHA NAIR Product manager, 6 years\. Pricing\.\n\nEMAIL:\nCV attached, Asha$/);
-  assert.equal(withPdf[0].body.action, 'add_person'); assert.equal(withPdf[0].body.as_email, 'kumar@x.example'); assert.equal(withPdf[0].body.role_hint, 'Product Manager'); assert.equal(withPdf[0].body.via, 'email');
+  assert.equal(withPdf[0].kind, 'assist', 'every teammate email goes to the assistant');
   const plain = await runNode('Email Text', [got[0]], { 'Email In': [got[0]] });
   assert.equal(plain[0].text, got[0].text);
   const ok = (await runNode('Email Reply', [{ ok: true, role: 'Backend Engineer, Pune', person: { name: 'Ravi K', fit: 7, summary: 'Go and Kafka.', email: false } }], { 'Email Text': [got[0]] }))[0];
@@ -1547,26 +1547,19 @@ test('R37: voice notes are picked out, transcribed and treated as typed; a bare 
   const tr = await runNode('TG Transcripts', [{ text: ' Product manager in Bangalore, five to eight years, B2B SaaS and pricing. ' }], { 'TG Voices': vs });
   assert.equal(tr[0].update_id, 9); assert.equal(tr[0].chat, '777'); assert.equal(tr[0].error, '');
   const heard = await runNode('TG Jobs', [{}], { 'Load TG Settings': tgSets([linkedK]), 'Telegram Updates': [{ ok: true, result: [voice] }], 'Load TG Runs': [{}], 'Load TG Sequences': [{}], 'TG Transcripts': tr });
-  assert.equal(heard[0].kind, 'find'); assert.match(heard[0].a.text || JSON.stringify(heard[0].a), /Product manager in Bangalore/);
+  assert.equal(heard[0].kind, 'assist'); assert.match(heard[0].a.text, /Product manager in Bangalore/);
   const deaf = await runNode('TG Jobs', [{}], { 'Load TG Settings': tgSets([linkedK]), 'Telegram Updates': [{ ok: true, result: [voice] }], 'Load TG Runs': [{}], 'Load TG Sequences': [{}], 'TG Transcripts': [{ update_id: 9, text: '', error: 'could not transcribe' }] });
   assert.match(deaf[0].text, /couldn’t make out/);
   const st = { key: 'tg:777:state', value: JSON.stringify({ run_id: '42', list: [] }) };
   const link = await jobs([msg(777, 'https://www.linkedin.com/in/asha-nair/ looks good')], tgSets([linkedK, st]));
-  assert.equal(link[0].kind, 'add'); assert.equal(link[0].a.action, 'add_person'); assert.equal(link[0].a.run_id, '42'); assert.equal(link[0].a.url, 'https://www.linkedin.com/in/asha-nair/'); assert.equal(link[0].a.via, 'telegram');
-  assert.match((await jobs([msg(777, 'https://www.linkedin.com/in/asha-nair/')], tgSets([linkedK])))[0].text, /Which role/);
+  assert.equal(link[0].kind, 'assist'); assert.equal(link[0].a.focus_run_id, '42'); assert.equal(link[0].a.url, 'https://www.linkedin.com/in/asha-nair/');
   const said = await runNode('TG Compose', [{ ok: true }], { 'TG Step B': [{ chat: '777', kind: 'add', api: 'x', token: TOK, ra: { ok: true, role: 'Product Manager, Bangalore', run_id: '42', person: { name: 'Asha Nair', fit: 8, summary: 'Pricing lead.', email: true } }, b: { action: 'ping' }, writes: [] }], 'Load TG Settings': tgSets([linkedK]) });
   assert.match(said.map((x) => x.json ? x.json.text : x.text).join('\n'), /Asha Nair added to Product Manager, Bangalore as a 80% match\.\nPricing lead\.\nHas an email/);
 });
 
 // ---------- Round 38: channels in the brief; search by email ----------
 test('R38: channels named in a Telegram brief are the channels searched, and the bot says which', async () => {
-  const j = await jobs([msg(777, 'Product manager in Bangalore, 5-8 years, B2B SaaS, on LinkedIn, GitHub and research papers')], tgSets([linkedK]));
-  assert.equal(j[0].kind, 'find'); assert.deepEqual(j[0].channels, ['LinkedIn', 'GitHub', 'Research papers']); assert.equal(j[0].veteran, false);
-  const v = await jobs([msg(777, 'Ex-servicemen for a security operations lead in Pune, everywhere')], tgSets([linkedK]));
-  assert.equal(v[0].channels.length, 25, 'everywhere = all channels'); assert.equal(v[0].veteran, true);
-  const none = await jobs([msg(777, 'Product manager in Bangalore, 5-8 years, B2B SaaS and pricing')], tgSets([linkedK]));
-  assert.deepEqual(none[0].channels, []);
-  const find = Object.assign({ chat: '777', who: {}, kind: 'find', api: 'x', token: TOK, brief: 'x', a: { action: 'intake', service_key: 'svc-key', as_email: 'k@x' }, b: null, writes: [] }, { channels: j[0].channels, veteran: false });
+  const find = Object.assign({ chat: '777', who: {}, kind: 'find', api: 'x', token: TOK, brief: 'x', a: { action: 'intake', service_key: 'svc-key', as_email: 'k@x' }, b: null, writes: [] }, { channels: ['LinkedIn', 'GitHub', 'Research papers'], veteran: false });
   const [sb] = await runNode('TG Step B', [{ ok: true, criteria: { role: 'Product Manager', city: 'Bangalore', must: [], nice: [] }, sources: ['LinkedIn', 'Topmate'] }], { 'TG Jobs': [find] });
   assert.deepEqual(sb.b.criteria.sources, ['LinkedIn', 'GitHub', 'Research papers'], 'the brief wins over the parser');
   const [sb2] = await runNode('TG Step B', [{ ok: true, criteria: { role: 'Lead', city: 'Pune', must: [], nice: [] }, sources: ['LinkedIn'] }], { 'TG Jobs': [Object.assign({}, find, { channels: [], veteran: true })] });
@@ -1581,8 +1574,9 @@ test('R38: "Search: <role>" by email starts a search, with the channels named an
   const mails = [{ id: 'm9', from: 'kumar@x.example', subject: 'Search: Product Manager, Bangalore', text: '5-8 years, B2B SaaS and pricing. LinkedIn and GitHub only.' }];
   const [e] = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
   assert.equal(e.kind, 'search'); assert.match(e.brief, /^Product Manager, Bangalore\. 5-8 years/);
-  const [t] = await runNode('Email Text', [e], { 'Email In': [e] });
-  assert.equal(t.body.action, 'intake'); assert.equal(t.body.brief, e.brief); assert.equal(t.body.as_email, 'kumar@x.example');
+  const [t0] = await runNode('Email Text', [e], { 'Email In': [e] });
+  assert.equal(t0.kind, 'assist');
+  const t = Object.assign({}, t0, { kind: 'search' });
   const [sb] = await runNode('Email Search Body', [{ ok: true, criteria: { role: 'Product Manager', city: 'Bangalore', experience: '5-8 years', must: ['B2B SaaS', 'pricing'], nice: [] }, sources: ['LinkedIn', 'Topmate', 'ADPList'] }], { 'Email Text': [t] });
   assert.equal(sb.body.action, 'search'); assert.deepEqual(sb.body.criteria.sources, ['LinkedIn', 'GitHub']); assert.equal(sb.body.criteria.notify, 'kumar@x.example'); assert.equal(sb.body.criteria.must, 'B2B SaaS, pricing'); assert.equal(sb.body.criteria.experience, '5-8 years');
   const [bad] = await runNode('Email Search Body', [{ ok: false, error: 'No role found.' }], { 'Email Text': [t] });
@@ -1606,7 +1600,7 @@ test('R39: Telegram welcomes with sample briefs, help carries them, and a puzzle
   const h = await jobs([msg(777, 'help')], tgSets([linkedK]));
   assert.match(h[0].text, /What I can do:/); assert.match(h[0].text, /Paste a profile link on its own/);
   const p = await jobs([msg(777, 'ok')], tgSets([linkedK]));
-  assert.match(p[0].text, /^Not sure what you mean\. Describe the role/); assert.doesNotMatch(p[0].text, /What I can do/);
+  assert.equal(p[0].kind, 'assist', 'anything that is not a command goes to the assistant');
 });
 
 test('R39: an email that asks for nothing, or a brief that cannot be read, gets the instructions back', async () => {
@@ -1616,9 +1610,9 @@ test('R39: an email that asks for nothing, or a brief that cannot be read, gets 
     { id: 'a1', from: 'kumar@x.example', subject: 'Backend Engineer', text: 'See https://www.linkedin.com/in/x/' }, { id: 'a2', from: 'kumar@x.example', subject: 'Backend Engineer, Pune', text: 'CV attached for the Pune role, please have a look at this person, strong on Go.' }];
   const got = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
   assert.deepEqual(got.map((x) => x.kind), ['help', 'help', 'add', 'add']);
-  const [t] = await runNode('Email Text', [got[0]], { 'Email In': [got[0]] });
-  assert.equal(t.body.action, 'ping');
-  const [r] = await runNode('Email Reply', [{ ok: true }], { 'Email Text': [t], 'Email Search Body': [{}] });
+  const [t0] = await runNode('Email Text', [got[0]], { 'Email In': [got[0]] });
+  assert.equal(t0.kind, 'assist');
+  const [r] = await runNode('Email Reply', [{ ok: true }], { 'Email Text': [got[0]], 'Email Search Body': [{}] });
   assert.match(r.html, /Two things you can do by email/); assert.match(r.html, /Search: Senior Product Manager, Bangalore/); assert.match(r.html, /Fwd: Backend Engineer, Pune/);
   const s = Object.assign({}, got[0], { kind: 'search', message_id: 's1' });
   const [bad] = await runNode('Email Reply', [{}], { 'Email Text': [s], 'Email Search Body': [{ ok: false, error: 'No role found.' }] });
@@ -1710,7 +1704,7 @@ test('R42: an experience range written in the brief is kept as written', async (
 test('R42: everything the pipeline mails to the team carries the hidden mark; the inbox is polled every 5 minutes, read or unread', async () => {
   const wf = require('../setup/pipeline.workflow.json');
   const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
-  for (const nm of ['Results Email', 'Email Answer', 'Send Weekly Report', 'Stale Email']) assert.match(N[nm].parameters.message, /sourcing-bot<\/div>$/, nm);
+  for (const nm of ['Results Email', 'Email Answer', 'Send Weekly Report', 'Stale Email']) assert.match(N[nm].parameters.message, /sourcing-bot( run:[^<]*)?<\/div>$/, nm);
   const t = N['On Candidate Reply'].parameters;
   assert.equal(t.pollTimes.item[0].value, 5); assert.equal(t.filters.readStatus, 'both'); assert.deepEqual(t.filters.labelIds, ['INBOX']);
   assert.equal(N['Serper Search'].onError, 'continueRegularOutput');
@@ -1727,4 +1721,139 @@ test('R42: every app route has its own output: add_person never runs the weekly 
   for (const r of ['health', 'weekly_preview']) assert.deepEqual(to(r), ['Load Report Settings'], r);
   assert.deepEqual(to('add_person'), ['Load Add Settings'], 'add_person goes only to its own steps');
   assert.equal(outs.length, routes.length, 'no output beyond the route list');
+});
+
+// ---------- Round 43: the sourcing assistant (email and Telegram) ----------
+const A_GATE = (body) => [{ body: Object.assign({ channel: 'email' }, body), user: { name: 'Kumar', email: 'kumar@x.example', role: 'admin' } }];
+const A_SETS = [{ key: 'service_key', value: 'svc-key' }, { key: 'self_url', value: 'https://n8n.example' }, { key: 'run:42', value: JSON.stringify({ brief: 'Java backend engineer in Bangalore, 5-8 years, Spring, Kafka', criteria: { role: 'Java Backend Engineer' } }) }];
+const A_RUNS = [{ run_id: '42', role: 'Java Backend Engineer', location: 'Bangalore', status: 'done', count: 3, started_at: '2026-11-05T12:55:00Z' },
+  { run_id: '41', role: 'Senior Product Manager', location: 'Bangalore', status: 'done', count: 2, started_at: '2026-11-05T07:30:00Z' }];
+const A_PEOPLE = [{ run_id: '42', dedupe_key: 'a', name: 'Asha Rao', fit_score: 9, title: 'Senior Engineer', company: 'Acme Pay', email: 'a@x.example', summary: 'Spring and Kafka at a payments firm.', profile_url: 'https://stackoverflow.com/users/1/asha', stage: 'found' },
+  { run_id: '42', dedupe_key: 'b', name: 'Ravi Menon', fit_score: 7, title: 'Backend Developer', company: 'Globex', email: '', summary: 'Java, some Kafka.', stage: 'shortlisted' },
+  { run_id: '42', dedupe_key: 'a', name: 'Asha Rao (dup)', fit_score: 9 }, { run_id: '42', dedupe_key: 'c', name: 'Neha S', fit_score: 4, title: 'Intern', stage: 'not_fit' },
+  { run_id: '41', dedupe_key: 'p', name: 'Priya K', fit_score: 8, title: 'Senior PM', company: 'Initech' }];
+const aPrompt = (body) => runNode('Assist Prompt', [{}], { 'App Gate': A_GATE(body), 'Load Assist Settings': A_SETS, 'Load Assist Runs': A_RUNS, 'Load Assist People': A_PEOPLE });
+const aiOut = (obj) => ({ output: [{ type: 'reasoning', summary: [] }, { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(obj) }] }] });
+
+test('R43: the assistant sees the conversation, the roles and the people on the role it is about', async () => {
+  const [k] = await aPrompt({ text: 'only the ones with an email please', history: [{ from: 'assistant', text: 'Searching for Java Backend Engineer' }], focus_run_id: '42' });
+  assert.equal(k.about, '42'); assert.deepEqual(k.people.map((p) => p.name), ['Asha Rao', 'Ravi Menon', 'Neha S'], 'deduped, best first, this role only');
+  assert.equal(k.people[0].fit, 90); assert.equal(k.people[0].email, true); assert.equal(k.people[1].email, false);
+  assert.equal(k.api, 'https://n8n.example/webhook/sourcing-app-api'); assert.equal(k.svc, 'svc-key');
+  assert.match(k.prompt, /YOU: Searching for Java Backend Engineer/); assert.match(k.prompt, /only the ones with an email/); assert.match(k.prompt, /its brief: Java backend engineer in Bangalore/);
+  assert.match(k.system, /Return ONLY a JSON object/); assert.match(k.system, /by email/);
+  const [byWords] = await aPrompt({ text: 'how is the product manager search going?' });
+  assert.equal(byWords.about, '41', 'a role named in the message wins over the latest');
+  const [latest] = await aPrompt({ text: 'any update?' });
+  assert.equal(latest.about, '42', 'else the latest role');
+});
+
+test('R43: the plan becomes the right call; unclear or failed plans ask instead of acting', async () => {
+  const [k] = await aPrompt({ text: 'x', subject: 'Fwd: profile', url: 'https://www.linkedin.com/in/asha/' });
+  const act = (plan) => runNode('Assist Act', [plan], { 'Assist Prompt': [k] });
+  const [s] = await act(aiOut({ action: 'search', brief: 'Java backend engineer in Pune, 8+ years, Kafka', channels: ['GitHub', 'Stack Overflow', 'Myspace'], role_n: 1, confidence: 0.9 }));
+  assert.equal(s.a.action, 'intake'); assert.equal(s.a.brief, 'Java backend engineer in Pune, 8+ years, Kafka'); assert.equal(s.a.service_key, 'svc-key'); assert.equal(s.a.as_email, 'kumar@x.example');
+  assert.deepEqual(s.plan.channels, ['GitHub', 'Stack Overflow'], 'only real channels');
+  const [ad] = await act(aiOut({ action: 'add_person', role_n: 1, url: 'https://www.linkedin.com/in/asha/', confidence: 0.9 }));
+  assert.equal(ad.a.action, 'add_person'); assert.equal(ad.a.run_id, '42'); assert.equal(ad.a.url, 'https://www.linkedin.com/in/asha/'); assert.equal(ad.a.via, 'email');
+  const [low] = await act(aiOut({ action: 'search', brief: 'something', confidence: 0.3, question: 'Which role is this for?' }));
+  assert.equal(low.plan.action, 'clarify'); assert.equal(low.a.action, 'ping'); assert.equal(low.plan.question, 'Which role is this for?');
+  const [nobrief] = await act(aiOut({ action: 'search', brief: '', confidence: 0.9 }));
+  assert.equal(nobrief.plan.action, 'clarify');
+  const [broken] = await act({ error: { message: 'insufficient_quota' } });
+  assert.equal(broken.plan.action, 'error'); assert.match(broken.plan.error, /insufficient_quota/); assert.equal(broken.a.action, 'ping');
+  const [list] = await act(aiOut({ action: 'show_candidates', role_n: 1, filter: { with_email: true, limit: 5 }, confidence: 0.95 }));
+  assert.equal(list.plan.action, 'show_candidates'); assert.equal(list.plan.run_id, '42'); assert.equal(list.a.action, 'ping');
+});
+
+test('R43: a search plan is started with the channels asked for, the years as written, and results to the sender', async () => {
+  const [k] = await aPrompt({ text: 'x' });
+  const plan = { action: 'search', brief: 'Java backend engineer in Pune, 8+ years, Kafka. GitHub and Stack Overflow', channels: ['GitHub', 'Stack Overflow'], veteran: false, run_id: '', filter: {} };
+  const x = { api: k.api, a: { action: 'intake', service_key: 'svc-key', as_email: 'kumar@x.example' }, plan };
+  const intake = { ok: true, criteria: { role: 'Java Backend Engineer', city: 'Pune', experience: '8+ years', must: ['Java', 'Kafka'], nice: [] }, sources: ['LinkedIn'], rubric: [{ criterion: 'Kafka', weight: 2, how: 'named' }] };
+  const [b] = await runNode('Assist Step B', [intake], { 'Assist Act': [x], 'Assist Prompt': [k] });
+  assert.equal(b.b.action, 'search'); assert.deepEqual(b.b.criteria.sources, ['GitHub', 'Stack Overflow']); assert.equal(b.b.criteria.experience, '8+ years');
+  assert.equal(b.b.criteria.notify, 'kumar@x.example'); assert.equal(b.b.criteria.must, 'Java, Kafka'); assert.match(b.b.criteria.rubric, /Kafka \(weight 2\)/);
+  const [noch] = await runNode('Assist Step B', [intake], { 'Assist Act': [Object.assign({}, x, { plan: Object.assign({}, plan, { channels: [], brief: 'Java dev in Pune, everywhere' }) })], 'Assist Prompt': [k] });
+  assert.equal(noch.b.criteria.sources.length, 25, 'the brief\'s own words still count when the plan named none');
+  const [tg] = await runNode('Assist Step B', [intake], { 'Assist Act': [x], 'Assist Prompt': [Object.assign({}, k, { channel: 'telegram' })] });
+  assert.equal(tg.b.criteria.notify, '', 'Telegram reports results in the chat');
+  const [none] = await runNode('Assist Step B', [{ ok: true, criteria: { role: '' } }], { 'Assist Act': [x], 'Assist Prompt': [k] });
+  assert.equal(none.b.action, 'ping');
+});
+
+test('R43: the answer is written only from facts: the people filtered as asked, one person explained, a started search', async () => {
+  const [k] = await aPrompt({ text: 'x', focus_run_id: '42' });
+  const write = (plan, ra, rb, sb) => runNode('Assist Write Prompt', [rb || {}], { 'Assist Prompt': [k], 'Assist Act': [{ plan: Object.assign({ run_id: '42', filter: {}, channels: [] }, plan) }], 'Assist Call A': [ra || {}], 'Assist Step B': [sb || { b: { action: 'ping' } }] });
+  const [w1] = await write({ action: 'show_candidates', filter: { with_email: true, limit: 5 } });
+  assert.deepEqual(w1.facts.people.map((p) => p.name), ['Asha Rao']); assert.equal(w1.facts.people[0].no, 1); assert.equal(w1.facts.people[0].link, 'https://stackoverflow.com/users/1/asha');
+  assert.deepEqual(w1.listed, [{ k: 'a', name: 'Asha Rao', stage: 'found', email: true }]);
+  assert.match(w1.system, /Use ONLY the FACTS/); assert.match(w1.system, /Return ONLY JSON/);
+  const [w2] = await write({ action: 'show_candidates', filter: { limit: 5 } });
+  assert.deepEqual(w2.facts.people.map((p) => p.name), ['Asha Rao', 'Ravi Menon'], 'not-fit people are left out');
+  const [w3] = await write({ action: 'explain', candidate_i: 2 });
+  assert.equal(w3.facts.person.name, 'Ravi Menon'); assert.deepEqual(w3.facts.person.others_above, ['Asha Rao 90%']);
+  const sb = { b: { action: 'search', criteria: { role: 'Java Backend Engineer', city: 'Pune', experience: '8+ years', must: 'Java', nice: '', sources: ['GitHub'], veteran: '' } } };
+  const [w4] = await write({ action: 'search', run_id: '' }, { ok: true, criteria: { role: 'Java Backend Engineer' } }, { ok: true, run_id: '99' }, sb);
+  assert.equal(w4.facts.outcome, 'Search started.'); assert.equal(w4.new_run, '99'); assert.deepEqual(w4.facts.search.channels, ['GitHub']); assert.match(w4.facts.next, /results email/);
+  const [w5] = await write({ action: 'search', run_id: '' }, { ok: false, error: 'The AI could not be reached' });
+  assert.match(w5.facts.outcome, /could not be read: The AI could not be reached/);
+  const [w6] = await write({ action: 'add_person' }, { ok: false, need_role: true, roles: [{ role: 'PM', location: 'Pune' }] });
+  assert.match(w6.facts.outcome, /Which role.*PM, Pune/);
+});
+
+test('R43: the reply is text for Telegram and simple HTML for email, marked with its role; facts stand in if the writer fails', async () => {
+  const [k] = await aPrompt({ text: 'x', focus_run_id: '42' });
+  const w = { facts: { people: [{ no: 1, name: 'Asha Rao', fit_percent: 90, title: 'Senior Engineer', company: 'Acme Pay', link: 'https://stackoverflow.com/users/1/asha' }] }, listed: [{ k: 'a', name: 'Asha Rao', stage: 'found', email: true }], new_run: '' };
+  const x = { plan: { action: 'show_candidates', run_id: '42' } };
+  const [r] = await runNode('Assist Reply', [aiOut({ reply: 'One person has an email:\n\n- 1. Asha Rao · 90% · Senior Engineer at Acme Pay\n- https://stackoverflow.com/users/1/asha' })], { 'Assist Write Prompt': [w], 'Assist Act': [x], 'Assist Prompt': [k] });
+  const res = r.response;
+  assert.equal(res.ok, true); assert.equal(res.run_id, '42'); assert.equal(res.role, 'Java Backend Engineer, Bangalore'); assert.deepEqual(res.listed, w.listed);
+  assert.match(res.reply_html, /<p>One person has an email:<\/p><ul><li>1\. Asha Rao/); assert.match(res.reply_html, /<a href="https:\/\/stackoverflow\.com\/users\/1\/asha">/);
+  assert.match(res.reply_html, /sourcing-bot run:42<\/div>$/);
+  const [fb] = await runNode('Assist Reply', [{ error: 'timeout' }], { 'Assist Write Prompt': [w], 'Assist Act': [x], 'Assist Prompt': [k] });
+  assert.match(fb.response.reply_text, /^1\. Asha Rao · 90% · Senior Engineer at Acme Pay/);
+});
+
+test('R43: email reads the whole thread: who said what, the search it is about, quotes and the CV split off', async () => {
+  const b64 = (s) => Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  const part = (txt, html) => ({ mimeType: 'multipart/alternative', parts: [{ mimeType: 'text/plain', body: { data: b64(txt) } }, { mimeType: 'text/html', body: { data: b64(html || '<p>' + txt + '</p>') } }] });
+  const thread = { messages: [
+    { id: 'm1', payload: part('Java backend engineer in Bangalore, Spring, Kafka') },
+    { id: 'm2', payload: part('Searching for Java Backend Engineer.', '<p>Searching for Java Backend Engineer.</p><div style="display:none">sourcing-bot run:4171</div>') },
+    { id: 'm3', payload: part('make it 8+ years and drop Reddit\n\nOn Thu, 5 Nov 2026, Kumar wrote:\n> old text') }] };
+  const e = { message_id: 'm3', thread_id: 't1', from: 'kumar@x.example', subject: 'Re: Search: Java Backend Engineer', kind: 'assist', service_key: 'svc-key', url: '', text: 'ATTACHED CV:\nASHA RAO Java 8 years\n\nEMAIL:\nmake it 8+ years and drop Reddit On Thu, 5 Nov 2026, Kumar wrote: > old text' };
+  const [r] = await runNode('Email Ask', [thread], { 'Email Text': [e] });
+  const b = r.body;
+  assert.equal(b.action, 'assist'); assert.equal(b.channel, 'email'); assert.equal(b.as_email, 'kumar@x.example'); assert.equal(b.focus_run_id, '4171');
+  assert.deepEqual(b.history.map((h) => h.from), ['recruiter', 'assistant']); assert.match(b.history[1].text, /^Searching for Java Backend Engineer\.$/);
+  assert.equal(b.attachment_text, 'ASHA RAO Java 8 years'); assert.match(b.text, /^make it 8\+ years and drop Reddit/);
+  const [lone] = await runNode('Email Ask', [{ error: 'not found' }], { 'Email Text': [Object.assign({}, e, { text: 'Need 5 senior PMs in Bangalore' })] });
+  assert.deepEqual(lone.body.history, []); assert.equal(lone.body.text, 'Need 5 senior PMs in Bangalore'); assert.equal(lone.body.attachment_text, '');
+});
+
+test('R43: Telegram remembers the chat, the role it is on and the numbered list the assistant gave', async () => {
+  const st = { key: 'tg:777:state', value: JSON.stringify({ run_id: '41', hist: [{ from: 'recruiter', text: 'hi' }] }) };
+  const j = await jobs([msg(777, 'only the ones with an email')], tgSets([linkedK, st]));
+  assert.equal(j[0].a.focus_run_id, '41'); assert.deepEqual(j[0].a.history, [{ from: 'recruiter', text: 'hi' }]);
+  const job = { chat: '777', kind: 'assist', api: 'x', token: TOK, asked: 'only the ones with an email', writes: [],
+    ra: { ok: true, reply_text: '1. Asha Rao · 90%', run_id: '42', role: 'Java Backend Engineer, Bangalore', new_run_id: '', listed: [{ k: 'a', name: 'Asha Rao', stage: 'found', email: true }] }, b: { action: 'ping' } };
+  const out = await runNode('TG Compose', [{ ok: false }], { 'TG Step B': [job], 'Load TG Settings': tgSets([linkedK, st]) });
+  const flat = out.map((x) => x.json || x);
+  assert.match(flat.find((x) => x.to === 'tg').text, /1\. Asha Rao · 90%/);
+  const saved = JSON.parse(flat.find((x) => x.key === 'tg:777:state').value);
+  assert.equal(saved.run_id, '42'); assert.deepEqual(saved.list, [{ k: 'a', name: 'Asha Rao', stage: 'found', email: true }]); assert.equal(saved.hist.length, 3);
+  const started = await runNode('TG Compose', [{}], { 'TG Step B': [Object.assign({}, job, { ra: Object.assign({}, job.ra, { new_run_id: '99', listed: [] }) })], 'Load TG Settings': tgSets([linkedK]) });
+  assert.ok(started.map((x) => x.json || x).some((x) => x.key === 'tg:run:99'), 'a search started in chat is reported back when it finishes');
+});
+
+test('R43: the assist route is its own output, and only the app gate lets teammates in', async () => {
+  const wf = require('../setup/pipeline.workflow.json');
+  const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
+  const routes = JSON.parse(N['App Route'].parameters.output.match(/(\[[^\]]+\])/)[1]);
+  assert.deepEqual((wf.connections['App Route'].main[routes.indexOf('assist')] || []).map((c) => c.node), ['Load Assist Settings']);
+  assert.match(N['App Gate'].parameters.jsCode, /'add_person', 'assist'\];/);
+  for (const nm of ['Assist Planner', 'Assist Writer']) assert.match(N[nm].parameters.jsonBody, /model: 'gpt-5-mini'/);
+  assert.deepEqual(wf.connections['Email Text'].main[0].map((c) => c.node), ['Email Thread']);
+  assert.deepEqual(wf.connections['Email Ask'].main[0].map((c) => c.node), ['Email Add']);
 });
