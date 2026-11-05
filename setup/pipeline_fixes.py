@@ -6136,3 +6136,170 @@ def apply_round41(nodes, conns):
         if nm in N:
             N[nm]["onError"] = "continueRegularOutput"
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 42
+# Launch-day testing found the pipeline reading its own mail: results emails,
+# "Searching for..." replies and the weekly report come from the connected
+# mailbox to a teammate who is often the mailbox owner, so the next poll read
+# them back in (a "Searching for" reply has the search's subject and started
+# the same search again every 15 minutes). Email-in also only saw unread mail,
+# so a message opened in Gmail before the poll was ignored. And one failed
+# Google page stopped the whole search while the Board said "running" forever.
+
+BOT_MARK = "sourcing-bot"
+BOT_TAG = '<div style="display:none;font-size:0;line-height:0;color:transparent">' + BOT_MARK + '</div>'
+
+EMAIL_IN_GUARD_42 = r"""
+// Mail the pipeline sent itself (results, replies, weekly report) is never read back in:
+// it carries a hidden mark; older mails are known by their wording.
+const BOT_RE = /sourcing-bot|Sourcing, by email|Your search for .{1,200} has finished|Your hiring week/i;
+const BOT_SUBJECT = /^\s*(re:\s*)*(\d+ candidates ready|no candidates found|weekly hiring report|search stopped)\b/i;
+const isBot = function(m){ return BOT_RE.test(String(m.html || '') + ' ' + String(m.text || m.textPlain || '')) || BOT_SUBJECT.test(String(m.subject || '')); };
+// Only mail that arrived in the inbox (the trigger also sees sent mail), and nothing older than 3 days.
+const inInbox = function(m){ return !Array.isArray(m.labelIds) || m.labelIds.indexOf('INBOX') !== -1; };
+const fresh = function(m){ const t = Number(m.internalDate) || Date.parse(m.date || '') || 0; return !t || Date.now() - t < 3 * 864e5; };
+"""
+
+
+def _email_in_42(code):
+    a = "$('On Candidate Reply').all().forEach(function(i){\n  const m = i.json || {};\n"
+    assert code.count(a) == 1, "round42: Email In loop anchor"
+    code = code.replace(a, EMAIL_IN_GUARD_42.strip() + "\n" + a + "  if (isBot(m) || !inInbox(m) || !fresh(m)) return;\n", 1)
+    # a reply in a search thread ("Re: Search: ...") is not a new search
+    b = "  const subject = String(m.subject || '').replace(/^\\s*(fwd?|re)\\s*:\\s*/i, '').trim();\n  const search = subject.match(/^(search|find|hire|hiring)\\s*[:\\-]\\s*(.+)$/i);"
+    assert code.count(b) == 1, "round42: Email In subject anchor"
+    code = code.replace(b, "  const isReply = /^\\s*re\\s*:/i.test(String(m.subject || ''));\n" + b.replace("const search = subject", "const search = isReply ? null : subject"), 1)
+    return code
+
+
+EMPTY_PAGES_42 = r"""
+// Pages that came back empty (Google sometimes returns nothing for a valid
+// query) or failed outright ("Scraping failed"): send them once more after a
+// short pause. A failed page no longer stops the search.
+const sent = (function(){ try { return $('Build Search Query').all(); } catch (e) { return []; } })();
+const out = [];
+$input.all().forEach(function(it, i) {
+  const j = it.json || {};
+  const sp = j.searchParameters;
+  if (sp && sp.q && !(j.organic && j.organic.length)) {
+    const body = { q: sp.q, num: sp.num || 10, page: sp.page || 1 };
+    if (sp.gl) body.gl = sp.gl;
+    out.push({ json: { serper_body: body }, pairedItem: { item: i } });
+  } else if (j.error && !sp) {
+    const orig = sent[i] && sent[i].json && sent[i].json.serper_body;
+    if (orig) out.push({ json: { serper_body: orig }, pairedItem: { item: i } });
+  }
+});
+return out;
+"""
+
+EXP_FROM_JS = r"""
+// An experience range written in the brief ("6-10 years", "8+ yrs") is kept as written.
+const expFrom = function(text){ const t = String(text || '');
+  let m = t.match(/\b(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})\s*\+?\s*(?:years?|yrs?)\b/i); if (m && Number(m[1]) < Number(m[2])) return m[1] + '-' + m[2] + ' years';
+  m = t.match(/\b(\d{1,2})\s*\+\s*(?:years?|yrs?)\b/i); if (m) return m[1] + '+ years';
+  return ''; };
+"""
+
+STALE_CHECK_42 = r"""
+// Searches still "running" long after they started have stopped (a service failed,
+// n8n restarted, the laptop slept): mark them stopped so the Board and Telegram say so.
+const LIMIT_MIN = 30;
+const out = [];
+$input.all().forEach(function(i){
+  const r = i.json || {};
+  if (!r.run_id || String(r.status) !== 'running') return;
+  const t = Date.parse(r.started_at || r.createdAt || '') || 0;
+  if (!t || Date.now() - t < LIMIT_MIN * 6e4) return;
+  out.push({ json: { run_id: String(r.run_id), status: 'stopped', finished_at: new Date().toISOString(),
+    note: 'This search stopped before it finished, usually because a search service (Google search, OpenAI) returned an error. Check the keys in n8n, then run it again.',
+    role: r.role || '', location: r.location || '', started_at: r.started_at || '' } });
+});
+return out;
+"""
+
+STALE_NOTE_42 = r"""
+// One email listing the searches that were marked stopped.
+const rows = $('Stale Check').all().map(function(i){ return i.json || {}; });
+if (!rows.length) return [];
+const esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const fmt = function(s){ const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+const list = rows.map(function(r){ return '<li><b>' + esc(r.role || 'A search') + '</b>' + (r.location ? ' in ' + esc(r.location) : '') + (r.started_at ? ', started ' + esc(fmt(r.started_at)) : '') + '</li>'; }).join('');
+const n = rows.length;
+return [{ json: { subject: 'Search stopped: ' + (rows[0].role || 'a search') + (n > 1 ? ' and ' + (n - 1) + ' more' : ''),
+  html: '<p>' + (n > 1 ? 'These searches' : 'This search') + ' stopped before finishing:</p><ul>' + list + '</ul>' +
+    '<p>This usually means a search service returned an error: an API key that was changed or ran out of credits (Google search via Serper, OpenAI), or n8n stopped while it ran. ' +
+    'Open n8n, check the keys under Overview → Credentials, then run the search again.</p><p>The Board shows ' + (n > 1 ? 'them' : 'it') + ' as Stopped.</p>' } }];
+"""
+
+
+def apply_round42(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    # 1) email-in: every inbox message, every 5 minutes, read or not
+    trig = N["On Candidate Reply"]["parameters"]
+    trig["pollTimes"] = {"item": [{"mode": "everyX", "value": 5, "unit": "minutes"}]}
+    trig.setdefault("filters", {})
+    trig["filters"]["readStatus"] = "both"
+    trig["filters"]["labelIds"] = ["INBOX"]
+    N["Email In"]["parameters"]["jsCode"] = _email_in_42(N["Email In"]["parameters"]["jsCode"])
+
+    # 2) everything the pipeline mails to the team carries the hidden mark
+    for nm in ("Results Email", "Email Answer", "Send Weekly Report"):
+        p = N[nm]["parameters"]
+        assert BOT_MARK not in p["message"], "round42: %s already marked" % nm
+        p["message"] = p["message"] + BOT_TAG
+
+    # 3) a failed Google page is retried, and never stops the search
+    N["Serper Search"]["onError"] = "continueRegularOutput"
+    N["Empty Pages"]["parameters"]["jsCode"] = EMPTY_PAGES_42
+
+    # 4) experience ranges from the brief are kept as written (email and Telegram)
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round42 %s: anchor: %s" % (name, old[:60])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+    R("Email Search Body", "experience: EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any',",
+      "experience: expFrom(e.brief) || (EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any'),")
+    N["Email Search Body"]["parameters"]["jsCode"] = EXP_FROM_JS.strip() + "\n" + N["Email Search Body"]["parameters"]["jsCode"]
+    R("TG Step B", "experience: EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any',",
+      "experience: expFrom(x.brief) || (EXP.indexOf(c.experience) !== -1 ? c.experience : 'Any'),")
+    N["TG Step B"]["parameters"]["jsCode"] = EXP_FROM_JS.strip() + "\n" + N["TG Step B"]["parameters"]["jsCode"]
+
+    # 5) stopped searches: marked on the Board and mailed to the mailbox owner
+    gm = N["Results Email"]
+    x, y = N["Follow-up Heartbeat"]["position"]
+    y += 400
+    sched = _node("Stale Runs Schedule", "n8n-nodes-base.scheduleTrigger", 1.2, [x - 220, y],
+                  {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}})
+    load = _node("Load Running Runs", "n8n-nodes-base.dataTable", 1.1, [x, y],
+                 {"resource": "row", "operation": "get", "dataTableId": {"__rl": True, "value": "app_runs", "mode": "name"},
+                  "matchType": "allConditions", "filters": {"conditions": [{"keyName": "status", "condition": "eq", "keyValue": "running"}]},
+                  "returnAll": True}, onError="continueRegularOutput", alwaysOutputData=False)
+    check = _node("Stale Check", "n8n-nodes-base.code", 2, [x + 220, y], {"jsCode": STALE_CHECK_42})
+    save = _node("Save Stale Runs", "n8n-nodes-base.dataTable", 1.1, [x + 440, y],
+                 {"resource": "row", "operation": "update", "dataTableId": {"__rl": True, "value": "app_runs", "mode": "name"},
+                  "matchType": "allConditions", "filters": {"conditions": [{"keyName": "run_id", "condition": "eq", "keyValue": "={{ $json.run_id }}"}]},
+                  "columns": {"mappingMode": "autoMapInputData", "value": {},
+                              "matchingColumns": [], "schema": [], "attemptToConvertTypes": False, "convertFieldsToString": False},
+                  "options": {}}, onError="continueRegularOutput")
+    note = _node("Stale Note", "n8n-nodes-base.code", 2, [x + 660, y], {"jsCode": STALE_NOTE_42, "mode": "runOnceForAllItems"}, executeOnce=True)
+    addr = _node("Stale Address", "n8n-nodes-base.httpRequest", 4.2, [x + 880, y],
+                 {"url": "https://gmail.googleapis.com/gmail/v1/users/me/profile", "authentication": "predefinedCredentialType",
+                  "nodeCredentialType": "gmailOAuth2", "options": {}}, onError="continueRegularOutput")
+    addr["credentials"] = {"gmailOAuth2": dict(gm["credentials"]["gmailOAuth2"])} if gm.get("credentials", {}).get("gmailOAuth2") else {}
+    mail = _node("Stale Email", "n8n-nodes-base.gmail", 2.1, [x + 1100, y],
+                 {"sendTo": "={{ $json.emailAddress }}", "subject": "={{ $('Stale Note').first().json.subject }}", "emailType": "html",
+                  "message": "={{ $('Stale Note').first().json.html }}" + BOT_TAG, "options": {"appendAttribution": False}}, onError="continueRegularOutput")
+    if gm.get("credentials"):
+        mail["credentials"] = {k: dict(v) for k, v in gm["credentials"].items()}
+    for n in (sched, load, check, save, note, addr, mail):
+        nodes.append(n)
+    _main(conns, "Stale Runs Schedule", [[("Load Running Runs", 0)]])
+    _main(conns, "Load Running Runs", [[("Stale Check", 0)]])
+    _main(conns, "Stale Check", [[("Save Stale Runs", 0)]])
+    _main(conns, "Save Stale Runs", [[("Stale Note", 0)]])
+    _main(conns, "Stale Note", [[("Stale Address", 0)]])
+    _main(conns, "Stale Address", [[("Stale Email", 0)]])
+    return nodes, conns
