@@ -1857,3 +1857,15 @@ test('R43: the assist route is its own output, and only the app gate lets teamma
   assert.deepEqual(wf.connections['Email Text'].main[0].map((c) => c.node), ['Email Thread']);
   assert.deepEqual(wf.connections['Email Ask'].main[0].map((c) => c.node), ['Email Add']);
 });
+
+test('R43: comparisons, things it cannot do, and filters it was not asked for', async () => {
+  const [k] = await aPrompt({ text: 'x', focus_run_id: '42' });
+  const [p] = await runNode('Assist Act', [aiOut({ action: 'answer', cannot: 'stop the search', filter: { stage: 'found', min_fit: 'x' }, confidence: 0.9 })], { 'Assist Prompt': [k] });
+  assert.equal(p.plan.cannot, 'stop the search'); assert.equal(p.plan.filter.stage, '', 'a default stage is not a filter'); assert.equal(p.plan.filter.min_fit, 0);
+  const write = (plan) => runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [{ plan: Object.assign({ run_id: '42', filter: {}, channels: [], candidates: [] }, plan) }], 'Assist Call A': [{}], 'Assist Step B': [{ b: { action: 'ping' } }] });
+  const [w] = await write({ action: 'answer', cannot: 'stop the search' });
+  assert.deepEqual(w.facts.done, ['Nothing was changed.']); assert.match(w.facts.cannot_do_here, /^stop the search\. Say plainly you cannot do this from email/);
+  assert.equal(w.facts.roles[0].run_id, undefined, 'no internal ids reach the writer'); assert.match(w.system, /Never say anything was done/);
+  const [c] = await write({ action: 'explain', candidates: [1, 2] });
+  assert.deepEqual(c.facts.compare.map((x) => x.name), ['Asha Rao', 'Ravi Menon']);
+});
