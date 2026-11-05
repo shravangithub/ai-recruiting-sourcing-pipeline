@@ -6423,7 +6423,7 @@ if (!k.dry && action === 'add_person') a = call('add_person', { run_id: role ? r
 return [{ json: { api: k.api, a: a, plan: { action: action || 'error', failed: failed, error: failed ? (j.error ? String(j.error.message || j.error) : 'no plan') : '', brief: brief, channels: chans, veteran: p.veteran === true,
   run_id: role ? role.run_id : '', role_n: role ? role.n : 0, candidate_i: Number(p.candidate_i) || 0, candidates: (Array.isArray(p.candidates) ? p.candidates : []).map(Number).filter(function(n){ return n > 0; }).slice(0, 5),
   filter: (function(f){ f = f && typeof f === 'object' ? f : {}; return { min_fit: Number(f.min_fit) || 0, with_email: f.with_email === true, stage: ['shortlisted', 'approved', 'contacted', 'replied'].indexOf(f.stage) !== -1 ? f.stage : '', limit: Number(f.limit) || 5, start: Number(f.start) || 0 }; })(p.filter),
-  cannot: String(p.cannot || '').slice(0, 200), question: question, why: String(p.why || '').slice(0, 200) } } }];
+  cannot: action === 'answer' ? String(p.cannot || '').slice(0, 200) : '', question: question, why: String(p.why || '').slice(0, 200) } } }];
 """
 
 ASSIST_STEP_B_JS = CHANNELS_JS.strip() + "\n" + EXP_FROM_JS.strip() + r"""
@@ -6478,7 +6478,11 @@ else if (pl.action === 'show_candidates') {
   listed = list.slice(start, start + lim);
   facts.total_matching = list.length;
   facts.people = listed.map(function(p, i){ return { no: start + i + 1, name: p.name, fit_percent: p.fit, headline: [p.title, p.company].filter(Boolean).join(' at '), location: p.location, stage: p.stage, has_email: p.email, why: p.why, link: p.link }; });
-  if (!role) facts.outcome = 'There are no roles yet.'; else if (!listed.length) facts.outcome = 'Nobody matches that on this role.'; }
+  if (!role) facts.outcome = 'There are no roles yet.';
+  else if (!listed.length && f.with_email && people.length) { facts.outcome = 'Nobody on this role has an email address yet (' + people.filter(function(p){ return p.stage !== 'not_fit'; }).length + ' people found). Say so, then give the best ones anyway.';
+    listed = people.filter(function(p){ return p.stage !== 'not_fit'; }).slice(0, lim);
+    facts.people = listed.map(function(p, i){ return { no: i + 1, name: p.name, fit_percent: p.fit, headline: [p.title, p.company].filter(Boolean).join(' at '), location: p.location, stage: p.stage, has_email: false, why: p.why, link: p.link }; }); }
+  else if (!listed.length) facts.outcome = 'Nobody matches that on this role.'; }
 else if (pl.action === 'explain') {
   const many = (pl.candidates || []).map(function(n){ return people.find(function(p){ return p.i === n; }); }).filter(Boolean);
   if (many.length > 1) facts.compare = many.map(function(c){ return { rank: c.i, name: c.name, fit_percent: c.fit, title: c.title, company: c.company, location: c.location, stage: c.stage, has_email: c.email, evidence: c.why, link: c.link }; });

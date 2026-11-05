@@ -1894,3 +1894,11 @@ test('R43: a teammate replying to our email is read, though it quotes our mark; 
   const got = await runNode('Email In', [{}], { 'On Candidate Reply': mails, 'Load Email Users': users, 'Load Email Settings': sets });
   assert.deepEqual(got.map((x) => x.message_id), ['r1']);
 });
+
+test('R43: when nobody has an email yet, the reply says so and gives the best people anyway', async () => {
+  const [k] = await aPrompt({ text: 'x', focus_run_id: '41' });
+  const [w] = await runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [{ plan: { action: 'show_candidates', run_id: '41', filter: { with_email: true, limit: 3 }, channels: [], candidates: [] } }], 'Assist Call A': [{}], 'Assist Step B': [{ b: { action: 'ping' } }] });
+  assert.match(w.facts.outcome, /Nobody on this role has an email address yet \(1 people found\)/); assert.deepEqual(w.facts.people.map((p) => p.name), ['Priya K']);
+  const [a] = await runNode('Assist Act', [aiOut({ action: 'show_candidates', cannot: 'get emails', filter: { with_email: true }, confidence: 0.9 })], { 'Assist Prompt': [k] });
+  assert.equal(a.plan.cannot, '', '"cannot" only goes with an answer');
+});
