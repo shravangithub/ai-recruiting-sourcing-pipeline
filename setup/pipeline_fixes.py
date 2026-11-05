@@ -6452,7 +6452,8 @@ const facts = { recruiter: (k.me || {}).name || '', channel: k.channel, asked: (
 const pub = function(r){ return { role: r.role, location: r.location, status: r.status, people_found: r.people, started: r.started }; };
 const role = (k.roles || []).find(function(r){ return r.run_id === (pl.run_id || k.about); }) || null;
 if (role) facts.role = pub(role);
-if (pl.cannot) facts.cannot_do_here = pl.cannot + ': you cannot do this from ' + (k.channel === 'telegram' ? 'Telegram' : 'email') + '; it is done on the Board in the app. Do not offer to do it.';
+if (pl.cannot && /search|role|candidate|people|person|email|message|outreach|stage|board|shortlist|setting/i.test(pl.cannot)) facts.cannot_do_here = pl.cannot + ': you cannot do this from ' + (k.channel === 'telegram' ? 'Telegram' : 'email') + '; it is done on the Board in the app. Do not offer to do it.';
+else if (pl.cannot) facts.off_topic = 'They asked for something outside sourcing (' + pl.cannot + '). Say kindly, in one sentence, that you only help with finding and tracking candidates.';
 let listed = [];
 let newRun = '';
 if (k.dry && ['search', 'add_person'].indexOf(pl.action) !== -1) facts.outcome = 'TEST MODE: nothing was started or added. Say briefly what you would do: ' + (pl.action === 'search' ? 'search for: ' + pl.brief + (pl.channels.length ? ' on ' + pl.channels.join(', ') : '') : 'add the person to ' + (role ? role.role : 'a role'));
@@ -6473,7 +6474,7 @@ else if (pl.action === 'show_candidates') {
   const start = Math.max(0, Number(f.start) || 0), lim = Math.min(15, Math.max(1, Number(f.limit) || 5));
   listed = list.slice(start, start + lim);
   facts.total_matching = list.length;
-  facts.people = listed.map(function(p, i){ return { no: start + i + 1, name: p.name, fit_percent: p.fit, title: p.title, company: p.company, location: p.location, stage: p.stage, has_email: p.email, why: p.why, link: p.link }; });
+  facts.people = listed.map(function(p, i){ return { no: start + i + 1, name: p.name, fit_percent: p.fit, headline: [p.title, p.company].filter(Boolean).join(' at '), location: p.location, stage: p.stage, has_email: p.email, why: p.why, link: p.link }; });
   if (!role) facts.outcome = 'There are no roles yet.'; else if (!listed.length) facts.outcome = 'Nobody matches that on this role.'; }
 else if (pl.action === 'explain') {
   const many = (pl.candidates || []).map(function(n){ return people.find(function(p){ return p.i === n; }); }).filter(Boolean);
@@ -6490,7 +6491,9 @@ const tg = k.channel === 'telegram';
 const system = 'You write the reply of a recruiting team\'s sourcing assistant, to a recruiter, by ' + (tg ? 'Telegram' : 'email') + '. Warm, brief and specific, like a capable colleague. ' +
   'Use ONLY the FACTS: never add a person, number, link, skill or claim that is not in them. Never say anything was done, stopped, changed or sent unless FACTS.done says so. ' +
   'If something failed, say so plainly and what to do next. Never mention internal ids, field names or the word "run". Ask at most one question, and never ask for optional details (years, companies, channels). ' +
-  'Start with the answer itself; do not repeat their message back, and do not say "nothing was changed". Only offer what the assistant can do: search, add a person, list or explain people, status. ' +
+  'Start with the answer itself; do not repeat their message back, and do not say "nothing was changed". Do not end with an offer or a question unless FACTS.question is set. ' +
+  'List people or roles only when they asked to see people or progress. A thank-you, small talk or an off-topic question gets one short friendly sentence and nothing else. ' +
+  'Leave out empty fields; never write "at" without a company. ' +
   'Plain text: short paragraphs; lists as lines starting "- " (people: "N. Name · fit% · title at company", then the why on the next line and the link if given; keep the given numbers). ' +
   (tg ? 'Keep it under 120 words unless listing people. ' : 'Keep it under 160 words unless listing people. No greeting line, no sign-off. ') +
   'Return ONLY JSON: {"reply": "the text"}.';
@@ -6502,6 +6505,7 @@ ASSIST_REPLY_JS = AI_TEXT_JS + r"""
 const w = $('Assist Write Prompt').first().json, x = $('Assist Act').first().json, k = $('Assist Prompt').first().json;
 let text = String(aiJson($json).reply || '').trim();
 const F = w.facts || {};
+if (x.plan.action === 'clarify' && x.plan.question) text = x.plan.question;
 if (!text) {
   if (F.added) text = F.added.name + ' added to ' + F.added.role + ' as a ' + F.added.fit_percent + '% match.\n' + (F.added.summary || '');
   else if (F.search) text = 'Searching for ' + [F.search.role, F.search.city].filter(Boolean).join(', ') + ' on ' + (F.search.channels || []).join(', ') + '.\n' + (F.next || '');
