@@ -6481,7 +6481,9 @@ else if (pl.action === 'explain') {
   if (many.length > 1) facts.compare = many.map(function(c){ return { rank: c.i, name: c.name, fit_percent: c.fit, title: c.title, company: c.company, location: c.location, stage: c.stage, has_email: c.email, evidence: c.why, link: c.link }; });
   const c = people.find(function(p){ return p.i === (pl.candidate_i || (many[0] || {}).i); });
   if (many.length > 1) {}
-  else if (c) facts.person = { rank: c.i, name: c.name, fit_percent: c.fit, title: c.title, company: c.company, location: c.location, source: c.source, stage: c.stage, has_email: c.email, evidence: c.why, link: c.link, others_above: people.filter(function(p){ return p.i < c.i; }).map(function(p){ return p.name + ' ' + p.fit + '%'; }).slice(0, 5) };
+  else if (c) { facts.person = { rank: c.i, name: c.name, fit_percent: c.fit, title: c.title, company: c.company, location: c.location, source: c.source, stage: c.stage, has_email: c.email, evidence: c.why, link: c.link, others_above: people.filter(function(p){ return p.i < c.i; }).map(function(p){ return p.name + ' ' + p.fit + '%'; }).slice(0, 5) };
+    const tie = people.filter(function(p){ return p.i !== c.i && p.fit === c.fit; }).length;
+    if (tie) facts.ranking_note = 'Several people share the same fit score (' + c.fit + '%); the order among equal scores carries no meaning. Do not give a reason for it.'; }
   else facts.outcome = 'Not sure which person they mean. Ask by number or name.'; facts.top = people.slice(0, 5).map(function(p){ return p.i + '. ' + p.name + ' ' + p.fit + '%'; }); }
 else if (pl.action === 'status') facts.roles = (k.roles || []).slice(0, 8).map(pub);
 else if (pl.action === 'answer') { facts.roles = (k.roles || []).slice(0, 8).map(pub); facts.top = people.slice(0, 10).map(function(p){ return { no: p.i, name: p.name, fit_percent: p.fit, title: p.title, company: p.company, stage: p.stage, has_email: p.email }; }); }
@@ -6506,6 +6508,7 @@ const w = $('Assist Write Prompt').first().json, x = $('Assist Act').first().jso
 let text = String(aiJson($json).reply || '').trim();
 const F = w.facts || {};
 if (x.plan.action === 'clarify' && x.plan.question) text = x.plan.question;
+if (x.plan.action === 'answer' && /^\s*(thanks?( you)?|thx|ty|ok(ay)?|great|cool|perfect|noted|got it)[\s!.]*$/i.test(String(k.text || ''))) text = k.channel === 'telegram' ? 'You\u2019re welcome. Message me any time to change the search or ask about the people.' : 'You\u2019re welcome. Reply here any time to change the search or ask about the people.';
 if (!text) {
   if (F.added) text = F.added.name + ' added to ' + F.added.role + ' as a ' + F.added.fit_percent + '% match.\n' + (F.added.summary || '');
   else if (F.search) text = 'Searching for ' + [F.search.role, F.search.city].filter(Boolean).join(', ') + ' on ' + (F.search.channels || []).join(', ') + '.\n' + (F.next || '');
