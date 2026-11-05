@@ -6670,3 +6670,105 @@ def apply_round43(nodes, conns):
     N["TG Call A"]["parameters"]["options"] = {"timeout": 120000}
     nodes.extend(new)
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 44
+# Scores that separate people. The model used to give a 1-10 score per person
+# and in live searches most of the top 25 came back 10/10, so ranking said
+# nothing. Now it rates each person on each requirement of the role (3 shown,
+# 2 partly, 1 not shown, 0 contradicted), quoting the words, and the score is
+# computed from the weighted ratings in code. Same for people added by link.
+
+CRIT_JS = r"""
+// The role's requirements as numbered, weighted criteria: the recruiter's rubric when there is one,
+// else the role, each must-have, years, city and nice-to-haves.
+const buildCrit = function(o){
+  o = o || {}; const out = [];
+  const rub = String(o.rubric || '').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+  rub.forEach(function(l){ const m = l.match(/^-?\s*(.+?)\s*\(weight\s*(\d)\)\s*:?\s*(.*)$/i); if (m) out.push({ name: m[1].slice(0, 80), w: Math.max(1, Math.min(3, Number(m[2]) || 1)), how: m[3].slice(0, 160) }); });
+  const has = function(word){ word = String(word).toLowerCase(); return out.some(function(c){ return c.name.toLowerCase().indexOf(word) !== -1; }); };
+  const list = function(s){ return String(s || '').split(/[,;\n]/).map(function(x){ return x.trim(); }).filter(Boolean); };
+  if (o.role && !out.some(function(c){ return /role|title|seniority/i.test(c.name); })) out.unshift({ name: 'Role: ' + String(o.role).slice(0, 60), w: 3, how: 'does the same job or an equivalent title' });
+  if (!rub.length) {
+    list(o.must).slice(0, 4).forEach(function(s){ if (!has(s)) out.push({ name: s.slice(0, 60), w: 3, how: 'must-have' }); });
+    if (o.experience && !/^(any|auto)/i.test(String(o.experience))) out.push({ name: 'Experience ' + o.experience, w: 2, how: 'years or seniority as stated' });
+    if (o.city) out.push({ name: 'Based in ' + String(o.city).split('-')[0].trim(), w: 1, how: 'location on the profile' });
+    list(o.nice).slice(0, 3).forEach(function(s){ if (!has(s)) out.push({ name: s.slice(0, 60), w: 1, how: 'nice to have' }); });
+  }
+  return out.slice(0, 8);
+};
+// Ratings -> a 0.5-10 score (one decimal) and a short breakdown.
+const scoreFrom = function(crit, rated){
+  if (!Array.isArray(rated) || !rated.length || !crit.length) return null;
+  let got = 0, max = 0; const parts = [];
+  crit.forEach(function(c, i){ const r = rated.find(function(x){ return x && Number(x.c) === i + 1; }) || {}; let s = Number(r.s); if (isNaN(s)) s = 1; s = Math.max(0, Math.min(3, Math.round(s)));
+    got += c.w * s; max += c.w * 3; parts.push(c.name + ' ' + ['✗', '?', '~', '✓'][s] + (s >= 2 && r.e ? ' ("' + String(r.e).slice(0, 60) + '")' : '')); });
+  const pct = max ? got / max : 0;
+  return { fit: Math.max(0.5, Math.round(pct * 100) / 10), breakdown: 'Scored: ' + parts.join('; ') + '.' };
+};
+"""
+
+
+def apply_round44(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round44 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    # 1. the search's scoring prompt: rate each criterion, quote the evidence
+    F = "Format Search Results"
+    N[F]["parameters"]["jsCode"] = CRIT_JS.strip() + "\n" + N[F]["parameters"]["jsCode"]
+    R(F, "function scoringPrompt(page_text) {",
+      "const SC = S('Search Criteria');\nconst CRIT = buildCrit({ role: SC['Target Role'], must: SC['Primary Skills'] || SC['Key Skills & Criteria'], nice: SC['Secondary Skills'], experience: SC['Experience Range (Years)'], city: SC['Location'], rubric: SC['Rubric'] });\n"
+      "const CRIT_TEXT = CRIT.map(function(c, i){ return (i + 1) + '. ' + c.name + ' (weight ' + c.w + ')' + (c.how ? ': ' + c.how : ''); }).join('\\n');\nfunction scoringPrompt(page_text) {")
+    R(F, "--- FULL JOB DESCRIPTION", "--- SCORING CRITERIA (rate every person on each) ---\n${ CRIT_TEXT }\n\n--- FULL JOB DESCRIPTION")
+    R(F, "EVERY real person MUST be returned with is_person true and a fit_score from 1 to 10. Never drop or zero-score a real person: the recruiter decides. Score must-have skills and role match highest, then seniority, then nice-to-have skills.",
+      "EVERY real person MUST be returned with is_person true. Never drop a real person: the recruiter decides. Rate each person on EACH numbered SCORING CRITERION from their line only: 3 = clearly shown, 2 = partly shown or an equivalent (a close skill or title), 1 = not shown either way, 0 = their line shows they do not meet it. Be strict: 3 needs the words in their line; most people should not get 3 on everything. For each 2 or 3, quote the few words from their line that show it.")
+    R(F, "If it does, lower the score for clearly too-junior people (students/interns -> 1-3) and say so.",
+      "If it does, rate the experience criterion 0 for clearly too-junior people (students, interns) and say so.")
+    R(F, "4. fit_score (number 1-10 for people, 0 only when is_person is false)",
+      "4. criteria (array, one entry per SCORING CRITERION in order: {\"c\": its number, \"s\": 0-3, \"e\": the few words from their line that show it, or \"\"}; [] when is_person is false)")
+    R(F, "Sort the array by fit_score descending. Return ONLY the JSON array.", "Keep the order of the lines. Return ONLY the JSON array.")
+    R(F, "out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length, prompt: scoringPrompt(text), system: SYSTEM } });",
+      "out.push({ json: { page_text: text, lines: lines, batch: out.length + 1, pool_size: all.length, prompt: scoringPrompt(text), system: SYSTEM, crit: CRIT } });")
+
+    # 2. the score is computed from the ratings
+    SP = "Split Candidates"
+    N[SP]["parameters"]["jsCode"] = CRIT_JS.strip() + "\n" + N[SP]["parameters"]["jsCode"]
+    R(SP, "let batches = [];", "let CRIT = []; try { CRIT = $('Format Search Results').first().json.crit || []; } catch (e) { CRIT = []; }\nlet batches = [];")
+    R(SP, "    seen[key] = true;\n    out.push({ json: {\n      candidate_name: c.candidate_name || '',",
+      "    seen[key] = true;\n    const sc = scoreFrom(CRIT, c.criteria);\n    out.push({ json: {\n      candidate_name: c.candidate_name || '',")
+    R(SP, "      fit_score: typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0,\n      match_summary: c.match_summary || '',",
+      "      fit_score: sc && c.is_person !== false ? sc.fit : (typeof c.fit_score === 'number' ? c.fit_score : Number(c.fit_score) || 0),\n      match_summary: (String(c.match_summary || '') + (sc && c.is_person !== false ? ' ' + sc.breakdown : '')).trim(),")
+
+    # 3. shown as whole percentages everywhere
+    R("Results Note", "fit: Math.max(1, Math.min(10, Number(c.fit_score) || 0)) * 10,", "fit: Math.round(Math.max(0.5, Math.min(10, Number(c.fit_score) || 0)) * 10),")
+    R("Dashboard Reply", "const pct = function(c){ return (Number(c.fit_score) || 0) * 10; };", "const pct = function(c){ return Math.round((Number(c.fit_score) || 0) * 10); };")
+    R("Build App Page", "var p = (+c.fit_score || 0) * 10;", "var p = Math.round((+c.fit_score || 0) * 10);", field="html" if "html" in N["Build App Page"]["parameters"] and "var p = (+c.fit_score" in N["Build App Page"]["parameters"].get("html", "") else "jsCode")
+
+    # 4. a person added by link, email or Telegram is scored the same way
+    AP = "Add Prompt"
+    N[AP]["parameters"]["jsCode"] = CRIT_JS.strip() + "\n" + N[AP]["parameters"]["jsCode"]
+    R(AP, "const system = 'You read a candidate profile or CV and score it against a hiring brief. Return ONLY JSON: {\"name\": the person’s full name or \"\", \"fit_score\": 1-10,",
+      "const CRIT = buildCrit({ role: run.role || c.role, must: c.must || run.must, nice: c.nice, experience: c.experience, city: run.location || c.city, rubric: c.rubric });\n"
+      "const system = 'You read a candidate profile or CV and rate it against a hiring brief. Return ONLY JSON: {\"name\": the person’s full name or \"\", \"criteria\": one entry per numbered CRITERION in order: {\"c\": its number, \"s\": 3 clearly shown | 2 partly or equivalent | 1 not shown | 0 shown not to meet it, \"e\": the few words that show it or \"\"},")
+    R(AP, "(saved.brief ? '\\nBRIEF: ' + String(saved.brief).slice(0, 1200) : '') +",
+      "(saved.brief ? '\\nBRIEF: ' + String(saved.brief).slice(0, 1200) : '') + '\\nCRITERIA:\\n' + CRIT.map(function(x, i){ return (i + 1) + '. ' + x.name + ' (weight ' + x.w + ')'; }).join('\\n') +")
+    R(AP, "via: S(b.via, 20) || 'app', system: system, prompt: prompt } }];", "via: S(b.via, 20) || 'app', system: system, prompt: prompt, crit: CRIT } }];")
+    AR = "Add Row"
+    N[AR]["parameters"]["jsCode"] = CRIT_JS.strip() + "\n" + N[AR]["parameters"]["jsCode"]
+    R(AR, "  fit_score: Math.max(1, Math.min(10, parseInt(d.fit_score, 10) || 5)), confidence: via,",
+      "  fit_score: (scoreFrom(k.crit || [], d.criteria) || {}).fit || Math.max(1, Math.min(10, parseInt(d.fit_score, 10) || 5)), confidence: via,")
+    R(AR, "  summary: (via + (k.by ? ' by ' + k.by : '') + '. ' + String(d.summary || '')).slice(0, 1500),",
+      "  summary: (via + (k.by ? ' by ' + k.by : '') + '. ' + String(d.summary || '') + ((scoreFrom(k.crit || [], d.criteria) || {}).breakdown ? ' ' + scoreFrom(k.crit || [], d.criteria).breakdown : '')).slice(0, 1500),")
+    R("Add Reply", "fit: r.fit_score,", "fit: Math.round(Number(r.fit_score) * 10) / 10,")
+
+    R("TG Compose", "' as a ' + (a.person.fit * 10) + '% match.", "' as a ' + Math.round(a.person.fit * 10) + '% match.")
+    R("Email Reply", "</b> as a ' + (j.person.fit * 10) + '% match.", "</b> as a ' + Math.round(j.person.fit * 10) + '% match.")
+    R("Assist Write Prompt", "fit_percent: ra.person.fit * 10,", "fit_percent: Math.round(ra.person.fit * 10),")
+
+    # 5. the inbox is checked every minute
+    N["On Candidate Reply"]["parameters"]["pollTimes"] = {"item": [{"mode": "everyX", "value": 1, "unit": "minutes"}]}
+    return nodes, conns

@@ -1706,7 +1706,7 @@ test('R42: everything the pipeline mails to the team carries the hidden mark; th
   const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
   for (const nm of ['Results Email', 'Email Answer', 'Send Weekly Report', 'Stale Email']) assert.match(N[nm].parameters.message, /sourcing-bot( run:[^<]*)?<\/div>$/, nm);
   const t = N['On Candidate Reply'].parameters;
-  assert.equal(t.pollTimes.item[0].value, 5); assert.equal(t.filters.readStatus, 'both'); assert.deepEqual(t.filters.labelIds, ['INBOX']);
+  assert.ok(t.pollTimes.item[0].value <= 5, 'checked at least every 5 minutes'); assert.equal(t.filters.readStatus, 'both'); assert.deepEqual(t.filters.labelIds, ['INBOX']);
   assert.equal(N['Serper Search'].onError, 'continueRegularOutput');
 });
 
@@ -1901,4 +1901,39 @@ test('R43: when nobody has an email yet, the reply says so and gives the best pe
   assert.match(w.facts.outcome, /Nobody on this role has an email address yet \(1 people found\)/); assert.deepEqual(w.facts.people.map((p) => p.name), ['Priya K']);
   const [a] = await runNode('Assist Act', [aiOut({ action: 'show_candidates', cannot: 'get emails', filter: { with_email: true }, confidence: 0.9 })], { 'Assist Prompt': [k] });
   assert.equal(a.plan.cannot, '', '"cannot" only goes with an answer');
+});
+
+// ---------- Round 44: scores built from each requirement, with the evidence ----------
+test('R44: the search rates every person on each requirement and the score is computed, so people are told apart', async () => {
+  const crit = { 'Target Role': 'QA Automation Engineer', 'Primary Skills': 'Selenium, Java', 'Secondary Skills': 'API testing', 'Experience Range (Years)': '4-7 years', Location: 'Chennai' };
+  const organic = [{ title: 'Veera P - QA Automation Engineer', snippet: 'Selenium, Java, 5 years. Chennai', link: 'https://in.linkedin.com/in/veera' },
+    { title: 'Preethi B - Test Engineer', snippet: 'Manual testing, some Selenium. Chennai', link: 'https://in.linkedin.com/in/preethi' },
+    { title: 'Ragavi G - QA Engineer', snippet: 'Selenium, Java, API testing, 6 years. Chennai', link: 'https://in.linkedin.com/in/ragavi' }];
+  const fmt = await runNode('Format Search Results', [{ organic }], { 'Search Criteria': [criteria(crit)] });
+  assert.deepEqual(fmt[0].crit.map((c) => [c.name, c.w]), [['Role: QA Automation Engineer', 3], ['Selenium', 3], ['Java', 3], ['Experience 4-7 years', 2], ['Based in Chennai', 1], ['API testing', 1]]);
+  assert.match(fmt[0].prompt, /--- SCORING CRITERIA \(rate every person on each\) ---\n1\. Role: QA Automation Engineer \(weight 3\)/);
+  assert.match(fmt[0].prompt, /4\. criteria \(array, one entry per SCORING CRITERION/); assert.doesNotMatch(fmt[0].prompt, /fit_score \(number 1-10/);
+  const rate = (line, ss, ev) => ({ line, candidate_name: 'P' + line, is_person: true, profile_url: organic[line - 1].link, match_summary: 'ok.', criteria: ss.map((s, i) => ({ c: i + 1, s, e: ev || '' })) });
+  const out = await runNode('Split Candidates', [aiOutput([rate(1, [3, 3, 3, 2, 3, 1], 'Selenium, Java'), rate(2, [2, 2, 1, 1, 3, 1]), rate(3, [3, 3, 3, 3, 3, 3], 'API testing')])], { 'Format Search Results': fmt });
+  const by = Object.fromEntries(out.map((o) => [o.candidate_name, o]));
+  assert.equal(by.P3.fit_score, 10); assert.equal(by.P1.fit_score, 9); assert.equal(by.P2.fit_score, 5.4, '21 of 39 weighted points');
+  assert.match(by.P1.match_summary, /^ok\. Scored: Role: QA Automation Engineer ✓ \("Selenium, Java"\); Selenium ✓/); assert.match(by.P2.match_summary, /Java \?/);
+  const old = await runNode('Split Candidates', [aiOutput([{ line: 1, candidate_name: 'Old', is_person: true, fit_score: 7, profile_url: organic[0].link }])], { 'Format Search Results': fmt });
+  assert.equal(old[0].fit_score, 7, 'an answer in the old shape still works');
+  const zero = await runNode('Split Candidates', [aiOutput([rate(1, [0, 0, 0, 0, 0, 0])])], { 'Format Search Results': fmt });
+  assert.equal(zero[0].fit_score, 0.5, 'a real person is never scored out');
+});
+
+test('R44: a recruiter rubric becomes the criteria, weights and all', async () => {
+  const fmt = await runNode('Format Search Results', [{ organic: [{ title: 'A', snippet: 'x', link: 'https://in.linkedin.com/in/a' }] }],
+    { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager', Rubric: '- B2B SaaS pricing (weight 3): has owned pricing\n- SQL (weight 2): writes queries\n- Seniority (weight 2): 6+ years' })] });
+  assert.deepEqual(fmt[0].crit.map((c) => c.name + '/' + c.w), ['B2B SaaS pricing/3', 'SQL/2', 'Seniority/2']);
+});
+
+test('R44: a person added by link is rated on the same requirements', async () => {
+  const k = await addPrompt({ run_id: '42', url: 'https://www.linkedin.com/in/asha/', text: 'Asha Nair, product manager, pricing, 6 years' });
+  assert.deepEqual(k.crit.map((c) => c.name), ['Role: Product Manager', 'B2B SaaS', 'pricing', 'Experience 5-8 years', 'Based in Bangalore']);
+  assert.match(k.prompt, /CRITERIA:\n1\. Role: Product Manager \(weight 3\)/); assert.match(k.system, /"criteria": one entry per numbered CRITERION/);
+  const row = (await runNode('Add Row', [aiOutput({ name: 'Asha Nair', title: 'Product Manager', criteria: [{ c: 1, s: 3, e: 'product manager' }, { c: 2, s: 1 }, { c: 3, s: 3, e: 'pricing' }, { c: 4, s: 2, e: '6 years' }, { c: 5, s: 1 }] })], { 'Add Prompt': [k] }))[0];
+  assert.equal(row.fit_score, 7.2, '26 of 36 weighted points'); assert.match(row.summary, /Scored: Role: Product Manager ✓ \("product manager"\); B2B SaaS \?; pricing ✓/);
 });
