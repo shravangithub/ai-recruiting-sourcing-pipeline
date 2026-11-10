@@ -160,7 +160,7 @@ tr.cand:hover td{background:#FAFAFB}
 @media (max-width:640px){.frow{grid-template-columns:1fr}}
 main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .bwrap{display:flex;gap:14px;overflow-x:auto;align-items:flex-start;padding-bottom:8px}
-.bcol{flex:1 1 260px;min-width:250px;max-width:340px;display:flex;flex-direction:column;gap:10px;background:#EFEFF1;border-radius:14px;padding:12px;min-height:220px;border-top:3px solid var(--tone,#C8C9CE);scroll-margin-left:24px}
+.bcol{flex:1 1 320px;min-width:300px;max-width:400px;display:flex;flex-direction:column;gap:10px;background:#EFEFF1;border-radius:14px;padding:12px;min-height:220px;border-top:3px solid var(--tone,#C8C9CE);scroll-margin-left:24px}
 .bcol.flash{box-shadow:0 0 0 2px var(--tone,#9C9DA3)}
 .bempty{font-size:12.5px;line-height:1.5;color:#7A7B82;padding:14px 10px;border:1.5px dashed #D4D4D8;border-radius:10px;text-align:center}
 /* the pipeline rail */
@@ -178,7 +178,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .bcol.drop{outline:2px dashed var(--red);outline-offset:-4px;background:#FFF8F8}
 .bcolh{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--char);padding:4px 4px 4px}
 .bcolh .n{margin-left:auto;font-weight:600;color:var(--muted)}
-.bcard{background:#fff;border:1px solid transparent;border-radius:12px;padding:14px 14px 12px;display:grid;grid-template-columns:36px minmax(0,1fr) 44px;grid-template-areas:'av name ring' 'sub sub sub' 'tags tags tags';gap:10px 10px;align-items:center;cursor:grab;text-align:left;font:inherit;color:inherit;width:100%;box-shadow:0 1px 0 rgba(31,32,36,.06)}
+.bcard{background:#fff;border:1px solid transparent;border-radius:12px;padding:14px 14px 12px;display:grid;grid-template-columns:36px minmax(0,1fr) 44px;grid-template-areas:'av name ring' 'sub sub sub' 'exp exp exp' 'tags tags tags';gap:8px 12px;align-items:center;cursor:grab;text-align:left;font:inherit;color:inherit;width:100%;box-shadow:0 1px 0 rgba(31,32,36,.06)}
 .bcard:hover{border-color:#C8C9CE}
 .bcard.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
 .bcard:focus-visible{outline:2px solid var(--red);outline-offset:2px}
@@ -187,6 +187,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .cbody{display:flex;flex-direction:column;gap:3px;min-width:0}
 .cname{grid-area:name;font-size:15px;font-weight:700;line-height:1.3;min-width:0;overflow-wrap:anywhere}
 .csub{grid-area:sub;font-size:13px;color:var(--muted);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cexp{grid-area:exp;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--char)}.cexp i{display:block;width:8px;height:8px;border-radius:4px;background:#C8C9CE;flex:none}.cexp.ex-y i{background:#2E9E5B}.cexp.ex-m i{background:#E0A100}.cexp.ex-n i{background:#D64545}.cexp .loc{font-weight:400;color:var(--muted)}
 .ctags{grid-area:tags;display:flex;gap:6px;flex-wrap:wrap}.ctags span{white-space:nowrap}.ctags:empty{display:none}
 /* match % as rising signal bars, warm to green */
 .sig{grid-area:ring;align-self:start;justify-self:end;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -824,6 +825,13 @@ function pct(c){
   return c._pct;
 }
 function tint(s){ s = String(s||'').toLowerCase().replace(/\b(pvt|private|ltd|limited|inc|llp|technologies|technology|india)\b/g,''); var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 8; }
+// years of experience for the card, from the experience check ("✅ 8 yrs stated", "🟡 Senior title", ...)
+function expLine(c){
+  var x = String(c.experience_check||''), y = x.match(/(\d{1,2})\s*yrs stated/), tone = /^✅/.test(x) ? 'ex-y' : (/^⚠️/.test(x) ? 'ex-n' : (/^🟡/.test(x) ? 'ex-m' : 'ex-q'));
+  var t = y ? y[1] + ' yrs experience' : (/since (\d{4})/.test(x) ? 'Coding since ' + x.match(/since (\d{4})/)[1] : (/Senior title/.test(x) ? 'Senior title · years not stated' : (/Junior title/.test(x) ? 'Junior title · years not stated' : 'Years not stated')));
+  var city = String(c.location||'').split(',')[0].trim();
+  return '<span class="cexp '+tone+'" title="'+esc(x.replace(/^[^\w]+\s*/,''))+'"><i></i>'+esc(t)+(city ? '<span class="loc">· '+esc(city.slice(0,28))+'</span>' : '')+'</span>';
+}
 function niceName(n){ n = String(n||''); return (n.length > 3 && n === n.toUpperCase() && /[A-Z]/.test(n)) ? n.toLowerCase().replace(/(^|[\s'-])([a-z])/g, function(m, a, b){ return a + b.toUpperCase(); }) : n; }
 function initials(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(s){ return s[0]; }).join('').toUpperCase(); }
 function checks(c){
@@ -1019,7 +1027,7 @@ function bCard(c){
   var sub = c.title && c.company ? c.title + ' at ' + c.company : (c.title || c.company || '');
   return '<button type="button" class="bcard'+(B.open===c.dedupe_key?' on':'')+'" draggable="true" data-card="'+esc(c.dedupe_key)+'" aria-label="'+esc(c.name+', '+p+'% match')+'">'+
     '<span class="cav t'+tint(c.company||c.name)+'">'+esc(initials(c.name))+(c.owner?'<span class="bown" title="Owner: '+esc(c.owner)+'">'+esc(initials(c.owner))+'</span>':'')+'</span>'+
-    '<span class="cname">'+esc(niceName(c.name))+'</span><span class="csub">'+esc(sub.slice(0,90))+'</span><span class="ctags">'+shown+'</span>'+
+    '<span class="cname">'+esc(niceName(c.name))+'</span><span class="csub">'+esc(sub.slice(0,90))+'</span>'+expLine(c)+'<span class="ctags">'+shown+'</span>'+
     sigBars(p, false)+'</button>';
 }
 function renderBoard(){
