@@ -33,7 +33,7 @@ test('no step runs twice: only Merge nodes take more than one incoming branch', 
     'Search Criteria': ['Check Search', 'Start Search?'],
     'CF Annotate': ['Any Codeforces?', 'CF Users'],
     'Load Report Settings': ['App Route', 'Weekly Report Schedule'],  // the Monday report OR an app request (health, preview)                  // Codeforces found or not, never both             // a search starts from the form OR from the app, never both
-    'App Reply': ['App Route', 'Claim Reply', 'Intake Result', 'Status Reply', 'Results Reply', 'Runs Reply', 'Approve Reply', 'Feedback Reply', 'Outreach Reply', 'Templates Reply', 'Save Templates Reply', 'Dashboard Reply', 'Board Reply', 'Draft Reply', 'Reply Sent', 'Kit Reply', 'Past People Reply', 'Insights To App?', 'Add Reply', 'Add No'],
+    'App Reply': ['App Route', 'Claim Reply', 'Intake Result', 'Status Reply', 'Results Reply', 'Runs Reply', 'Approve Reply', 'Feedback Reply', 'Outreach Reply', 'Templates Reply', 'Save Templates Reply', 'Dashboard Reply', 'Board Reply', 'Draft Reply', 'Reply Sent', 'Kit Reply', 'Past People Reply', 'Insights To App?', 'Add Reply', 'Add No', 'Assist Reply'],
     'Load TG Runs': ['TG Has Voice?', 'TG Transcripts'],          // a batch with voice notes goes through transcription first
     'Email Text': ['Email Has PDF?', 'Extract Email PDF'],
     'Email Reply': ['Email Search?', 'Email Start Search'] };    // a search by email takes one more step than adding a person        // a forwarded email with or without a CV attached // one answer per app request      // per-item: sent rows and replied rows, each handled once            // Results Gate only fires when nothing was written
