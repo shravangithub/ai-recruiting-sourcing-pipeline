@@ -206,8 +206,9 @@ flowchart TD
    platforms and the open web, results merged and de-duplicated.
 5. **AI ranking** — every result is scored 0–10 against the criteria/JD, with a hard experience-minimum
    filter and explicit rules to reject job postings, directories, and non-person pages.
-6. **Enrichment** — top candidates are enriched with verified work email/title/company (Apollo) and
-   public GitHub profile data; LinkedIn-less candidates skip paid enrichment to save credits.
+6. **Enrichment** — public GitHub profile data for everyone; paid email lookups wait until a recruiter
+   shortlists someone (Apollo first, then [Hunter](https://hunter.io) when Apollo has nothing), so credits
+   go only on people you'll contact.
 7. **Resume discovery** — a targeted secondary search hunts for a downloadable CV, scored for
    relevance and **verified against the candidate's name** before it's trusted.
 8. **Confidence scoring** — every candidate gets a High/Medium/Low confidence label with reasons,
@@ -248,7 +249,8 @@ Complete (with counts) or Paused.
 |---|---|---|
 | LinkedIn | Google X-ray (`site:linkedin.com/in`) with title synonyms, skills and city aliases | Serper |
 | GitHub | GitHub user search by language and location, then each profile (name, company, public email, site) | GitHub token (recommended) |
-| Apollo | People search by title, city and seniority; email/title lookup for Apollo rows and the top 25 LinkedIn rows | Apollo (optional) |
+| Apollo | People search by title, city and seniority; email lookup for people you shortlist | Apollo (optional) |
+| Hunter | Email lookup for people you shortlist when Apollo has none or is out of credits | Hunter (optional, free monthly credits) |
 | Kaggle | Kaggle API (top notebooks) plus Google search of Kaggle profiles in the city | Kaggle **legacy** API key + Serper |
 | Stack Overflow / Hugging Face / GitLab | Google search of profiles in the city (GitLab's own search only matches usernames) | Serper |
 | Hacker News | "Who wants to be hired" posts that mention the city | none |

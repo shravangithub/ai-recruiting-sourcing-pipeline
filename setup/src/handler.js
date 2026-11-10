@@ -56,7 +56,7 @@ const fail = (error) => done({ ok: false, error });
 
 // ---------- shared definitions ----------
 const CRED_NAMES = {
-  OPENAI: 'Sourcing · OpenAI', SERPER: 'Sourcing · Serper', APOLLO: 'Sourcing · Apollo',
+  OPENAI: 'Sourcing · OpenAI', SERPER: 'Sourcing · Serper', APOLLO: 'Sourcing · Apollo', HUNTER: 'Sourcing · Hunter',
   GITHUB: 'Sourcing · GitHub', GITLAB: 'Sourcing · GitLab', KAGGLE: 'Sourcing · Kaggle',
   SHEETS: 'Sourcing · Google Sheets', DRIVE: 'Sourcing · Google Drive', GMAIL: 'Sourcing · Gmail',
   SLACK: 'Sourcing · Slack',
@@ -139,6 +139,10 @@ async function testService(service, v) {
       r = await http({ method: 'GET', url: 'https://api.apollo.io/v1/auth/health', headers: { 'x-api-key': need(v.key), 'Cache-Control': 'no-cache' } });
       if (r.status === 200 && r.body && r.body.is_logged_in === false) return 'Apollo did not accept this key.';
       break;
+    case 'hunter':
+      if (!need(v.key)) return 'Paste a key first.';
+      r = await http({ method: 'GET', url: 'https://api.hunter.io/v2/account', headers: { 'X-API-KEY': need(v.key) } });
+      break;
     case 'github':
       if (!need(v.key)) return 'Paste a token first.';
       r = await http({ method: 'GET', url: 'https://api.github.com/user', headers: { Authorization: 'Bearer ' + need(v.key), 'User-Agent': 'ai-recruiting-sourcing-pipeline' } });
@@ -173,6 +177,7 @@ function credentialDefs(keys, oauth) {
     OPENAI: { type: 'openAiApi', data: { apiKey: s(keys.openai) } },
     SERPER: { type: 'httpHeaderAuth', data: { name: 'X-API-KEY', value: s(keys.serper) } },
     APOLLO: { type: 'httpHeaderAuth', data: { name: 'x-api-key', value: s(keys.apollo) || unset } },
+    HUNTER: { type: 'httpHeaderAuth', data: { name: 'X-API-KEY', value: s(keys.hunter) || unset } },
     GITHUB: { type: 'githubApi', data: { server: 'https://api.github.com', user: '', accessToken: s(keys.github) || unset } },
     GITLAB: { type: 'gitlabApi', data: { server: 'https://gitlab.com', accessToken: s(keys.gitlab) || unset } },
     KAGGLE: { type: 'httpBasicAuth', data: { user: s(keys.kaggleUser) || unset, password: s(keys.kaggleKey) || unset } },

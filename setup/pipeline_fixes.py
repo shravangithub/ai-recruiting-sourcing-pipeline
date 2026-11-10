@@ -6799,3 +6799,200 @@ def apply_round44(nodes, conns):
     # 6. the inbox is checked every minute
     N["On Candidate Reply"]["parameters"]["pollTimes"] = {"item": [{"mode": "everyX", "value": 1, "unit": "minutes"}]}
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 45
+# Email lookups only for people a recruiter picks. Searches used to send every
+# LinkedIn person in the top 25 to Apollo (one credit each), so a free Apollo
+# allowance was gone after two searches, mostly on people nobody contacted.
+# Now a search does no LinkedIn lookups; moving someone to Shortlisted (on the
+# Board, by email or Telegram) or approving someone without an email looks one
+# up: Apollo first, then Hunter.io (its own free monthly credits) when Apollo
+# has nothing, is out of credits or isn't set up. A found email is saved on the
+# person and in the results sheet, so Approve works straight away.
+
+LOOKUP_PREP_JS = r"""
+// Who to look up, and the two lookup URLs. Nothing is looked up when the person already has an email.
+const g = $('App Gate').first().json || {};
+const q = g.lookup || g.body || {};
+const base = g.response || { ok: true };
+const rows = $input.all().map(function(i){ return i.json || {}; }).filter(function(r){ return r.dedupe_key; });
+const r = rows.find(function(x){ return String(x.dedupe_key) === String(q.dedupe_key) && String(x.run_id) === String(q.run_id); }) || {};
+const S = function(v){ return String(v == null ? '' : v).trim(); };
+const has = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(S(r.email));
+const name = S(r.name).replace(/\s*[\(\[|,-].*$/, '').replace(/\s+/g, ' ');
+const li = [S(r.linkedin), S(r.profile_url)].find(function(u){ return /linkedin\.com\/in\//i.test(u); }) || '';
+const handle = (li.match(/linkedin\.com\/in\/([^\/?#]+)/i) || [])[1] || '';
+const company = S(r.company).replace(/\s*\(.*\)$/, '');
+const qs = function(o){ return Object.keys(o).filter(function(k){ return o[k]; }).map(function(k){ return k + '=' + encodeURIComponent(o[k]); }).join('&'); };
+const found = !!r.dedupe_key;
+const canLook = found && !has && (li || (name.indexOf(' ') > 0 && company));
+return [{ json: {
+  base: base, run_id: S(q.run_id), dedupe_key: S(q.dedupe_key), name: name, company: company, linkedin: li, row_found: found,
+  had_email: has, email: has ? S(r.email) : '', email_source: has ? S(r.contact_source) : '',
+  need_apollo: !!canLook,
+  apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs({ linkedin_url: li, name: name, organization_name: company, reveal_personal_emails: 'false' }),
+  hunter_url: 'https://api.hunter.io/v2/email-finder?' + qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '', company: company })
+} }];
+"""
+
+APOLLO_SAYS_JS = r"""
+// What Apollo said (if it was asked). Out of credits, no key or no email -> Hunter is asked next.
+const p = $('Lookup Prep').first().json;
+const res = p.need_apollo ? ($input.first().json || {}) : {};
+const out = Object.assign({}, p, { apollo_note: '' });
+if (p.need_apollo) {
+  const per = res.person || null;
+  const e = per && typeof per.email === 'string' ? per.email : '';
+  if (e && !/not_unlocked|domain\.com/i.test(e)) { out.email = e; out.email_source = 'Apollo' + (per.email_status ? ' (' + per.email_status + ')' : ''); }
+  else if (res.error) {
+    const t = JSON.stringify(res.error).toLowerCase();
+    out.apollo_note = /credit|422|insufficient|limit/.test(t) ? 'Apollo is out of credits' : (/401|403|unauthori|invalid api|api key/.test(t) ? 'Apollo did not accept its key' : 'Apollo could not be reached');
+  } else out.apollo_note = 'Apollo has no email for them';
+}
+out.need_hunter = p.need_apollo && !out.email;
+return [{ json: out }];
+"""
+
+LOOKUP_RESULT_JS = r"""
+// The answer: an email (and where it came from), or why there is none.
+const a = $('Apollo Says').first().json;
+const res = a.need_hunter ? ($input.first().json || {}) : {};
+const o = { email: a.email, email_source: a.email_source, notes: [] };
+if (a.apollo_note) o.notes.push(a.apollo_note);
+if (a.need_hunter) {
+  const d = res.data || null;
+  const score = d ? Number(d.score) || 0 : 0;
+  const valid = d && d.verification && d.verification.status === 'valid';
+  if (d && d.email && (score >= 50 || valid)) { o.email = String(d.email); o.email_source = 'Hunter (' + (valid ? 'verified' : score + '% confidence') + ')'; }
+  else if (d && d.email) o.notes.push('Hunter only had a low-confidence guess');
+  else if (res.error || res.errors) {
+    const t = JSON.stringify(res.error || res.errors).toLowerCase();
+    o.notes.push(/401|unauthori|no credential|credentials|api key|authenticat/.test(t) ? 'Hunter is not set up (n8n → Credentials → Sourcing · Hunter)'
+      : (/429|403|limit|quota|credit|usage/.test(t) ? 'Hunter is out of credits for this month' : 'Hunter could not be reached'));
+  } else o.notes.push('Hunter has no email for them');
+}
+const isNew = !!o.email && !a.had_email;
+let note = '';
+if (!o.email && a.row_found && a.need_apollo) note = 'No email found for ' + (a.name || 'them') + ' (' + o.notes.join('; ') + '). Draft a LinkedIn note instead.';
+else if (!o.email && a.row_found) note = 'Not enough to look up an email for ' + (a.name || 'them') + ' (needs a LinkedIn link, or a full name and company).';
+else if (!a.row_found) note = 'That person is not on this role.';
+return [{ json: { run_id: a.run_id, dedupe_key: a.dedupe_key, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note } }];
+"""
+
+LOOKUP_SAVE_JS = r"""
+// A newly found email is saved on the person (Board, assistant) and in the results sheet (outreach).
+const j = $input.first().json;
+if (!j.is_new) return [];
+return [{ json: { run_id: j.run_id, dedupe_key: j.dedupe_key, email: j.email, contact_source: j.email_source } }];
+"""
+
+LOOKUP_REPLY_JS = r"""
+const j = $input.first().json;
+const r = Object.assign({}, j.base || { ok: true });
+if (j.email) { r.email = j.email; r.email_source = j.email_source; r.email_new = j.is_new; }
+if (j.note) r.email_note = j.note;
+return [{ json: { response: r } }];
+"""
+
+
+def apply_round45(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round45 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    def code(name, js, pos):
+        new.append(_node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js}))
+
+    def iff(name, pos, field):
+        new.append(_node(name, "n8n-nodes-base.if", 2.2, pos, {
+            "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2},
+                           "conditions": [{"id": "r45-" + field, "leftValue": "={{ !!$json.%s }}" % field, "rightValue": True,
+                                           "operator": {"type": "boolean", "operation": "true", "singleValue": True}}], "combinator": "and"},
+            "options": {}}))
+
+    # 1. searches no longer send LinkedIn people to Apollo (Apollo-search rows still are: they only have a first name)
+    hl = N["Has LinkedIn"]["parameters"]["conditions"]["conditions"][0]
+    old = "(/apollo\\.io\\/people\\//i.test($json.profile_url || '') || (/linkedin\\.com/i.test($json.profile_url || '') && Number($json.rank) <= 25))"
+    assert hl["leftValue"].count(old) == 1, "round45: Has LinkedIn"
+    hl["leftValue"] = hl["leftValue"].replace(old, "/apollo\\.io\\/people\\//i.test($json.profile_url || '')")
+    R("Combine No Apollo", "'skipped - below top 25 (Apollo credits)'", "'email looked up when shortlisted'")
+
+    # 2. the route: update_card to Shortlisted/Approved, or find_email from the Board
+    sw = N["App Route"]
+    expr = sw["parameters"]["output"]
+    routes = json.loads(expr[expr.index("["):expr.index("]") + 1])
+    assert "find_email" not in routes
+    routes = routes + ["find_email"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    R("App Gate", "'add_person', 'assist'];", "'add_person', 'assist', 'find_email'];")
+    R("App Gate", "  if ((prev.snooze_until || '') !== snooze && snooze) ev('snooze', '', '', 'not now until ' + snooze);\n  return reply({ ok: true, card: row });",
+      "  if ((prev.snooze_until || '') !== snooze && snooze) ev('snooze', '', '', 'not now until ' + snooze);\n"
+      "  // picked for contact: look up an email if they have none (Apollo, then Hunter)\n"
+      "  if ((stage === 'shortlisted' || stage === 'approved') && prev.stage !== stage) return out('find_email', { response: { ok: true, card: row }, lookup: { run_id: runId, dedupe_key: key } });\n"
+      "  return reply({ ok: true, card: row });")
+
+    bx, by = N["Load Assist Settings"]["position"]
+    y = by + 420
+    lp = _node("Lookup Person", "n8n-nodes-base.dataTable", 1.1, [bx, y], {
+        "resource": "row", "operation": "get", "dataTableId": _dt_ref("app_candidates"), "matchType": "allConditions",
+        "filters": {"conditions": [
+            {"keyName": "run_id", "condition": "eq", "keyValue": "={{ String(($json.lookup || $json.body || {}).run_id || '') }}"},
+            {"keyName": "dedupe_key", "condition": "eq", "keyValue": "={{ String(($json.lookup || $json.body || {}).dedupe_key || '') }}"}]},
+        "returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
+    lp["executeOnce"] = True
+    new.append(lp)
+    code("Lookup Prep", LOOKUP_PREP_JS, [bx + 220, y])
+    iff("Ask Apollo?", [bx + 440, y], "need_apollo")
+    ap = json.loads(json.dumps(N["Apollo Enrich"]))
+    ap.update({"name": "Apollo Lookup", "id": "fix-apollo-lookup", "position": [bx + 660, y - 80], "onError": "continueRegularOutput", "alwaysOutputData": True})
+    ap["parameters"] = {"method": "POST", "url": "={{ $json.apollo_url }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+                        "sendHeaders": True, "headerParameters": {"parameters": [{"name": "Cache-Control", "value": "no-cache"}]}, "options": {"timeout": 20000}}
+    for k in ("executeOnce", "retryOnFail", "maxTries", "waitBetweenTries", "notes"):
+        ap.pop(k, None)
+    new.append(ap)
+    code("Apollo Says", APOLLO_SAYS_JS, [bx + 880, y])
+    iff("Ask Hunter?", [bx + 1100, y], "need_hunter")
+    hu = _node("Hunter Lookup", "n8n-nodes-base.httpRequest", 4.2, [bx + 1320, y - 80], {
+        "url": "={{ $('Lookup Prep').first().json.hunter_url }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "options": {"timeout": 20000}}, onError="continueRegularOutput", alwaysOutputData=True)
+    hu["credentials"] = {"httpHeaderAuth": {"id": "hunter", "name": "Sourcing · Hunter"}}
+    new.append(hu)
+    code("Lookup Result", LOOKUP_RESULT_JS, [bx + 1540, y])
+    code("Lookup Save", LOOKUP_SAVE_JS, [bx + 1760, y - 120])
+    up = json.loads(json.dumps(N["Mark Approved"]))
+    up.update({"name": "Save Found Email", "id": "fix-save-found-email", "position": [bx + 1980, y - 200], "onError": "continueRegularOutput"})
+    new.append(up)
+    sh = json.loads(json.dumps(N["Approve In Sheet"]))
+    sh.update({"name": "Found Email In Sheet", "id": "fix-found-email-in-sheet", "position": [bx + 1980, y - 40], "onError": "continueRegularOutput"})
+    cols = sh["parameters"]["columns"]
+    cols["value"] = {"Dedupe Key": "={{ $json.dedupe_key }}", "Email": "={{ $json.email }}", "Contact Source": "={{ $json.contact_source }}"}
+    tmpl = cols["schema"][1]
+    cols["schema"] = [cols["schema"][0]] + [dict(tmpl, id=c, displayName=c) for c in ("Email", "Contact Source")]
+    new.append(sh)
+    code("Lookup Reply", LOOKUP_REPLY_JS, [bx + 1760, y + 80])
+
+    link("App Route", "Lookup Person", routes.index("find_email"))
+    link("Lookup Person", "Lookup Prep"); link("Lookup Prep", "Ask Apollo?")
+    link("Ask Apollo?", "Apollo Lookup", 0); link("Ask Apollo?", "Apollo Says", 1)
+    link("Apollo Lookup", "Apollo Says"); link("Apollo Says", "Ask Hunter?")
+    link("Ask Hunter?", "Hunter Lookup", 0); link("Ask Hunter?", "Lookup Result", 1)
+    link("Hunter Lookup", "Lookup Result")
+    link("Lookup Result", "Lookup Save"); link("Lookup Result", "Lookup Reply")
+    link("Lookup Save", "Save Found Email"); link("Lookup Save", "Found Email In Sheet")
+    link("Lookup Reply", "App Reply")
+    nodes.extend(new)
+    return nodes, conns
