@@ -25,6 +25,7 @@ CRED_NAMES = {
     "OPENAI": "Sourcing · OpenAI",
     "SERPER": "Sourcing · Serper",
     "APOLLO": "Sourcing · Apollo",
+    "HUNTER": "Sourcing · Hunter",
     "GITHUB": "Sourcing · GitHub",
     "GITLAB": "Sourcing · GitLab",
     "KAGGLE": "Sourcing · Kaggle",
@@ -115,6 +116,7 @@ def main():
     src_nodes, src_conns = pipeline_fixes.apply_round42(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round43(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round44(src_nodes, src_conns)
+    src_nodes, src_conns = pipeline_fixes.apply_round45(src_nodes, src_conns)
     nodes = []
     for n in src_nodes:
         n = swap(n)
@@ -124,7 +126,7 @@ def main():
             new = {}
             for ctype in n["credentials"]:
                 if ctype == "httpHeaderAuth":
-                    key = "APOLLO" if "apollo" in n["name"].lower() else "SERPER"
+                    key = "APOLLO" if "apollo" in n["name"].lower() else ("HUNTER" if "hunter" in n["name"].lower() else "SERPER")
                 else:
                     key = TYPE_TO_KEY[ctype]
                 new[ctype] = {"id": f"__CRED_{key}__", "name": CRED_NAMES[key]}
@@ -156,7 +158,7 @@ def main():
                    "candidate_location: cand.candidate_location", "location: cand.candidate_location || ''",
                    "merged.candidate_name = ghName", "backend_python", "const cand = $('Location Check & Rank').item.json",
                    "Profile URL", "count = $('Location Check & Rank').all().length", "outside top", "location not confirmed",
-                   "skipped - below top", "STRICT HONESTY",
+                   "email looked up when shortlisted", "STRICT HONESTY",
                    "restored_total", "public on GitHub profile", "personal website (from GitHub)",
                    "10. line (number", "Writes ' + lang", "can't filter by location - check profile", "site:reddit.com/r/forhire", "return 'Open Web';", "const LIMIT = 32;", "JOB_AD.test", "followers:>10", "only the platforms the recruiter ticked", "and once by job title", "Here's what we'll search for", "by source: ", "public in GitHub commits", "api.openai.com/v1/responses", "Also on ", "A social page is not a resume", "Open the results sheet", "experience check", "site:wellfound.com/u", "--red:#BF1E2D", "Never consider gender", "outreach_sequence", "const OFFSETS = [2, 4, 5, 7];", "Not interested? Just reply", "sourcing-app-api", "Recruiter rubric", "The intake agent", "site:devfolio.co", "codeforces.com/api/user.info", "keep only people's profile pages", "site:adplist.org/mentors -inurl:expertise", "hr business partner", "save_templates"):
         assert marker in text, f"fix not applied: {marker}"

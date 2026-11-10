@@ -1319,7 +1319,11 @@ function saveCard(c, patch, done){
   var next = Object.assign({ run_id: B.runId, dedupe_key: c.dedupe_key, name: c.name }, prev, patch);
   Object.assign(c, patch); if (patch.snooze_until !== undefined) c.snoozed = patch.snooze_until && new Date(patch.snooze_until) > new Date();
   renderBoard();
-  return call('update_card', { card: next, prev: prev }).then(function(j){ if (!j.ok) { toast(j.error || 'Could not save.'); loadBoard(B.runId); } else if (done) done(); })
+  return call('update_card', { card: next, prev: prev }).then(function(j){ if (!j.ok) { toast(j.error || 'Could not save.'); loadBoard(B.runId); return; }
+    if (done) done();
+    // shortlisting looks up an email (Apollo, then Hunter) when the person has none
+    if (j.email && !c.email) { c.email = j.email; c.contact_source = j.email_source || ''; renderBoard(); toast(c.name + ' → ' + (STAGE_NAME[c.stage] || c.stage) + '. Email found: ' + j.email + ' (' + (j.email_source || 'lookup') + ').'); }
+    else if (j.email_note && !c.email) toast(j.email_note); })
     .catch(function(e){ if (e.message!=='locked') toast(e.message); });
 }
 function moveCard(key, stage){
@@ -1329,7 +1333,14 @@ function moveCard(key, stage){
   saveCard(c, { stage: stage }, function(){ toast(c.name + ' → ' + STAGE_NAME[stage] + (stage==='shortlisted' ? '. The ranking learns from this.' : (stage==='hired' ? ' 🎉 From a brief to a hire.' : ''))); if (stage === 'hired') confetti(); });
 }
 function approveCard(c, force){
-  if (!c.email) { toast('No email for ' + c.name + ' yet, so they cannot be approved.'); return; }
+  if (!c.email) {
+    if (c.lookedUp) { toast('No email for ' + c.name + ', so they cannot be approved. Draft a LinkedIn note instead.'); return; }
+    c.lookedUp = true; toast('Looking up an email for ' + c.name + '…');
+    call('find_email', { run_id: B.runId, dedupe_key: c.dedupe_key }).then(function(j){
+      if (j.email) { c.email = j.email; c.contact_source = j.email_source || ''; renderBoard(); approveCard(c, force); }
+      else toast(j.email_note || j.error || ('No email found for ' + c.name + '. Draft a LinkedIn note instead.'));
+    }).catch(function(e){ if (e.message!=='locked') toast(e.message); });
+    return; }
   if (c.contacted && c.contacted.recent && !force) { B.open = c.dedupe_key; openCard(c.dedupe_key); var w = ago(c.contacted.at); toast(c.name + ' was emailed for ' + (c.contacted.role||'another role') + (/ago|now/.test(w) ? ' ' : ' on ') + w + '. To protect your sender reputation, nobody is emailed twice within ' + ((B.data||{}).recontact_days||90) + ' days (Settings → Sending).'); return; }
   call('approve', { run_id: B.runId, keys: [c.dedupe_key] }).then(function(j){
     if (!j.ok) { toast(j.error || 'Could not approve.'); return; }

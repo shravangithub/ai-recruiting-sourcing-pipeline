@@ -162,7 +162,8 @@ const KEYS = [
   { id: 'openai', name: 'OpenAI', why: 'Reads the brief and scores every candidate', color: '#10b981', letter: 'O', req: true, url: 'https://platform.openai.com/api-keys', get: 'Get a key' },
   { id: 'serper', name: 'Serper', why: 'Searches LinkedIn, X, Reddit and the open web', color: '#3b82f6', letter: 'S', req: true, url: 'https://serper.dev/api-key', get: 'Get a key (free credits)' },
   { id: 'github', name: 'GitHub', why: 'Reads real code activity', color: '#7c3aed', letter: 'G', rec: true, url: 'https://github.com/settings/tokens', get: 'Create a token (no scopes needed)' },
-  { id: 'apollo', name: 'Apollo', why: 'Verifies email, title and company', color: '#f59e0b', letter: 'A', url: 'https://app.apollo.io/#/settings/integrations/api', get: 'Get a key' },
+  { id: 'apollo', name: 'Apollo', why: 'Finds the email of people you shortlist', color: '#f59e0b', letter: 'A', url: 'https://app.apollo.io/#/settings/integrations/api', get: 'Get a key' },
+  { id: 'hunter', name: 'Hunter', why: 'Finds an email when Apollo has none (free monthly credits)', color: '#f97316', letter: 'H', url: 'https://hunter.io/api-keys', get: 'Get a key (free plan)' },
   { id: 'gitlab', name: 'GitLab', why: 'More code activity', color: '#ef4444', letter: 'L', url: 'https://gitlab.com/-/user_settings/personal_access_tokens', get: 'Create a token (read_api)' },
   { id: 'kaggle', name: 'Kaggle', why: 'Data-science proof of work', color: '#06b6d4', letter: 'K', user: true, url: 'https://www.kaggle.com/settings', get: 'Create a key under API' },
 ];
@@ -236,7 +237,7 @@ $('next2').onclick = () => {
 function payloadBase() {
   const v = (id) => S.ok[id] ? keyValues(id) : { key: '', user: '' };
   return {
-    keys: { openai: v('openai').key, serper: v('serper').key, github: v('github').key, apollo: v('apollo').key, gitlab: v('gitlab').key, kaggleUser: v('kaggle').user, kaggleKey: v('kaggle').key },
+    keys: { openai: v('openai').key, serper: v('serper').key, github: v('github').key, apollo: v('apollo').key, hunter: v('hunter').key, gitlab: v('gitlab').key, kaggleUser: v('kaggle').user, kaggleKey: v('kaggle').key },
     oauth: { googleClientId: $('gId').value.trim(), googleClientSecret: $('gSecret').value.trim(), slackClientId: $('sId').value.trim(), slackClientSecret: $('sSecret').value.trim() },
     details: { company: $('company').value.trim(), signature: $('signature').value.trim(), slackChannel: $('slackChannel').value.trim(), slackUser: $('slackUser').value.trim() },
   };

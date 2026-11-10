@@ -373,12 +373,12 @@ test('two-word titles are unchanged ("Senior Backend Engineer")', async () => {
 });
 
 // ------------------------------------------------------------ Round 15: Apollo note, GitLab, Hacker News
-test('Apollo off for the month -> the row says so (not "outside top 25")', async () => {
+test('Apollo off for the month -> the row says so; otherwise the email is looked up when shortlisted', async () => {
   const d = { candidate_name: 'A', profile_url: 'https://in.linkedin.com/in/a', rank: 3 };
   const [over] = await runNode('Combine No Apollo', [d], { 'Budget Gate': [{ PDL_Used: 127 }] });
   assert.match(over.enrichment_status, /monthly limit/);
   const [under] = await runNode('Combine No Apollo', [d], { 'Budget Gate': [{ PDL_Used: 10 }] });
-  assert.match(under.enrichment_status, /below top 25/);
+  assert.match(under.enrichment_status, /looked up when shortlisted/);
 });
 
 test('GitLab is searched through Google (its API only matches usernames)', async () => {
@@ -1852,7 +1852,7 @@ test('R43: the assist route is its own output, and only the app gate lets teamma
   const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
   const routes = JSON.parse(N['App Route'].parameters.output.match(/(\[[^\]]+\])/)[1]);
   assert.deepEqual((wf.connections['App Route'].main[routes.indexOf('assist')] || []).map((c) => c.node), ['Load Assist Settings']);
-  assert.match(N['App Gate'].parameters.jsCode, /'add_person', 'assist'\];/);
+  assert.match(N['App Gate'].parameters.jsCode, /'add_person', 'assist'(, 'find_email')?\];/);
   for (const nm of ['Assist Planner', 'Assist Writer']) assert.match(N[nm].parameters.jsonBody, /model: 'gpt-5-mini'/);
   assert.deepEqual(wf.connections['Email Text'].main[0].map((c) => c.node), ['Email Thread']);
   assert.deepEqual(wf.connections['Email Ask'].main[0].map((c) => c.node), ['Email Add']);
@@ -1946,4 +1946,75 @@ test('R44: the assistant drafts a LinkedIn note for someone without an email, an
   const [w] = await runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [a], 'Assist Call A': [{}], 'Assist Step B': [{ b: { action: 'ping' } }] });
   assert.equal(w.facts.draft_for.name, 'Ravi Menon'); assert.equal(w.facts.draft_for.has_email, false); assert.match(w.facts.role_brief, /Java backend engineer in Bangalore/);
   assert.match(w.facts.write, /connection note under 280 characters/); assert.match(w.facts.write, /nothing has been sent/); assert.deepEqual(w.facts.done, []);
+});
+
+// ------------------------------------------------------------ Round 45: email lookups only for people a recruiter picks
+const { NODES, WF } = require('./harness');
+const r45person = { run_id: '42', dedupe_key: 'p1', name: 'Ravi Menon', company: 'Acme Payments', linkedin: 'https://in.linkedin.com/in/ravi-menon-12', profile_url: 'https://in.linkedin.com/in/ravi-menon-12', email: '' };
+const r45prep = async (row, gate) => (await runNode('Lookup Prep', [row || {}], { 'App Gate': [gate || { response: { ok: true, card: { stage: 'shortlisted' } }, lookup: { run_id: '42', dedupe_key: 'p1' } }] }))[0];
+test('R45: shortlisting someone on the Board looks up their email; other moves do not', async () => {
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const card = { run_id: '42', dedupe_key: 'p1', name: 'Ravi Menon', stage: 'shortlisted' };
+  const r = await gate29({ action: 'update_card', token: s.token, card, prev: { stage: 'found' } }, ctx);
+  assert.equal(r.route, 'find_email'); assert.deepEqual(r.lookup, { run_id: '42', dedupe_key: 'p1' }); assert.equal(r.response.card.stage, 'shortlisted');
+  assert.equal(r.writes.stages[0].stage, 'shortlisted', 'the move is still saved');
+  assert.equal((await gate29({ action: 'update_card', token: s.token, card: Object.assign({}, card, { stage: 'interview' }), prev: { stage: 'replied' } }, ctx)).route, 'reply');
+  assert.equal((await gate29({ action: 'update_card', token: s.token, card, prev: { stage: 'shortlisted' } }, ctx)).route, 'reply', 'a note on a shortlisted card is not a new lookup');
+  assert.equal((await gate29({ action: 'find_email', token: s.token, run_id: '42', dedupe_key: 'p1' }, ctx)).route, 'find_email');
+  const routes = JSON.parse(NODES['App Route'].parameters.output.match(/(\[[^\]]+\])/)[1]);
+  assert.deepEqual(WF.connections['App Route'].main[routes.indexOf('find_email')].map((c) => c.node), ['Lookup Person']);
+  assert.equal(NODES['App Route'].parameters.numberOutputs, routes.length);
+});
+test('R45: Apollo first; out of credits -> Hunter; the found email is saved and returned', async () => {
+  const p = await r45prep(r45person);
+  assert.equal(p.need_apollo, true);
+  assert.match(p.apollo_url, /linkedin_url=https%3A%2F%2Fin\.linkedin\.com%2Fin%2Fravi-menon-12/); assert.match(p.apollo_url, /organization_name=Acme%20Payments/);
+  assert.match(p.hunter_url, /linkedin_handle=ravi-menon-12/); assert.match(p.hunter_url, /full_name=Ravi%20Menon/);
+  const [a] = await runNode('Apollo Says', [{ error: { message: '422 - {"error":"insufficient credits","error_code":"BILLING.LIMIT.CREDITS_EXHAUSTED"}' } }], { 'Lookup Prep': [p] });
+  assert.equal(a.need_hunter, true); assert.equal(a.apollo_note, 'Apollo is out of credits');
+  const [res] = await runNode('Lookup Result', [{ data: { email: 'ravi.menon@acmepay.example', score: 91, verification: { status: 'valid' } } }], { 'Apollo Says': [a] });
+  assert.equal(res.email, 'ravi.menon@acmepay.example'); assert.equal(res.email_source, 'Hunter (verified)'); assert.equal(res.is_new, true);
+  const [save] = await runNode('Lookup Save', [res]);
+  assert.deepEqual(save, { run_id: '42', dedupe_key: 'p1', email: 'ravi.menon@acmepay.example', contact_source: 'Hunter (verified)' });
+  const [rep] = await runNode('Lookup Reply', [res]);
+  assert.equal(rep.response.ok, true); assert.equal(rep.response.card.stage, 'shortlisted'); assert.equal(rep.response.email, 'ravi.menon@acmepay.example');
+  const sheet = NODES['Found Email In Sheet'].parameters.columns;
+  assert.deepEqual(sheet.matchingColumns, ['Dedupe Key']); assert.deepEqual(Object.keys(sheet.value).sort(), ['Contact Source', 'Dedupe Key', 'Email']);
+  assert.equal(NODES['Save Found Email'].parameters.dataTableId.value, 'app_candidates');
+  assert.deepEqual(WF.connections['Lookup Save'].main[0].map((c) => c.node).sort(), ['Found Email In Sheet', 'Save Found Email']);
+});
+test('R45: Apollo has the email -> Hunter is not asked', async () => {
+  const p = await r45prep(r45person);
+  const [a] = await runNode('Apollo Says', [{ person: { email: 'ravi@acmepay.example', email_status: 'verified' } }], { 'Lookup Prep': [p] });
+  assert.equal(a.need_hunter, false); assert.equal(a.email_source, 'Apollo (verified)');
+  const [res] = await runNode('Lookup Result', [a], { 'Apollo Says': [a] });
+  assert.equal(res.email, 'ravi@acmepay.example'); assert.equal(res.is_new, true);
+  const [locked] = await runNode('Apollo Says', [{ person: { email: 'email_not_unlocked@domain.com' } }], { 'Lookup Prep': [p] });
+  assert.equal(locked.need_hunter, true, 'a locked Apollo email is not an email');
+});
+test('R45: nobody found -> a plain reason and a LinkedIn note suggestion; nothing is saved', async () => {
+  const p = await r45prep(r45person);
+  const [a] = await runNode('Apollo Says', [{ person: null }], { 'Lookup Prep': [p] });
+  const [res] = await runNode('Lookup Result', [{ error: { message: '401 - Unauthorized' } }], { 'Apollo Says': [a] });
+  assert.equal(res.email, ''); assert.match(res.note, /No email found for Ravi Menon \(Apollo has no email for them; Hunter is not set up/); assert.match(res.note, /LinkedIn note/);
+  assert.deepEqual(await runNode('Lookup Save', [res]), []);
+  const [low] = await runNode('Lookup Result', [{ data: { email: 'r@acmepay.example', score: 22, verification: { status: 'unknown' } } }], { 'Apollo Says': [a] });
+  assert.equal(low.email, ''); assert.match(low.note, /low-confidence/);
+  const [rate] = await runNode('Lookup Result', [{ error: { message: '429 - usage limit reached' } }], { 'Apollo Says': [a] });
+  assert.match(rate.note, /Hunter is out of credits/);
+});
+test('R45: someone who already has an email is not looked up again; searches send no LinkedIn rows to Apollo', async () => {
+  const p = await r45prep(Object.assign({}, r45person, { email: 'ravi@acmepay.example', contact_source: 'GitHub' }));
+  assert.equal(p.need_apollo, false); assert.equal(p.had_email, true);
+  const [a] = await runNode('Apollo Says', [p], { 'Lookup Prep': [p] }); assert.equal(a.need_hunter, false);
+  const [res] = await runNode('Lookup Result', [a], { 'Apollo Says': [a] });
+  assert.equal(res.email, 'ravi@acmepay.example'); assert.equal(res.is_new, false); assert.equal(res.note, '');
+  assert.deepEqual(await runNode('Lookup Save', [res]), []);
+  const thin = await r45prep({ run_id: '42', dedupe_key: 'p1', name: 'Ravi', company: '', profile_url: 'https://github.com/ravi' });
+  assert.equal(thin.need_apollo, false, 'a first name and no LinkedIn is not enough to look up');
+  const [t] = await runNode('Lookup Result', [thin], { 'Apollo Says': [Object.assign({}, thin, { need_hunter: false, apollo_note: '' })] });
+  assert.match(t.note, /Not enough to look up/);
+  assert.match(NODES['Has LinkedIn'].parameters.conditions.conditions[0].leftValue, /^=\{\{ \/apollo/);
+  assert.equal(NODES['Hunter Lookup'].credentials.httpHeaderAuth.name, 'Sourcing · Hunter');
+  assert.equal(NODES['Apollo Lookup'].credentials.httpHeaderAuth.name, 'Sourcing · Apollo');
 });
