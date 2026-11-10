@@ -6812,13 +6812,16 @@ def apply_round44(nodes, conns):
 # person and in the results sheet, so Approve works straight away.
 
 LOOKUP_PREP_JS = r"""
-// Who to look up, and the two lookup URLs. Nothing is looked up when the person already has an email.
+// Who to look up (one person, or up to 10 moved together), and the two lookup URLs.
+// Nothing is looked up for someone who already has an email.
 const g = $('App Gate').first().json || {};
 const q = g.lookup || g.body || {};
 const base = g.response || { ok: true };
 const rows = $input.all().map(function(i){ return i.json || {}; }).filter(function(r){ return r.dedupe_key; });
-const r = rows.find(function(x){ return String(x.dedupe_key) === String(q.dedupe_key) && String(x.run_id) === String(q.run_id); }) || {};
 const S = function(v){ return String(v == null ? '' : v).trim(); };
+const keys = (Array.isArray(q.keys) && q.keys.length ? q.keys : [q.dedupe_key]).map(S).filter(Boolean).slice(0, 10);
+return (keys.length ? keys : ['']).map(function(key){
+const r = rows.find(function(x){ return String(x.dedupe_key) === key && String(x.run_id) === S(q.run_id); }) || {};
 const has = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(S(r.email));
 const name = S(r.name).replace(/\s*[\(\[|,-].*$/, '').replace(/\s+/g, ' ');
 const li = [S(r.linkedin), S(r.profile_url)].find(function(u){ return /linkedin\.com\/in\//i.test(u); }) || '';
@@ -6827,19 +6830,20 @@ const company = S(r.company).replace(/\s*\(.*\)$/, '');
 const qs = function(o){ return Object.keys(o).filter(function(k){ return o[k]; }).map(function(k){ return k + '=' + encodeURIComponent(o[k]); }).join('&'); };
 const found = !!r.dedupe_key;
 const canLook = found && !has && (li || (name.indexOf(' ') > 0 && company));
-return [{ json: {
-  base: base, run_id: S(q.run_id), dedupe_key: S(q.dedupe_key), name: name, company: company, linkedin: li, row_found: found,
+return { json: {
+  base: base, run_id: S(q.run_id), dedupe_key: key, name: name, company: company, linkedin: li, row_found: found,
   had_email: has, email: has ? S(r.email) : '', email_source: has ? S(r.contact_source) : '',
   need_apollo: !!canLook,
   apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs({ linkedin_url: li, name: name, organization_name: company, reveal_personal_emails: 'false' }),
   hunter_url: 'https://api.hunter.io/v2/email-finder?' + qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '', company: company })
-} }];
+} };
+});
 """
 
 APOLLO_SAYS_JS = r"""
 // What Apollo said (if it was asked). Out of credits, no key or no email -> Hunter is asked next.
-const p = $('Lookup Prep').first().json;
-const res = p.need_apollo ? ($input.first().json || {}) : {};
+const p = $('Lookup Prep').item.json;
+const res = p.need_apollo ? ($json || {}) : {};
 const out = Object.assign({}, p, { apollo_note: '' });
 if (p.need_apollo) {
   const per = res.person || null;
@@ -6851,13 +6855,13 @@ if (p.need_apollo) {
   } else out.apollo_note = 'Apollo has no email for them';
 }
 out.need_hunter = p.need_apollo && !out.email;
-return [{ json: out }];
+return { json: out };
 """
 
 LOOKUP_RESULT_JS = r"""
 // The answer: an email (and where it came from), or why there is none.
-const a = $('Apollo Says').first().json;
-const res = a.need_hunter ? ($input.first().json || {}) : {};
+const a = $('Apollo Says').item.json;
+const res = a.need_hunter ? ($json || {}) : {};
 const o = { email: a.email, email_source: a.email_source, notes: [] };
 if (a.apollo_note) o.notes.push(a.apollo_note);
 if (a.need_hunter) {
@@ -6877,21 +6881,22 @@ let note = '';
 if (!o.email && a.row_found && a.need_apollo) note = 'No email found for ' + (a.name || 'them') + ' (' + o.notes.join('; ') + '). Draft a LinkedIn note instead.';
 else if (!o.email && a.row_found) note = 'Not enough to look up an email for ' + (a.name || 'them') + ' (needs a LinkedIn link, or a full name and company).';
 else if (!a.row_found) note = 'That person is not on this role.';
-return [{ json: { run_id: a.run_id, dedupe_key: a.dedupe_key, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note } }];
+return { json: { run_id: a.run_id, dedupe_key: a.dedupe_key, name: a.name, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note } };
 """
 
 LOOKUP_SAVE_JS = r"""
 // A newly found email is saved on the person (Board, assistant) and in the results sheet (outreach).
-const j = $input.first().json;
-if (!j.is_new) return [];
-return [{ json: { run_id: j.run_id, dedupe_key: j.dedupe_key, email: j.email, contact_source: j.email_source } }];
+return $input.all().map(function(i){ return i.json; }).filter(function(j){ return j.is_new; })
+  .map(function(j){ return { json: { run_id: j.run_id, dedupe_key: j.dedupe_key, email: j.email, contact_source: j.email_source } }; });
 """
 
 LOOKUP_REPLY_JS = r"""
-const j = $input.first().json;
+const all = $input.all().map(function(i){ return i.json; });
+const j = all[0] || {};
 const r = Object.assign({}, j.base || { ok: true });
 if (j.email) { r.email = j.email; r.email_source = j.email_source; r.email_new = j.is_new; }
 if (j.note) r.email_note = j.note;
+r.found = all.map(function(x){ return { dedupe_key: x.dedupe_key, name: x.name, email: x.email, email_source: x.email_source, new: x.is_new, note: x.note }; });
 return [{ json: { response: r } }];
 """
 
@@ -6950,8 +6955,7 @@ def apply_round45(nodes, conns):
     lp = _node("Lookup Person", "n8n-nodes-base.dataTable", 1.1, [bx, y], {
         "resource": "row", "operation": "get", "dataTableId": _dt_ref("app_candidates"), "matchType": "allConditions",
         "filters": {"conditions": [
-            {"keyName": "run_id", "condition": "eq", "keyValue": "={{ String(($json.lookup || $json.body || {}).run_id || '') }}"},
-            {"keyName": "dedupe_key", "condition": "eq", "keyValue": "={{ String(($json.lookup || $json.body || {}).dedupe_key || '') }}"}]},
+            {"keyName": "run_id", "condition": "eq", "keyValue": "={{ String(($json.lookup || $json.body || {}).run_id || '') }}"}]},
         "returnAll": True}, alwaysOutputData=True, onError="continueRegularOutput")
     lp["executeOnce"] = True
     new.append(lp)
@@ -6964,14 +6968,14 @@ def apply_round45(nodes, conns):
     for k in ("executeOnce", "retryOnFail", "maxTries", "waitBetweenTries", "notes"):
         ap.pop(k, None)
     new.append(ap)
-    code("Apollo Says", APOLLO_SAYS_JS, [bx + 880, y])
+    new.append(_node("Apollo Says", "n8n-nodes-base.code", 2, [bx + 880, y], {"jsCode": APOLLO_SAYS_JS, "mode": "runOnceForEachItem"}))
     iff("Ask Hunter?", [bx + 1100, y], "need_hunter")
     hu = _node("Hunter Lookup", "n8n-nodes-base.httpRequest", 4.2, [bx + 1320, y - 80], {
-        "url": "={{ $('Lookup Prep').first().json.hunter_url }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $json.hunter_url }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
         "options": {"timeout": 20000}}, onError="continueRegularOutput", alwaysOutputData=True)
     hu["credentials"] = {"httpHeaderAuth": {"id": "hunter", "name": "Sourcing · Hunter"}}
     new.append(hu)
-    code("Lookup Result", LOOKUP_RESULT_JS, [bx + 1540, y])
+    new.append(_node("Lookup Result", "n8n-nodes-base.code", 2, [bx + 1540, y], {"jsCode": LOOKUP_RESULT_JS, "mode": "runOnceForEachItem"}))
     code("Lookup Save", LOOKUP_SAVE_JS, [bx + 1760, y - 120])
     up = json.loads(json.dumps(N["Mark Approved"]))
     up.update({"name": "Save Found Email", "id": "fix-save-found-email", "position": [bx + 1980, y - 200], "onError": "continueRegularOutput"})
@@ -6995,4 +6999,132 @@ def apply_round45(nodes, conns):
     link("Lookup Save", "Save Found Email"); link("Lookup Save", "Found Email In Sheet")
     link("Lookup Reply", "App Reply")
     nodes.extend(new)
+    return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 46
+# 1. Shortlist from email or Telegram: "shortlist 1 and 3", "move #2 to not a fit".
+#    The assistant moves the people (Shortlisted, Interview or Not a fit) and, for
+#    a shortlist, looks up their emails (Apollo, then Hunter) and says what it found.
+#    Approving (which emails the person) stays on the Board.
+
+MOVE_GATE_JS = r"""
+// -- move several people at once (the assistant: "shortlist 1 and 3") --
+if (action === 'move_cards') {
+  const runId = String(body.run_id || '').trim(), stage = String(body.stage || '');
+  const people = (Array.isArray(body.people) ? body.people : []).filter(function(p){ return p && p.dedupe_key; }).slice(0, 10);
+  if (!/^\d+$/.test(runId) || !people.length) return reply({ ok: false, error: 'Which people?' });
+  if (['shortlisted', 'interview', 'not_fit', 'found'].indexOf(stage) === -1) return reply({ ok: false, error: 'They can be moved to Shortlisted, Interview or Not a fit here; approving is done on the Board.' });
+  people.forEach(function(p){
+    const key = String(p.dedupe_key).slice(0, 200), from = String(p.stage || 'found');
+    W.stages.push({ run_id: runId, dedupe_key: key, stage: stage, updated_at: now.toISOString(), updated_by: me.name });
+    if (from !== stage) W.events.push({ at: now.toISOString(), run_id: runId, dedupe_key: key, person: String(p.name || '').slice(0, 120), kind: 'stage', from_stage: from, to_stage: stage,
+      detail: 'by ' + (body.via === 'telegram' ? 'Telegram' : 'email'), by: me.name });
+  });
+  log(me, 'moved ' + people.length + ' to ' + stage + ' (' + (body.via === 'telegram' ? 'Telegram' : 'email') + ')', people.map(function(p){ return p.name; }).join(', ').slice(0, 200));
+  const moved = { ok: true, moved: people.length, stage: stage, people: people.map(function(p){ return { dedupe_key: p.dedupe_key, name: p.name }; }) };
+  if (stage === 'shortlisted') return out('find_email', { response: moved, lookup: { run_id: runId, keys: people.map(function(p){ return String(p.dedupe_key); }) } });
+  return reply(moved);
+}
+
+"""
+
+
+def apply_round46(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round46 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    # the app: a move of several people, with the email lookup for a shortlist
+    R("App Gate", "// -- your profile (past companies, for warm connections) --", MOVE_GATE_JS + "// -- your profile (past companies, for warm connections) --")
+
+    # the planner: a "move" action
+    R("Assist Prompt", '"draft_message" | "status"', '"draft_message" | "move" | "status"')
+    R("Assist Prompt", "' \"candidates\": for a comparison, the i of each person compared, else [],\\n' +",
+      "' \"candidates\": for a comparison or a move, the i of each person, else [],\\n' +\n"
+      "  ' \"stage_to\": for move: \"shortlisted\" | \"interview\" | \"not_fit\",\\n' +")
+    R("Assist Prompt", "draft_message = write a LinkedIn note or message to one person for the recruiter to send themselves. ",
+      "draft_message = write a LinkedIn note or message to one person for the recruiter to send themselves. "
+      "move = put people found on this role into Shortlisted, Interview or Not a fit (this also finds the email of shortlisted people). ")
+    R("Assist Prompt", "'\"stop the java search\" / \"email #1 for me\" -> answer, cannot \"stop a search\" / \"email a candidate\"\\n' +",
+      "'\"shortlist 1 and 3\" / \"add ravi to the shortlist\" / \"find emails for #2 and #4\" -> move, candidates [1, 3], stage_to \"shortlisted\"\\n' +\n"
+      "  '\"#5 is not a fit\" -> move, candidates [5], stage_to \"not_fit\"; \"move #2 to interview\" -> move, stage_to \"interview\"\\n' +\n"
+      "  '\"approve 1 and 2\" / \"send them the email\" -> answer, cannot \"approve or email candidates\"\\n' +\n"
+      "  '\"stop the java search\" / \"email #1 for me\" -> answer, cannot \"stop a search\" / \"email a candidate\"\\n' +")
+
+    # the act: the move call
+    R("Assist Act", "'draft_message', 'status',", "'draft_message', 'move', 'status',")
+    R("Assist Act", "if (!k.dry && action === 'add_person')",
+      "const STAGE_TO = ['shortlisted', 'interview', 'not_fit'];\n"
+      "const toMove = (Array.isArray(p.candidates) && p.candidates.length ? p.candidates : [p.candidate_i]).map(Number).filter(function(n){ return n > 0; })\n"
+      "  .map(function(n){ return (k.people || []).find(function(c){ return c.i === n; }); }).filter(Boolean).slice(0, 10);\n"
+      "if (action === 'move' && (!toMove.length || STAGE_TO.indexOf(p.stage_to) === -1)) { action = 'clarify'; question = question || 'Which people, by number, and should they go to Shortlisted, Interview or Not a fit?'; }\n"
+      "if (!k.dry && action === 'move') a = call('move_cards', { run_id: k.about, stage: p.stage_to, via: k.channel, people: toMove.map(function(c){ return { dedupe_key: c.k, name: c.name, stage: c.stage }; }) });\n"
+      "if (!k.dry && action === 'add_person')")
+    R("Assist Act", "cannot: action === 'answer'",
+      "stage_to: action === 'move' ? p.stage_to : '', moving: action === 'move' ? toMove.map(function(c){ return c.i; }) : [],\n  cannot: action === 'answer'")
+
+    # the facts: who moved, and the emails found
+    R("Assist Write Prompt", "else if (pl.action === 'status')",
+      "else if (pl.action === 'move') {\n"
+      "  const NAME = { shortlisted: 'Shortlisted', interview: 'Interview', not_fit: 'Not a fit' };\n"
+      "  const who = (pl.moving || []).map(function(n){ return people.find(function(p){ return p.i === n; }); }).filter(Boolean);\n"
+      "  if (k.dry) facts.outcome = 'TEST MODE: nothing was moved. Say you would move ' + who.map(function(p){ return p.name; }).join(', ') + ' to ' + NAME[pl.stage_to] + '.';\n"
+      "  else if (!ra.ok) facts.outcome = 'Could not move them: ' + (ra.error || 'the app did not answer') + '.';\n"
+      "  else { facts.done = ['Moved ' + who.map(function(p){ return p.name; }).join(', ') + ' to ' + NAME[pl.stage_to] + ' on the Board.'];\n"
+      "    if (pl.stage_to === 'shortlisted') { const f = Array.isArray(ra.found) ? ra.found : [];\n"
+      "      facts.emails = who.map(function(p){ const x = f.find(function(y){ return y.dedupe_key === p.k; }) || {};\n"
+      "        return { no: p.i, name: p.name, email: x.email || '', found_by: x.email ? (x.new ? x.email_source : 'already had it') : '', why_none: x.email ? '' : (x.note || 'not looked up') }; });\n"
+      "      facts.next = 'To email them, approve them on the Board (approving is not done from ' + (k.channel === 'telegram' ? 'Telegram' : 'email') + '). For anyone without an email, offer to draft a LinkedIn note.'; } } }\n"
+      "else if (pl.action === 'status')")
+    R("Assist Write Prompt", "'Add a person: send a profile link or a CV', ",
+      "'Add a person: send a profile link or a CV', 'Shortlist people by number (\"shortlist 1 and 3\"); their emails are looked up', ")
+    return nodes, conns
+
+
+# 2. What each search used: Google searches (Serper), AI tokens (OpenAI) and Apollo
+#    credits, with a rough dollar figure, on the Board and in the results email.
+COST_JS = r"""
+// What this search used, counted from the steps that ran (list prices; Apollo shown as credits).
+const cost = (function(){
+  const n = function(name){ try { return $(name).all().length; } catch (e) { return 0; } };
+  let tin = 0, tout = 0, calls = 0;
+  ['Message a model'].forEach(function(name){ try { $(name).all().forEach(function(i){ const u = (i.json || {}).usage || {}; if (u.input_tokens || u.output_tokens) { tin += Number(u.input_tokens) || 0; tout += Number(u.output_tokens) || 0; calls++; } }); } catch (e) {} });
+  const serper = n('Serper Search') + n('Resume Search') + n('Serper Retry');
+  const apollo = n('Apollo Enrich') + n('Apollo People Search');
+  const usd = tin * 0.15 / 1e6 + tout * 0.6 / 1e6 + serper * 0.001;
+  return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, usd: Math.round(usd * 1000) / 1000 };
+})();
+const kTok = function(t){ return t >= 1000 ? Math.round(t / 1000) + 'k' : String(t); };
+const cost_line = 'This search used ' + cost.serper + ' Google searches, ' + kTok(cost.ai_tokens) + ' AI tokens' + (cost.apollo ? ' and ' + cost.apollo + ' Apollo credits' : '') +
+  ' (about $' + (cost.usd < 0.01 ? '0.01' : cost.usd.toFixed(2)) + (cost.apollo ? ' plus the Apollo credits' : '') + '). Emails are looked up only when you shortlist someone.';
+"""
+
+
+def apply_round46_cost(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round46 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    R("Results Note", "const count = Number(s.count) || 0;", COST_JS.strip() + "\nconst count = Number(s.count) || 0;")
+    R("Results Note", "by_source: bySource.trim(), notify: notify, top_html: top_html } }];",
+      "by_source: bySource.trim(), notify: notify, top_html: top_html + (cost.serper ? '<p style=\"color:#888;font-size:12px\">' + esc(cost_line) + '</p>' : ''), cost: cost, cost_line: cost_line } }];")
+    x, y = N["Run Done"]["position"]
+    nodes.append(_node("Cost Row", "n8n-nodes-base.code", 2, [x, y + 180], {"jsCode":
+        "// Kept per search, for the Board.\nconst c = $json.cost || {};\nreturn [{ json: { key: 'cost:' + $execution.id, value: JSON.stringify(c) } }];"}))
+    sc = _node("Save Cost", "n8n-nodes-base.dataTable", 1.1, [x + 220, y + 180], json.loads(json.dumps(N["Save Settings"]["parameters"])), onError="continueRegularOutput")
+    nodes.append(sc)
+    conns["Results Note"]["main"][0].append({"node": "Cost Row", "type": "main", "index": 0})
+    conns["Cost Row"] = {"main": [[{"node": "Save Cost", "type": "main", "index": 0}]]}
+    R("Board Reply", "let saved = {}; try { saved = JSON.parse(sets['run:' + runId] || '{}'); } catch (e) { saved = {}; }",
+      "let saved = {}; try { saved = JSON.parse(sets['run:' + runId] || '{}'); } catch (e) { saved = {}; }\n"
+      "let cost = null; try { cost = sets['cost:' + runId] ? JSON.parse(sets['cost:' + runId]) : null; } catch (e) { cost = null; }")
+    R("Board Reply", "criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate",
+      "cost: cost, criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate")
     return nodes, conns

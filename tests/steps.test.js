@@ -2018,3 +2018,48 @@ test('R45: someone who already has an email is not looked up again; searches sen
   assert.equal(NODES['Hunter Lookup'].credentials.httpHeaderAuth.name, 'Sourcing · Hunter');
   assert.equal(NODES['Apollo Lookup'].credentials.httpHeaderAuth.name, 'Sourcing · Apollo');
 });
+
+// ------------------------------------------------------------ Round 46: shortlist from email or Telegram
+test('R46: "shortlist 1 and 3" moves both people and looks up their emails; approving stays on the Board', async () => {
+  const [k] = await aPrompt({ text: 'shortlist 1 and 3', focus_run_id: '42' });
+  assert.match(k.system, /move = put people found/); assert.match(k.system, /"shortlist 1 and 3"/);
+  const [a] = await runNode('Assist Act', [aiOut({ action: 'move', candidates: [1, 3], stage_to: 'shortlisted', confidence: 0.95 })], { 'Assist Prompt': [k] });
+  assert.equal(a.a.action, 'move_cards'); assert.equal(a.a.stage, 'shortlisted'); assert.equal(a.a.run_id, '42');
+  assert.deepEqual(a.a.people.map((p) => p.name), ['Asha Rao', 'Neha S']); assert.deepEqual(a.plan.moving, [1, 3]);
+  const [bad] = await runNode('Assist Act', [aiOut({ action: 'move', candidates: [1], stage_to: 'approved', confidence: 0.9 })], { 'Assist Prompt': [k] });
+  assert.equal(bad.plan.action, 'clarify', 'approving is not a move'); assert.equal(bad.a.action, 'ping');
+  // the app moves them and asks for the emails
+  const { admin } = await signUp(); const s = live('admin@example.com'); const ctx = { users: [admin], sessions: [s] };
+  const g = await gate29(Object.assign({ token: s.token }, a.a, { service_key: undefined, as_email: undefined }), ctx);
+  assert.equal(g.route, 'find_email'); assert.deepEqual(g.lookup.keys, a.a.people.map((p) => p.dedupe_key));
+  assert.deepEqual(g.writes.stages.map((x) => x.stage), ['shortlisted', 'shortlisted']); assert.ok(!('owner' in g.writes.stages[0]), 'owner and note are left as they were');
+  assert.equal(g.writes.events.length, 2); assert.equal(g.response.moved, 2);
+  const nf = await gate29({ token: s.token, action: 'move_cards', run_id: '42', stage: 'approved', people: [{ dedupe_key: 'x' }] }, ctx);
+  assert.match(nf.response.error, /approving is done on the Board/);
+  // two people looked up in one go
+  const rows = [{ run_id: '42', dedupe_key: a.a.people[0].dedupe_key, name: 'Asha Rao', email: 'asha@example.com' },
+    { run_id: '42', dedupe_key: a.a.people[1].dedupe_key, name: 'Neha S', company: 'Acme', linkedin: 'https://in.linkedin.com/in/neha-s' }];
+  const preps = await runNode('Lookup Prep', rows, { 'App Gate': [g] });
+  assert.deepEqual(preps.map((p) => p.need_apollo), [false, true]);
+  const says = await runNode('Apollo Says', [preps[0], { person: { email: 'neha@acme.example', email_status: 'verified' } }], { 'Lookup Prep': preps });
+  const res = await runNode('Lookup Result', says, { 'Apollo Says': says });
+  assert.deepEqual(res.map((r) => [r.email, r.is_new]), [['asha@example.com', false], ['neha@acme.example', true]]);
+  assert.equal((await runNode('Lookup Save', res)).length, 1);
+  const [rep] = await runNode('Lookup Reply', res);
+  assert.equal(rep.response.moved, 2); assert.equal(rep.response.found.length, 2);
+  // the reply's facts
+  const [w] = await runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [a], 'Assist Call A': [rep.response], 'Assist Step B': [{ b: { action: 'ping' } }] });
+  assert.match(w.facts.done[0], /Moved Asha Rao, Neha S to Shortlisted/);
+  assert.deepEqual(w.facts.emails.map((e) => [e.name, e.email, e.found_by]), [['Asha Rao', 'asha@example.com', 'already had it'], ['Neha S', 'neha@acme.example', 'Apollo (verified)']]);
+  assert.match(w.facts.next, /approve them on the Board/);
+});
+test('R46: each search says what it used (Google searches, AI tokens, Apollo) in the email and on the Board', async () => {
+  const usage = (i, o) => ({ usage: { input_tokens: i, output_tokens: o } });
+  const [note] = await runNode('Results Note', [{}], { 'Sourcing Summary': [{ count: 12, search_role: 'PM' }], 'Add Req Header': [{}], 'Search Criteria': [{}], 'Location Check & Rank': [{}],
+    'Message a model': [usage(100000, 20000), usage(80000, 10000)], 'Serper Search': [{}, {}, {}], 'Resume Search': [{}, {}], 'Serper Retry': [] });
+  assert.deepEqual(note.cost, { serper: 5, ai_tokens: 210000, ai_calls: 2, apollo: 0, usd: 0.05 });
+  assert.match(note.top_html, /This search used 5 Google searches, 210k AI tokens \(about \$0\.05\)/);
+  const [row] = await runNode('Cost Row', [note]); assert.equal(row.key, 'cost:999'); assert.equal(JSON.parse(row.value).serper, 5);
+  assert.deepEqual(WF.connections['Cost Row'].main[0].map((c) => c.node), ['Save Cost']);
+  assert.match(NODES['Board Reply'].parameters.jsCode, /cost: cost, criteria/);
+});

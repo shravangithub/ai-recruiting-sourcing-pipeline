@@ -1089,7 +1089,8 @@ function renderPulse(cards){
   var st = ['<span><b>'+(days||'—')+'</b>'+(days === 1 ? 'day open' : 'days open')+'</span>',
     '<span><b>'+(rate === null ? '—' : rate + '%')+'</b>reply rate'+(team ? ', your team averages '+team+'%' : '')+'</span>',
     best ? '<span><b>'+esc(best.replace('Google / Open Web','Open web'))+'</b>finds the most good people ('+bySrc[best].good+')</span>' : '',
-    j.best_time ? '<span>Replies usually arrive <b style="font-size:14px;margin:0">'+esc(j.best_time)+'</b></span>' : ''].filter(Boolean).join('');
+    j.best_time ? '<span>Replies usually arrive <b style="font-size:14px;margin:0">'+esc(j.best_time)+'</b></span>' : '',
+    j.cost ? '<span title="'+esc((j.cost.serper||0)+' Google searches (Serper) · '+(j.cost.ai_tokens||0).toLocaleString()+' AI tokens (OpenAI)'+(j.cost.apollo ? ' · '+j.cost.apollo+' Apollo credits' : '')+'. List prices; your plans may differ.')+'"><b>~$'+((+j.cost.usd||0) < 0.01 ? '0.01' : (+j.cost.usd).toFixed(2))+'</b>this search ('+(j.cost.serper||0)+' Google searches, '+Math.round((j.cost.ai_tokens||0)/1000)+'k AI tokens'+(j.cost.apollo ? ', '+j.cost.apollo+' Apollo' : '')+')</span>' : ''].filter(Boolean).join('');
   var doneBanner = '';
   if (B.justDone && !B.newRole) { var all0 = j.cards||[], strong0 = all0.filter(function(c){ return bPct(c) >= 80; }).length, em0 = all0.filter(function(c){ return c.email; }).length;
     doneBanner = '<div class="done" role="status"><b>Done: '+all0.length+' people found</b><span>'+strong0+' strong (80%+) · '+em0+' with an email address</span>'+(strong0?'<button type="button" class="btn" id="bShortStrong">Shortlist the '+strong0+' strong</button>':'')+'<button type="button" class="x" id="bDoneX" aria-label="Dismiss">×</button></div>'; }
