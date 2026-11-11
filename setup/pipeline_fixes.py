@@ -6811,86 +6811,125 @@ def apply_round44(nodes, conns):
 # has nothing, is out of credits or isn't set up. A found email is saved on the
 # person and in the results sheet, so Approve works straight away.
 
+EMAIL_LABEL_JS = r"""
+// One wording everywhere: "Apollo · verified", "Apollo · guessed, not verified", "Hunter · likely (82%)".
+function emailLabel(src, st, score) {
+  st = String(st || '').toLowerCase();
+  if (/^verified$|^valid$/.test(st)) return src + ' · verified';
+  if (score) return src + ' · likely (' + score + '%), not verified';
+  if (/extrapolat|guess|likely|unverified|accept_all|catch|unavailable/.test(st)) return src + ' · guessed, not verified';
+  return src;
+}
+"""
+
 LOOKUP_PREP_JS = r"""
 // Who to look up (one person, or up to 10 moved together), and the two lookup URLs.
-// Nothing is looked up for someone who already has an email.
+// Nothing is looked up for someone who already has an email, and a service that said
+// "no email" for this person in the last 30 days is not asked again (credits).
 const g = $('App Gate').first().json || {};
 const q = g.lookup || g.body || {};
 const base = g.response || { ok: true };
 const rows = $input.all().map(function(i){ return i.json || {}; }).filter(function(r){ return r.dedupe_key; });
 const S = function(v){ return String(v == null ? '' : v).trim(); };
 const keys = (Array.isArray(q.keys) && q.keys.length ? q.keys : [q.dedupe_key]).map(S).filter(Boolean).slice(0, 10);
+const today = new Date();
 return (keys.length ? keys : ['']).map(function(key){
 const r = rows.find(function(x){ return String(x.dedupe_key) === key && String(x.run_id) === S(q.run_id); }) || {};
 const has = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(S(r.email));
 const name = S(r.name).replace(/\s*[\(\[|,-].*$/, '').replace(/\s+/g, ' ');
+const full = name.indexOf(' ') > 0 && !/\s\S\.?$/.test(name);    // "Ravi K." from Apollo search is not a full name
 const li = [S(r.linkedin), S(r.profile_url)].find(function(u){ return /linkedin\.com\/in\//i.test(u); }) || '';
 const handle = (li.match(/linkedin\.com\/in\/([^\/?#]+)/i) || [])[1] || '';
+const apolloId = (S(r.profile_url).match(/apollo\.io\/people\/([A-Za-z0-9]+)/) || [])[1] || '';
 // "Accenture in India", "Acme Technologies Pvt Ltd" -> "Accenture", "Acme Technologies": Hunter matches the company name
 const company = S(r.company).replace(/\s*\(.*\)$/, '').replace(/\s+(in|-|,)\s*india$/i, '').replace(/[,\s]+(pvt\.?|private)?\s*(ltd\.?|limited|llp|inc\.?|llc|gmbh)$/i, '').replace(/\s+india$/i, '').trim();
 const qs = function(o){ return Object.keys(o).filter(function(k){ return o[k]; }).map(function(k){ return k + '=' + encodeURIComponent(o[k]); }).join('&'); };
+// "lookup:none:2026-11-11:apollo,hunter" = those services had no email for them that day
+const miss = S(r.contact_source).match(/^lookup:none:(\d{4}-\d\d-\d\d):([a-z,]*)/);
+const recent = miss && (today - new Date(miss[1])) < 30 * 864e5;
+const saidNone = recent ? miss[2].split(',') : [];
 const found = !!r.dedupe_key;
-const canLook = found && !has && (li || (name.indexOf(' ') > 0 && company));
+const apolloOk = found && !has && (apolloId || li || (full && company)) && saidNone.indexOf('apollo') === -1;
+const hunterOk = found && !has && ((full && company) || handle) && saidNone.indexOf('hunter') === -1;
 return { json: {
   base: base, run_id: S(q.run_id), dedupe_key: key, name: name, company: company, linkedin: li, row_found: found,
   had_email: has, email: has ? S(r.email) : '', email_source: has ? S(r.contact_source) : '',
-  need_apollo: !!canLook,
-  apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs({ linkedin_url: li, name: name, organization_name: company, reveal_personal_emails: 'false' }),
+  need_apollo: !!apolloOk, hunter_ok: !!hunterOk, asked_on: recent ? miss[1] : '', said_none: saidNone,
+  apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs(apolloId ? { id: apolloId, reveal_personal_emails: 'false' } : { linkedin_url: li, name: full ? name : '', organization_name: company, reveal_personal_emails: 'false' }),
   // name + company is how Hunter finds most emails; its LinkedIn lookup only knows profiles it has seen
-  hunter_url: 'https://api.hunter.io/v2/email-finder?' + (name.indexOf(' ') > 0 && company ? qs({ full_name: name, company: company }) : qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '' }))
+  hunter_url: 'https://api.hunter.io/v2/email-finder?' + (full && company ? qs({ full_name: name, company: company, max_duration: '5' }) : qs({ linkedin_handle: handle, full_name: full ? name : '', max_duration: '5' }))
 } };
 });
 """
 
-APOLLO_SAYS_JS = r"""
+APOLLO_SAYS_JS = EMAIL_LABEL_JS + r"""
 // What Apollo said (if it was asked). Out of credits, no key or no email -> Hunter is asked next.
 const p = $('Lookup Prep').item.json;
 const res = p.need_apollo ? ($json || {}) : {};
-const out = Object.assign({}, p, { apollo_note: '' });
+const out = Object.assign({}, p, { apollo_note: '', none_by: [], full_name: '', linkedin_found: '' });
 if (p.need_apollo) {
   const per = res.person || null;
   const e = per && typeof per.email === 'string' ? per.email : '';
-  if (e && !/not_unlocked|domain\.com/i.test(e)) { out.email = e; out.email_source = 'Apollo' + (per.email_status ? ' (' + per.email_status + ')' : ''); }
+  if (per && per.name && String(per.name).length > p.name.length) out.full_name = String(per.name);
+  if (per && per.linkedin_url && !p.linkedin) out.linkedin_found = String(per.linkedin_url);
+  if (e && !/not_unlocked|domain\.com/i.test(e)) { out.email = e; out.email_source = emailLabel('Apollo', per.email_status); }
   else if (res.error) {
     const t = JSON.stringify(res.error).toLowerCase();
     out.apollo_note = /credit|422|insufficient|limit/.test(t) ? 'Apollo is out of credits' : (/401|403|unauthori|invalid api|api key/.test(t) ? 'Apollo did not accept its key' : 'Apollo could not be reached');
-  } else out.apollo_note = 'Apollo has no email for them';
+  } else { out.apollo_note = 'Apollo has no email for them'; out.none_by.push('apollo'); }
 }
-out.need_hunter = p.need_apollo && !out.email;
+// Hunter is asked when Apollo had nothing, or was not asked because it said "none" recently
+out.need_hunter = !out.email && p.hunter_ok && (p.need_apollo || p.said_none.indexOf('apollo') !== -1);
 return { json: out };
 """
 
-LOOKUP_RESULT_JS = r"""
-// The answer: an email (and where it came from), or why there is none.
+LOOKUP_RESULT_JS = EMAIL_LABEL_JS + r"""
+// The answer: an email (and how sure), or a plain reason there is none.
 const a = $('Apollo Says').item.json;
 const res = a.need_hunter ? ($json || {}) : {};
 const o = { email: a.email, email_source: a.email_source, notes: [] };
+const none = (a.none_by || []).slice();
 if (a.apollo_note) o.notes.push(a.apollo_note);
 if (a.need_hunter) {
   const d = res.data || null;
   const score = d ? Number(d.score) || 0 : 0;
   const valid = d && d.verification && d.verification.status === 'valid';
-  if (d && d.email && (score >= 50 || valid)) { o.email = String(d.email); o.email_source = 'Hunter (' + (valid ? 'verified' : score + '% confidence') + ')'; }
-  else if (d && d.email) o.notes.push('Hunter only had a low-confidence guess');
+  if (d && d.email && (score >= 50 || valid)) { o.email = String(d.email); o.email_source = emailLabel('Hunter', valid ? 'valid' : '', valid ? 0 : score); }
+  else if (d && d.email) { o.notes.push('Hunter only had a low-confidence guess'); none.push('hunter'); }
   else if (res.error || res.errors) {
     const e = res.error || {}, m = String(e.message || JSON.stringify(res.errors || '')), code = Number((m.match(/^(\d{3})\b/) || [])[1]) || Number(e.httpCode) || 0;
-    o.notes.push(code === 404 || /not_found|does not exist/i.test(m) ? 'Hunter does not know them' + (a.company ? '' : ' (no company on their profile to search by)')
-      : (code === 401 || /no credentials|credentials? (not|were not)|unauthori/i.test(m) ? 'Hunter is not set up (n8n → Credentials → Sourcing · Hunter)'
-      : (code === 429 || code === 402 || code === 403 || /usage limit|quota|too many/i.test(m) ? 'Hunter is out of credits for this month' : 'Hunter could not be reached')));
-  } else o.notes.push('Hunter has no email for them');
+    if (code === 404 || /not_found|does not exist/i.test(m)) { o.notes.push('Hunter does not know them' + (a.company ? '' : ' (no company on their profile to search by)')); none.push('hunter'); }
+    else o.notes.push(code === 401 || /no credentials|credentials? (not|were not)|unauthori/i.test(m) ? 'Hunter is not set up (n8n → Credentials → Sourcing · Hunter)'
+      : (code === 429 || code === 402 || code === 403 || /usage limit|quota|too many/i.test(m) ? 'Hunter is out of credits for this month' : 'Hunter could not be reached'));
+  } else { o.notes.push('Hunter has no email for them'); none.push('hunter'); }
 }
 const isNew = !!o.email && !a.had_email;
+const who = a.full_name || a.name || 'them';
 let note = '';
-if (!o.email && a.row_found && a.need_apollo) note = 'No email found for ' + (a.name || 'them') + ' (' + o.notes.join('; ') + '). Draft a LinkedIn note instead.';
-else if (!o.email && a.row_found) note = 'Not enough to look up an email for ' + (a.name || 'them') + ' (needs a LinkedIn link, or a full name and company).';
-else if (!a.row_found) note = 'That person is not on this role.';
-return { json: { run_id: a.run_id, dedupe_key: a.dedupe_key, name: a.name, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note } };
+if (!a.row_found) note = 'That person is not on this role.';
+else if (!o.email && (a.need_apollo || a.need_hunter)) note = 'No email found for ' + who + ' (' + o.notes.join('; ') + '). Draft a LinkedIn note instead.';
+else if (!o.email && a.asked_on) note = 'Already looked up on ' + a.asked_on + ': ' + a.said_none.map(function(x){ return x === 'apollo' ? 'Apollo' : 'Hunter'; }).join(' and ') + ' had no email for ' + who + '. Not asked again for 30 days, to save credits.';
+else if (!o.email) note = 'Not enough to look up an email for ' + who + ' (needs a LinkedIn link, or a full name and company).';
+// remember who said "none" (only real answers, never "out of credits"), so they are not asked again for 30 days
+const prev = a.asked_on ? a.said_none : [];
+const all = prev.concat(none).filter(function(x, i, l){ return x && l.indexOf(x) === i; });
+const marker = !o.email && none.length ? 'lookup:none:' + new Date().toISOString().slice(0, 10) + ':' + all.join(',') : '';
+return { json: { run_id: a.run_id, dedupe_key: a.dedupe_key, name: who, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note,
+  guessed: !!o.email && /not verified/.test(o.email_source || ''), marker: marker, full_name: a.full_name || '', linkedin_found: a.linkedin_found || '' } };
 """
 
 LOOKUP_SAVE_JS = r"""
-// A newly found email is saved on the person (Board, assistant) and in the results sheet (outreach).
+// A newly found email is saved on the person (Board, assistant) and in the results sheet (outreach),
+// with the full name and LinkedIn Apollo returned for people found by Apollo's search.
 return $input.all().map(function(i){ return i.json; }).filter(function(j){ return j.is_new; })
-  .map(function(j){ return { json: { run_id: j.run_id, dedupe_key: j.dedupe_key, email: j.email, contact_source: j.email_source } }; });
+  .map(function(j){ const r = { run_id: j.run_id, dedupe_key: j.dedupe_key, email: j.email, contact_source: j.email_source };
+    if (j.full_name) r.name = j.full_name; if (j.linkedin_found) r.linkedin = j.linkedin_found; return { json: r }; });
+"""
+
+LOOKUP_MISS_JS = r"""
+// "No email" answers are remembered on the person, so the same service is not asked again for 30 days.
+return $input.all().map(function(i){ return i.json; }).filter(function(j){ return j.marker; })
+  .map(function(j){ return { json: { run_id: j.run_id, dedupe_key: j.dedupe_key, contact_source: j.marker } }; });
 """
 
 LOOKUP_REPLY_JS = r"""
@@ -6899,7 +6938,7 @@ const j = all[0] || {};
 const r = Object.assign({}, j.base || { ok: true });
 if (j.email) { r.email = j.email; r.email_source = j.email_source; r.email_new = j.is_new; }
 if (j.note) r.email_note = j.note;
-r.found = all.map(function(x){ return { dedupe_key: x.dedupe_key, name: x.name, email: x.email, email_source: x.email_source, new: x.is_new, note: x.note }; });
+r.found = all.map(function(x){ return { dedupe_key: x.dedupe_key, name: x.name, email: x.email, email_source: x.email_source, guessed: x.guessed, new: x.is_new, note: x.note }; });
 return [{ json: { response: r } }];
 """
 
@@ -7000,6 +7039,11 @@ def apply_round45(nodes, conns):
     link("Hunter Lookup", "Lookup Result")
     link("Lookup Result", "Lookup Save"); link("Lookup Result", "Lookup Reply")
     link("Lookup Save", "Save Found Email"); link("Lookup Save", "Found Email In Sheet")
+    code("Lookup Miss", LOOKUP_MISS_JS, [bx + 1760, y + 240])
+    mm = json.loads(json.dumps(N["Mark Approved"]))
+    mm.update({"name": "Save Lookup Miss", "id": "fix-save-lookup-miss", "position": [bx + 1980, y + 240], "onError": "continueRegularOutput"})
+    new.append(mm)
+    link("Lookup Result", "Lookup Miss"); link("Lookup Miss", "Save Lookup Miss")
     link("Lookup Reply", "App Reply")
     nodes.extend(new)
     return nodes, conns
@@ -7130,4 +7174,32 @@ def apply_round46_cost(nodes, conns):
       "let cost = null; try { cost = sets['cost:' + runId] ? JSON.parse(sets['cost:' + runId]) : null; } catch (e) { cost = null; }")
     R("Board Reply", "criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate",
       "cost: cost, criteria: saved.criteria || null, brief: saved.brief || '', team_reply_rate")
+    return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 47
+# Email confidence in plain words, and Apollo credits kept for people a recruiter picks:
+# a search enriches at most the top 15 Apollo-search rows, and a service that said
+# "no email" for someone is not asked again for 30 days.
+
+def apply_round47(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round47 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    hl = N["Has LinkedIn"]["parameters"]["conditions"]["conditions"][0]
+    old = "/apollo\\.io\\/people\\//i.test($json.profile_url || '') &&"
+    assert hl["leftValue"].count(old) == 1, "round47: Has LinkedIn"
+    hl["leftValue"] = hl["leftValue"].replace(old, "/apollo\\.io\\/people\\//i.test($json.profile_url || '') && Number($json.rank) <= 15 &&")
+
+    R("Parse Contact", "(merged.enrichment_status === 'enriched' ? 'apollo' : '')))",
+      "(merged.enrichment_status === 'enriched' ? ('Apollo' + (/^verified$/i.test(merged.email_status) ? ' · verified' : (merged.email_status ? ' · guessed, not verified' : ''))) : '')))")
+
+    R("Assist Write Prompt", "found_by: x.email ? (x.new ? x.email_source : 'already had it') : '',",
+      "found_by: x.email ? (x.new ? x.email_source : 'already had it') : '', may_bounce: !!x.guessed,")
+    R("Assist Write Prompt", "'Leave out empty fields; never write \"at\" without a company. ' +",
+      "'Leave out empty fields; never write \"at\" without a company. When an email has may_bounce true, say it is a guess from the company\\'s email format and may bounce. ' +")
     return nodes, conns
