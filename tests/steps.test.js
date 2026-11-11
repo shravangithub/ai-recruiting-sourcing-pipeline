@@ -1280,7 +1280,10 @@ test('R33: the employer named in the search line is kept as the current company'
 const insights = (route, data = {}) => runNode('Insights', [{}], Object.assign({
   'Load Report Settings': [{}], 'Load Report Runs': [{}], 'Load Report People': [{}], 'Load Report Sequences': [{}], 'Load Report Users': [{}], 'Load Report Events': [{}] },
   route ? { 'App Gate': [{ route }] } : {}, data));
-const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+// relative to the harness clock (2026-10-27 10:30 IST), not the real one: Insights reads $now,
+// so these tests give the same answer at any time of day (they used to fail just after midnight IST)
+const MOCK_MS = LDT.fromISO('2026-10-27T10:30:00', { zone: 'Asia/Kolkata' }).toMillis();
+const ago = (min) => new Date(MOCK_MS - min * 60000).toISOString();
 
 test('R34: health says in plain words what is wrong and how to fix it', async () => {
   const [h] = await insights('health', {

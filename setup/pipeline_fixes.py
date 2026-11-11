@@ -4824,7 +4824,7 @@ const people = rows('Load Report People').filter(function(r){ return r.dedupe_ke
 const seqs = rows('Load Report Sequences').filter(function(r){ return r.contact_key; });
 const users = rows('Load Report Users').filter(function(r){ return r.email; });
 const events = rows('Load Report Events').filter(function(r){ return r.at; });
-const NOW = Date.now(), H = 3600000, D = 24 * H;
+const NOW = $now.toMillis(), H = 3600000, D = 24 * H;
 const t = function(v){ const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
 const ago = function(ms){ if (!ms) return 'never'; const s = (NOW - ms) / 1000; if (s < 90) return 'just now'; if (s < 5400) return Math.round(s / 60) + ' min ago'; if (s < 36 * 3600) return Math.round(s / 3600) + ' h ago'; const dd = Math.round(s / 86400); return dd === 1 ? 'yesterday' : dd + ' days ago'; };
 const IST = function(ms){ return new Date(ms + 5.5 * H); };
