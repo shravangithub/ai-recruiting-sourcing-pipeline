@@ -7141,7 +7141,7 @@ const cost = (function(){
   let tin = 0, tout = 0, calls = 0;
   ['Message a model'].forEach(function(name){ try { $(name).all().forEach(function(i){ const u = (i.json || {}).usage || {}; if (u.input_tokens || u.output_tokens) { tin += Number(u.input_tokens) || 0; tout += Number(u.output_tokens) || 0; calls++; } }); } catch (e) {} });
   const serper = n('Serper Search') + n('Resume Search') + n('Serper Retry');
-  const apollo = n('Apollo Enrich') + n('Apollo People Search');
+  const apollo = n('Apollo Enrich');   // Apollo's people search itself uses no credits
   const usd = tin * 0.15 / 1e6 + tout * 0.6 / 1e6 + serper * 0.001;
   return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, usd: Math.round(usd * 1000) / 1000 };
 })();
@@ -7202,4 +7202,55 @@ def apply_round47(nodes, conns):
       "found_by: x.email ? (x.new ? x.email_source : 'already had it') : '', may_bounce: !!x.guessed,")
     R("Assist Write Prompt", "'Leave out empty fields; never write \"at\" without a company. ' +",
       "'Leave out empty fields; never write \"at\" without a company. When an email has may_bounce true, say it is a guess from the company\\'s email format and may bounce. ' +")
+    return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 48
+# More people per search. Apollo's people search costs no credits, so it now pulls
+# 100 per page, two pages, with similar titles; LinkedIn gets two more searches (the
+# role without the must-have skills, and the role's other common titles); the resume
+# look-up for the top 20 (one Google search each) is cut to the top 8 to pay for it.
+
+def apply_round48(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round48 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    # Apollo: free search, so no monthly gate; 2 x 100 people; similar titles
+    R("Build Apollo Query", "// Monthly Apollo allowance used up: skip Apollo, the other sources still run.\ntry { if (!(Number($('Budget Gate').first().json.PDL_Used || 0) < 100)) return []; } catch (e) {}\n",
+      "// Apollo's people search uses no credits (only email lookups do), so it runs even when the month's credits are gone.\n")
+    R("Build Apollo Query", "const PER_PAGE = 25;", "const PER_PAGE = 100;")
+    R("Build Apollo Query", "const PAGES = 1; ", "const PAGES = 2; ")
+    R("Build Apollo Query", "const titles = role ? [role] : [];",
+      "// the role as written and its core title (\"Senior DevOps Engineer\" -> also \"DevOps Engineer\"); Apollo adds similar titles\n"
+      "const core = role.replace(/^(senior|sr\\.?|junior|jr\\.?|lead|principal|staff|associate|head of)\\s+/i, '').trim();\n"
+      "const titles = role ? [role].concat(core && core.toLowerCase() !== role.toLowerCase() ? [core] : []) : [];")
+    R("Build Apollo Query", "  if (titles.length) body.person_titles = titles;", "  if (titles.length) { body.person_titles = titles; body.include_similar_titles = true; }")
+
+    # LinkedIn: the role without the must-have skills, and the other common titles for it
+    R("Build Search Query", "    employerOpts, collegeOpts, eduOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });\n}\n// 2) X / Dribbble",
+      "    employerOpts, collegeOpts, eduOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });\n"
+      "  // many profiles show the title but not every skill: the same role and place without the must-haves (the AI scores the skills)\n"
+      "  if (skillArr.length || skillRawBool) queries.push({ kind: 'profiles', pages: 3, q: fit([\n"
+      "    ['site:linkedin.com/in'], roleOpts, locOpts, employerOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });\n"
+      "  // the role's other common titles (\"Site Reliability Engineer\", \"Platform Engineer\" for DevOps)\n"
+      "  const rl48 = role.toLowerCase(), key48 = Object.keys(synMap).filter(function(k){ return rl48 === k || rl48.slice(-k.length - 1) === ' ' + k; }).sort(function(a, b){ return b.length - a.length; })[0];\n"
+      "  const more48 = !roleRaw && key48 ? synMap[key48].slice(3, 6).map(function(x){ return '\"' + x + '\"'; }) : [];\n"
+      "  if (more48.length) queries.push({ kind: 'profiles', pages: 2, q: fit([\n"
+      "    ['site:linkedin.com/in'], shrink(more48), locOpts, exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });\n"
+      "}\n// 2) X / Dribbble")
+
+    # resume look-up: top 8 instead of top 20 (one Google search each)
+    cond = N["Resume Lookup?"]["parameters"]["conditions"]["conditions"][0]
+    assert cond["rightValue"] == 20
+    cond["rightValue"] = 8
+
+    # the results email says how many profiles were looked at
+    R("Results Note", "const count = Number(s.count) || 0;",
+      "let reviewed = 0; try { reviewed = Number($('Merge Pages').first().json.results_count) || 0; } catch (e) {}\nconst count = Number(s.count) || 0;")
+    R("Results Note", "top_html: top_html + (cost.serper ?",
+      "reviewed: reviewed, top_html: (reviewed > count ? '<p style=\"color:#555\">Reviewed ' + reviewed + ' profiles to find these ' + count + '.</p>' : '') + top_html + (cost.serper ?")
     return nodes, conns

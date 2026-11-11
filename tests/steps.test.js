@@ -61,7 +61,10 @@ test('LinkedIn query: core title, skills, city aliases, India region, no job pag
   assert.match(li.q, /\(bangalore OR bengaluru\)/);
   assert.match(li.q, /-intitle:jobs/);
   assert.equal(li.gl, 'in');
-  assert.equal(q.filter((x) => x.kind === 'profiles').length, 3, '3 pages');
+  const qs = [...new Set(q.filter((x) => x.kind === 'profiles').map((x) => x.q))];
+  assert.equal(q.filter((x) => x.q === li.q).length, 3, '3 pages');
+  // R48: also the role without the must-have skills, and the role's other titles
+  assert.ok(qs.length >= 2, 'more than one LinkedIn search'); assert.ok(qs.every((x) => /site:linkedin\.com\/in/.test(x)));
 });
 
 test('multi-word city is quoted; excludes and employer applied', async () => {
@@ -343,12 +346,20 @@ test('UAT: a long PDF that only mentions the name in its text is not their resum
   assert.equal(r3.resume_link, 'https://rk-dev.github.io/curriculum/', 'their own site from GitHub is still accepted');
 });
 
-test('UAT: Apollo is skipped once the monthly Apollo allowance is used up', async () => {
-  const c = criteria({ 'Target Platforms': ['LinkedIn'] });
+test('R48: Apollo people search (no credits) runs even when the month\'s credits are used, 2 x 100 people, similar titles', async () => {
+  const c = criteria({ 'Target Platforms': ['LinkedIn'], 'Target Role': 'Senior DevOps Engineer' });
   const over = await runNode('Build Apollo Query', [{}], { 'Search Criteria': [c], 'Budget Gate': [{ PDL_Used: 127, Serper_Used: 153 }] });
-  assert.equal(over.length, 0);
-  const under = await runNode('Build Apollo Query', [{}], { 'Search Criteria': [c], 'Budget Gate': [{ PDL_Used: 20, Serper_Used: 153 }] });
-  assert.equal(under.length, 1);
+  assert.equal(over.length, 2);
+  assert.equal(over[0].apollo_body.per_page, 100); assert.deepEqual(over.map((x) => x.apollo_body.page), [1, 2]);
+  assert.deepEqual(over[0].apollo_body.person_titles, ['Senior DevOps Engineer', 'DevOps Engineer']); assert.equal(over[0].apollo_body.include_similar_titles, true);
+  assert.equal(NODES['Resume Lookup?'].parameters.conditions.conditions[0].rightValue, 8, 'resume look-ups only for the top 8');
+});
+test('R48: DevOps searches LinkedIn by its other titles too', async () => {
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior DevOps Engineer', 'Target Platforms': ['LinkedIn'] })] });
+  const qs = [...new Set(q.filter((x) => x.kind === 'profiles').map((x) => x.q))];
+  assert.equal(qs.length, 3, qs.join('\n'));
+  assert.ok(qs.some((x) => !/kubernetes|java|spring/i.test(x)), 'one without the must-have skills');
+  assert.equal(q.filter((x) => x.kind === 'profiles').length, 8, '3 + 3 + 2 pages');
 });
 
 test('UAT: zero-result check counts every AI batch, not just the first item it receives', async () => {
