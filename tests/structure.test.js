@@ -33,7 +33,8 @@ test('no step runs twice: only Merge nodes take more than one incoming branch', 
     'Search Criteria': ['Check Search', 'Start Search?'],
     'CF Annotate': ['Any Codeforces?', 'CF Users'],
     'Load Report Settings': ['App Route', 'Weekly Report Schedule'],  // the Monday report OR an app request (health, preview)                  // Codeforces found or not, never both             // a search starts from the form OR from the app, never both
-    'App Reply': ['App Route', 'Claim Reply', 'Intake Result', 'Status Reply', 'Results Reply', 'Runs Reply', 'Approve Reply', 'Feedback Reply', 'Outreach Reply', 'Templates Reply', 'Save Templates Reply', 'Dashboard Reply', 'Board Reply', 'Draft Reply', 'Reply Sent', 'Kit Reply', 'Past People Reply', 'Insights To App?', 'Add Reply', 'Add No', 'Assist Reply', 'Lookup Reply'],
+    'App Reply': ['App Route', 'Claim Reply', 'Intake Result', 'Status Reply', 'Results Reply', 'Runs Reply', 'Approve Reply', 'Feedback Reply', 'Outreach Reply', 'Templates Reply', 'Save Templates Reply', 'Dashboard Reply', 'Board Reply', 'Draft Reply', 'Reply Sent', 'Kit Reply', 'Past People Reply', 'Insights To App?', 'Add Reply', 'Add No', 'Assist Reply', 'Lookup Reply', 'From The Link?'],
+    'Opt-out Who': ['Find Opt-out Token', 'Ensure Opt-outs App'],   // the link in an email OR the app's Delete button
     'Apollo Says': ['Ask Apollo?', 'Apollo Lookup'],          // Apollo asked or not
     'Lookup Result': ['Ask Hunter?', 'Hunter Lookup'],      // Hunter asked or not
     'Load TG Runs': ['TG Has Voice?', 'TG Transcripts'],          // a batch with voice notes goes through transcription first
