@@ -6907,7 +6907,7 @@ if (a.need_hunter) {
   else if (d && d.email) { o.notes.push('Hunter only had a low-confidence guess'); none.push('hunter'); }
   else if (res.error || res.errors) {
     const e = res.error || {}, m = String(e.message || JSON.stringify(res.errors || '')), code = Number((m.match(/^(\d{3})\b/) || [])[1]) || Number(e.httpCode) || 0;
-    if (code === 404 || /not_found|does not exist/i.test(m)) { o.notes.push('Hunter does not know them' + (a.company ? '' : ' (no company on their profile to search by)')); none.push('hunter'); }
+    if (code === 404 || /not_found|does not exist/i.test(m)) { o.notes.push('Hunter does not know them' + (a.company ? '' : ', and their profile shows no company to search by')); none.push('hunter'); }
     else o.notes.push(code === 401 || /no credentials|credentials? (not|were not)|unauthori/i.test(m) ? 'Hunter is not set up (n8n → Credentials → Sourcing · Hunter)'
       : (code === 429 || code === 402 || code === 403 || /usage limit|quota|too many/i.test(m) ? 'Hunter is out of credits for this month' : 'Hunter could not be reached'));
   } else { o.notes.push('Hunter has no email for them'); none.push('hunter'); }
@@ -6923,7 +6923,7 @@ else if (!o.email) note = 'Not enough to look up an email for ' + who + ' (needs
 const prev = a.asked_on ? a.said_none : [];
 const all = prev.concat(none).filter(function(x, i, l){ return x && l.indexOf(x) === i; });
 const marker = !o.email && none.length ? 'lookup:none:' + new Date().toISOString().slice(0, 10) + ':' + all.join(',') : '';
-return { json: { run_id: a.run_id, dedupe_key: a.dedupe_key, name: who, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note,
+return { json: { run_id: a.run_id, dedupe_key: a.dedupe_key, name: who, base: a.base, email: o.email || '', email_source: o.email_source || '', is_new: isNew, note: note, why: o.email ? '' : (o.notes.join('; ') || note),
   guessed: !!o.email && /not verified/.test(o.email_source || ''), marker: marker, full_name: a.full_name || '', linkedin_found: a.linkedin_found || '' } };
 """
 
@@ -6947,7 +6947,7 @@ const j = all[0] || {};
 const r = Object.assign({}, j.base || { ok: true });
 if (j.email) { r.email = j.email; r.email_source = j.email_source; r.email_new = j.is_new; }
 if (j.note) r.email_note = j.note;
-r.found = all.map(function(x){ return { dedupe_key: x.dedupe_key, name: x.name, email: x.email, email_source: x.email_source, guessed: x.guessed, new: x.is_new, note: x.note }; });
+r.found = all.map(function(x){ return { dedupe_key: x.dedupe_key, name: x.name, email: x.email, email_source: x.email_source, guessed: x.guessed, new: x.is_new, note: x.note, why: x.why }; });
 return [{ json: { response: r } }];
 """
 
@@ -7133,7 +7133,7 @@ def apply_round46(nodes, conns):
       "  else { facts.done = ['Moved ' + who.map(function(p){ return p.name; }).join(', ') + ' to ' + NAME[pl.stage_to] + ' on the Board.'];\n"
       "    if (pl.stage_to === 'shortlisted') { const f = Array.isArray(ra.found) ? ra.found : [];\n"
       "      facts.emails = who.map(function(p){ const x = f.find(function(y){ return y.dedupe_key === p.k; }) || {};\n"
-      "        return { no: p.i, name: p.name, email: x.email || '', found_by: x.email ? (x.new ? x.email_source : 'already had it') : '', why_none: x.email ? '' : (x.note || 'not looked up') }; });\n"
+      "        return { no: p.i, name: p.name, email: x.email || '', found_by: x.email ? (x.new ? x.email_source : 'already had it') : '', why_none: x.email ? '' : (x.why || x.note || 'not looked up') }; });\n"
       "      facts.next = 'To email them, approve them on the Board (approving is not done from ' + (k.channel === 'telegram' ? 'Telegram' : 'email') + '). For anyone without an email, offer to draft a LinkedIn note.'; } } }\n"
       "else if (pl.action === 'status')")
     R("Assist Write Prompt", "'Add a person: send a profile link or a CV', ",
@@ -7356,4 +7356,24 @@ def apply_round49(nodes, conns):
     R("Results Note", "return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, usd: Math.round(usd * 1000) / 1000 };",
       "return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, exa_usd: exa, usd: Math.round(usd * 1000) / 1000 };")
     R("Results Note", "' AI tokens' + (cost.apollo ?", "' AI tokens' + (cost.exa_usd ? ', an Exa people search' : '') + (cost.apollo ?")
+    return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 51
+# Assistant replies end with the content: no "Thanks." or "Nice progress." tacked on.
+
+def apply_round51(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round51 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    R("Assist Write Prompt", "Do not end with an offer or a question unless FACTS.question is set. ",
+      "Do not end with an offer or a question unless FACTS.question is set, and never close with pleasantries or praise (no \"Thanks\", \"Nice progress\", \"Hope this helps\"). Say each reason once: do not repeat FACTS.next inside each person. ")
+    R("Assist Reply", "let text = String(aiJson($json).reply || '').trim();",
+      "let text = String(aiJson($json).reply || '').trim();\n"
+      "// a closing pleasantry adds nothing to a reply about candidates\n"
+      "text = text.replace(/(\\n\\s*)+(thanks|thank you|nice progress|great progress|cheers|hope this helps|happy to help|good luck)[^\\n]{0,30}\\s*$/i, '').trim();")
     return nodes, conns

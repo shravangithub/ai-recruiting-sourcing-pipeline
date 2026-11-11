@@ -2160,3 +2160,14 @@ test('R51: a rubric without years still scores the years and city of the brief',
   const withYears = f.buildCrit({ role: 'X', experience: '6-9 years', rubric: '- 6-9 years in DevOps (weight 2): years' });
   assert.equal(withYears.filter((c) => /6-9/.test(c.name)).length, 1, 'not added twice');
 });
+test('R51: assistant replies drop a closing pleasantry; no-email reasons are short', async () => {
+  const js = NODES['Assist Reply'].parameters.jsCode;
+  assert.match(js, /nice progress\|great progress/);
+  const strip = (t) => t.replace(/(\n\s*)+(thanks|thank you|nice progress|great progress|cheers|hope this helps|happy to help|good luck)[^\n]{0,30}\s*$/i, '').trim();
+  assert.equal(strip('Moved two people.\n\n- 2. A\n\nNice progress.'), 'Moved two people.\n\n- 2. A');
+  assert.equal(strip('Moved two people. Thanks.'), 'Moved two people. Thanks.', 'only a closing line on its own is dropped');
+  const a = { run_id: '1', dedupe_key: 'a', name: 'A B', company: '', row_found: true, need_apollo: true, need_hunter: true, apollo_note: 'Apollo has no email for them', none_by: ['apollo'], said_none: [], email: '', base: { ok: true } };
+  const [r] = await runNode('Lookup Result', [{ error: { message: '404 - not_found' } }], { 'Apollo Says': [a] });
+  assert.equal(r.why, 'Apollo has no email for them; Hunter does not know them, and their profile shows no company to search by');
+  const [rep] = await runNode('Lookup Reply', [r]); assert.equal(rep.response.found[0].why, r.why);
+});
