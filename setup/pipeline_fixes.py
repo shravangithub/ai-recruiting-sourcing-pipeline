@@ -7377,3 +7377,474 @@ def apply_round51(nodes, conns):
       "// a closing pleasantry adds nothing to a reply about candidates\n"
       "text = text.replace(/(\\n\\s*)+(thanks|thank you|nice progress|great progress|cheers|hope this helps|happy to help|good luck)[^\\n]{0,30}\\s*$/i, '').trim();")
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 52
+# Privacy and sending safeguards (India's DPDP Act, and plain good manners):
+#  - every email says why the person is getting it and carries a link to stop
+#    emails or have their details deleted; recruiters can delete a person too
+#  - people who opted out are never emailed again and never re-added by a search
+#  - people never contacted are deleted after N months (Settings, default 12)
+#  - a daily limit on new people emailed, and unverified (guessed) emails are
+#    held back from the auto-sender unless an admin allows them
+
+OPTOUT_COLUMNS = [("token", "string"), ("email", "string"), ("contact_key", "string"), ("status", "string"),
+                  ("created_at", "date"), ("done_at", "date"), ("by", "string")]
+
+OPTOUT_TOKENS_JS = r"""
+// new opt-out links made for this batch of emails, saved so the link works later
+const seen = {};
+return $input.all().filter(function(i){ const j = i.json || {}; if (!j._tok_new || !j._tok || seen[j._tok]) return false; seen[j._tok] = true; return true; })
+  .map(function(i){ const j = i.json; return { json: { token: j._tok, email: String(j._tok_email || '').toLowerCase().trim(), contact_key: String(j._tok_key || ''),
+    status: 'active', created_at: new Date().toISOString(), done_at: null, by: '' } }; });
+"""
+
+OPTOUT_PAGE_JS = r"""
+// the page behind "stop emails or delete my details": asks first, because mail
+// scanners open links on their own and a single click must not delete anyone
+const q = ($('Opt-out Page').first().json || {}).query || {};
+const t = String(q.t || '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+const row = $('Find Opt-out Link').all().map(function(i){ return i.json || {}; }).find(function(r){ return r.token && r.token === t; });
+const esc = function(s){ return String(s || '').replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+const mask = function(e){ const m = String(e || '').match(/^(.)(.*)(@.*)$/); return m ? m[1] + m[2].replace(/./g, '•').slice(0, 6) + m[3] : ''; };
+let body;
+if (!row) body = '<h1>This link has expired</h1><p>Reply to the email you got and say "remove me". We will stop and delete your details.</p>';
+else if (row.status === 'deleted') body = '<h1>Your details are deleted</h1><p>You will not hear from us again.</p>';
+else body = '<h1>Your choice</h1><p>This is about emails to <b>' + esc(mask(row.email)) + '</b> about job roles.</p>'
+  + (row.status === 'stopped' ? '<p class="ok">Emails are already stopped.</p>' : '')
+  + '<form method="post" action="sourcing-optout-do"><input type="hidden" name="t" value="' + esc(t) + '">'
+  + (row.status === 'stopped' ? '' : '<button name="mode" value="stop">Stop the emails</button>')
+  + '<button name="mode" value="delete" class="pri">Stop the emails and delete my details</button></form>'
+  + '<p class="small">Deleting removes your name, contact details and profile from our recruiting tools. We keep only a note that this address asked not to be contacted, so we never add you again.</p>';
+const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">'
+  + '<title>Your details</title><style>body{margin:0;background:#f6f6f7;color:#1f1f23;font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}'
+  + 'main{max-width:520px;margin:48px auto;padding:28px;background:#fff;border:1px solid #e4e4e7;border-radius:14px}h1{font-size:22px;margin:0 0 12px}'
+  + 'button{display:block;width:100%;margin:12px 0;padding:14px;border:1px solid #d4d4d8;border-radius:10px;background:#fff;font:600 16px inherit;cursor:pointer}'
+  + 'button.pri{background:#b3261e;border-color:#b3261e;color:#fff}.small{font-size:13px;color:#5f6068}.ok{color:#1f7a47;font-weight:600}'
+  + '@media(max-width:560px){main{margin:16px;padding:20px}}</style></head><body><main>' + body + '</main></body></html>';
+return [{ json: { html: html } }];
+"""
+
+OPTOUT_WHO_JS = r"""
+// who asked to be removed: the person, from the link in an email (stop or delete),
+// or a recruiter in the app (the person replied "remove me", or asked another way)
+let who = null;
+try {
+  const b = ($('Opt-out Confirm').first().json || {}).body || {};
+  const t = String(b.t || '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+  const row = $('Find Opt-out Token').all().map(function(i){ return i.json || {}; }).find(function(r){ return r.token && r.token === t; });
+  who = { via: 'link', ok: !!(t && row), mode: b.mode === 'delete' ? 'delete' : 'stop', token: t,
+          email: row ? String(row.email || '').toLowerCase().trim() : '', base: row ? String(row.contact_key || '').split('|req:')[0] : '', by: 'the person' };
+} catch (e) {}
+if (!who) {
+  const g = $('App Gate').first().json || {};
+  const f = g.forget || {};
+  who = { via: 'app', ok: !!(f.email || f.dedupe_key), mode: f.mode === 'stop' ? 'stop' : 'delete', token: '',
+          email: String(f.email || '').toLowerCase().trim(), base: String(f.dedupe_key || '').split('|req:')[0], by: String(f.by || 'a recruiter') };
+}
+return [{ json: who }];
+"""
+
+OPTOUT_PLAN_JS = r"""
+// everything we hold on this person, across roles: found by email, profile key or LinkedIn
+const who = $('Opt-out Who').first().json;
+const done = Object.assign({}, who, { op: 'done', people: 0, name: '' });
+if (!who.ok) return [{ json: done }];
+const low = function(s){ return String(s || '').toLowerCase().trim(); };
+const baseOf = function(k){ return String(k || '').split('|req:')[0]; };
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }).filter(function(r){ return Object.keys(r).length; }); } catch (e) { return []; } };
+const people = rows('Opt Load People'), seqs = rows('Opt Load Sequences'), stages = rows('Opt Load Stages'), events = rows('Opt Load Events');
+const sheet = rows('Opt Load Sheet').filter(function(r){ return r['Rank'] !== 'REQ' && r['Dedupe Key']; });
+const emails = {}, bases = {};
+if (who.email) emails[who.email] = true;
+if (who.base) bases[who.base] = true;
+const hit = function(email, key){ return (email && emails[low(email)]) || (baseOf(key) && bases[baseOf(key)]); };
+const grow = function(email, key){ if (baseOf(key)) bases[baseOf(key)] = true; if (String(email || '').indexOf('@') > 0) emails[low(email)] = true; };
+for (let pass = 0; pass < 2; pass++) {
+  people.forEach(function(p){ if (hit(p.email, p.dedupe_key)) grow(p.email, p.dedupe_key); });
+  sheet.forEach(function(r){ if (hit(r['Email'], r['Dedupe Key'])) grow(r['Email'], r['Dedupe Key']); });
+  seqs.forEach(function(s){ if (hit(s.email, s.contact_key)) grow(s.email, s.contact_key); });
+}
+const del = who.mode === 'delete';
+const out = [];
+const mine = people.filter(function(p){ return hit(p.email, p.dedupe_key); });
+mine.forEach(function(p){
+  if (!done.name && p.name) done.name = String(p.name);
+  if (del) out.push({ json: { op: 'cand_del', run_id: String(p.run_id), dedupe_key: String(p.dedupe_key) } });
+  else out.push({ json: { op: 'cand_upd', run_id: String(p.run_id), dedupe_key: String(p.dedupe_key), outreach_status: 'Opted out' } });
+});
+const keyHit = function(k){ return baseOf(k) && bases[baseOf(k)]; };
+if (del) {
+  stages.filter(function(s){ return keyHit(s.dedupe_key); }).forEach(function(s){ out.push({ json: { op: 'stage_del', run_id: String(s.run_id), dedupe_key: String(s.dedupe_key) } }); });
+  const ek = {};
+  events.filter(function(e){ return keyHit(e.dedupe_key); }).forEach(function(e){ ek[String(e.dedupe_key)] = true; });
+  Object.keys(ek).forEach(function(k){ out.push({ json: { op: 'event_del', dedupe_key: k } }); });
+}
+const sk = {};
+seqs.filter(function(s){ return hit(s.email, s.contact_key); }).forEach(function(s){ sk[String(s.contact_key)] = true; });
+Object.keys(sk).forEach(function(k){
+  out.push({ json: del ? { op: 'seq_del', contact_key: k } : { op: 'seq_upd', contact_key: k, status: 'stopped', status_text: 'Opted out · no more emails' } });
+});
+const rk = {};
+sheet.filter(function(r){ return hit(r['Email'], r['Dedupe Key']); }).forEach(function(r){ if (!done.name && r['Name']) done.name = String(r['Name']); rk[String(r['Dedupe Key'])] = true; });
+Object.keys(rk).forEach(function(k){ out.push({ json: { op: del ? 'sheet_redact' : 'sheet_stop', dedupe_key: k } }); });
+// the suppression note: kept so this person is never emailed or added again
+const now = new Date().toISOString();
+const notes = Object.keys(emails).length ? Object.keys(emails) : [''];
+notes.forEach(function(e, i){ out.push({ json: { op: 'note', token: i === 0 && who.token ? who.token : 'x' + Math.random().toString(36).slice(2, 14),
+  email: e, contact_key: Object.keys(bases)[0] || '', status: del ? 'deleted' : 'stopped', created_at: now, done_at: now, by: who.by } }); });
+done.people = Math.max(mine.length, Object.keys(rk).length, Object.keys(sk).length);
+out.push({ json: done });
+return out;
+"""
+
+def _opt_pick(op):
+    return "// the %s part of the plan\nreturn $('Opt-out Plan').all().filter(function(i){ return i.json.op === '%s'; }).map(function(i){ const j = Object.assign({}, i.json); delete j.op; return { json: j }; });\n" % (op, op)
+
+OPTOUT_FINISH_JS = r"""
+// tell whoever asked what happened
+const d = $('Opt-out Plan').all().map(function(i){ return i.json; }).find(function(j){ return j.op === 'done'; }) || $('Opt-out Who').first().json;
+const del = d.mode === 'delete';
+if (d.via === 'app') {
+  if (!d.ok) return [{ json: { via: 'app', response: { ok: false, error: 'Which person? They need an email or a profile on record.' } } }];
+  return [{ json: { via: 'app', response: { ok: true, removed: d.people, mode: d.mode,
+    message: (d.name || 'This person') + (del ? ' is deleted from the board, the sheet and the email sequences. A note stays so they are never emailed or added again.' : ' will get no more emails.') } } }];
+}
+const msg = !d.ok ? '<h1>This link has expired</h1><p>Reply to the email you got and say "remove me". We will stop and delete your details.</p>'
+  : del ? '<h1>Done. Your details are deleted.</h1><p>Your name, contact details and profile are removed from our recruiting tools. We keep only a note that this address asked not to be contacted, so we never add you again.</p>'
+  : '<h1>Done. No more emails.</h1><p>You will not get any more emails about roles. Changed your mind about your data? Use the same link to have your details deleted.</p>';
+const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Your details</title>'
+  + '<style>body{margin:0;background:#f6f6f7;color:#1f1f23;font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}main{max-width:520px;margin:48px auto;padding:28px;background:#fff;border:1px solid #e4e4e7;border-radius:14px}h1{font-size:22px;margin:0 0 12px}@media(max-width:560px){main{margin:16px;padding:20px}}</style></head><body><main>'
+  + msg + '</main></body></html>';
+return [{ json: { via: 'link', html: html } }];
+"""
+
+RETENTION_PLAN_JS = r"""
+// Retention: people nobody contacted or moved forward are deleted after N months
+// (Settings → Sending, default 12; 0 keeps them). Shortlisted, approved and
+// contacted people stay. At most 400 a day so one run never runs long.
+const rows = function(n){ try { return $(n).all().map(function(i){ return i.json || {}; }).filter(function(r){ return Object.keys(r).length; }); } catch (e) { return []; } };
+const S = {}; rows('Retention Settings').forEach(function(r){ if (r.key) S[r.key] = String(r.value == null ? '' : r.value); });
+const months = S.retention_months === undefined || S.retention_months === '' ? 12 : parseInt(S.retention_months, 10);
+if (!(months > 0)) return [];
+const cutoff = Date.now() - months * 30.44 * 864e5;
+const baseOf = function(k){ return String(k || '').split('|req:')[0]; };
+const low = function(s){ return String(s || '').toLowerCase().trim(); };
+const keep = {}, keepMail = {};
+rows('Ret Load Sequences').forEach(function(s){ keep[baseOf(s.contact_key)] = true; if (s.email) keepMail[low(s.email)] = true; });
+rows('Ret Load Stages').forEach(function(s){ if (['found', 'not_fit', ''].indexOf(String(s.stage || '')) === -1) keep[baseOf(s.dedupe_key)] = true; });
+const sheet = rows('Ret Load Sheet').filter(function(r){ return r['Rank'] !== 'REQ' && r['Dedupe Key']; });
+sheet.forEach(function(r){ const st = low(r['Outreach Status']); if (st && st !== 'not contacted') keep[baseOf(r['Dedupe Key'])] = true;
+  if (/approved|shortlist|contacted|interview|hired|replied/i.test(String(r['Pipeline Status'] || ''))) keep[baseOf(r['Dedupe Key'])] = true; });
+const old = function(v){ const t = new Date(v || '').getTime(); return t > 0 && t < cutoff; };
+const out = [];
+rows('Ret Load People').forEach(function(p){
+  if (out.length >= 400) return;
+  if (keep[baseOf(p.dedupe_key)] || keepMail[low(p.email)] || p.approved === true) return;
+  if (!old(p.createdAt || p.created_at)) return;
+  out.push({ json: { op: 'cand_del', run_id: String(p.run_id), dedupe_key: String(p.dedupe_key) } });
+});
+const stageGone = {};
+out.forEach(function(o){ stageGone[o.json.run_id + '|' + o.json.dedupe_key] = true; });
+rows('Ret Load Stages').forEach(function(s){ if (stageGone[s.run_id + '|' + s.dedupe_key]) out.push({ json: { op: 'stage_del', run_id: String(s.run_id), dedupe_key: String(s.dedupe_key) } }); });
+let n = 0;
+sheet.forEach(function(r){
+  if (n >= 400 || keep[baseOf(r['Dedupe Key'])] || /^removed/i.test(String(r['Name'] || ''))) return;
+  if (!old(r['Date Added'])) return;
+  out.push({ json: { op: 'sheet_retire', dedupe_key: String(r['Dedupe Key']) } }); n++;
+});
+return out;
+"""
+
+def _ret_pick(op):
+    return "// the %s part of today's clean-up\nreturn $('Retention Plan').all().filter(function(i){ return i.json.op === '%s'; }).map(function(i){ const j = Object.assign({}, i.json); delete j.op; return { json: j }; });\n" % (op, op)
+
+FQ_SAFE = r"""
+// ---- privacy and sending safeguards ----
+// people who asked to stop (or to be deleted) are never emailed again. If the
+// opt-out list could not be read, send nothing this round rather than guess.
+const OPTED = {}, OPTKEY = {}, TOK = {};
+let optRead = false;
+try { $('Load Opt-outs').all().forEach(function(i){ const o = i.json || {}; const e = String(o.email || '').toLowerCase().trim();
+  if (o.status && o.status !== 'active') { if (e) OPTED[e] = true; if (o.contact_key) OPTKEY[String(o.contact_key).split('|req:')[0]] = true; }
+  else if (e && o.token && !TOK[e]) TOK[e] = String(o.token); }); optRead = true; } catch (e) {}
+if (!optRead) return [];
+const newTok = function(){ let s = ''; while (s.length < 24) s += Math.random().toString(36).slice(2); return s.slice(0, 24); };
+// a limit on NEW people emailed per day (Settings → Sending, default 30), India time
+const FIRST_CAP = parseInt(sets.first_cap, 10) > 0 ? parseInt(sets.first_cap, 10) : 30;
+const _today = DateTime.now().setZone('Asia/Kolkata').toFormat('yyyy-LL-dd');
+let startedToday = 0;
+try { $('Load Recent Contacts').all().forEach(function(i){ const s = i.json || {}; if (!s.started_at) return;
+  const d = DateTime.fromISO(String(s.started_at)); if (d.isValid && d.setZone('Asia/Kolkata').toFormat('yyyy-LL-dd') === _today) startedToday++; }); } catch (e) {}
+const ROOM = Math.max(0, FIRST_CAP - startedToday);
+// guessed or unverified emails wait for a person unless an admin allows them
+const ALLOW_UNVERIFIED = sets.allow_unverified === 'true';
+const unverified = function(r){ return /not verified|guess/i.test(String(r['Contact Source'] || '')); };
+const optedOut = function(r){ const e = String(r['Email'] || '').toLowerCase().trim(); return OPTED[e] || OPTKEY[String(r['Dedupe Key'] || '').split('|req:')[0]] || /opted out/i.test(String(r['Outreach Status'] || '')); };
+const PUB = String(sets.public_url || '').replace(/\/+$/, '');
+const fesc = function(s){ return String(s || '').replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+// the notice: why they are getting this, where we found them, and how to leave
+const footer = function(r, tok){
+  const src = String(r['Source Platform'] || '').replace(/\s*\(.*\)\s*$/, '').trim();
+  const role = String(r['Search Role'] || '').trim();
+  const leave = PUB ? 'You can <a href="' + PUB + '/webhook/sourcing-optout?t=' + tok + '" style="color:#888">stop these emails or have your details deleted</a> at any time.'
+                    : 'Reply "remove me" and I will stop and delete your details.';
+  return '<p style="color:#888;font-size:12px;line-height:1.5;margin-top:18px">Why you are getting this: I found your public professional profile'
+    + (src && !/^other$/i.test(src) ? ' on ' + fesc(src) : '') + (role ? ' while looking for people for a ' + fesc(role) + ' role' : '')
+    + '. I keep only work details, such as your role, company and public profile, and use them only to talk to you about roles. ' + leave + '</p>';
+};
+"""
+
+
+def apply_round52(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+    new = []
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round52 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    def link(a, b, idx=0, to=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": to})
+
+    def code(name, js, pos, **kw):
+        n = _node(name, "n8n-nodes-base.code", 2, pos, {"jsCode": js}, **kw)
+        new.append(n)
+        return n
+
+    def dt_get(name, table, pos, **kw):
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, dict({"resource": "row", "operation": "get", "dataTableId": _dt_ref(table), "returnAll": True}, **kw),
+                  alwaysOutputData=True, onError="continueRegularOutput")
+        n["executeOnce"] = True
+        new.append(n)
+        return n
+
+    def dt_write(name, op, table, pos, conds, extra=None):
+        p = {"resource": "row", "operation": op, "dataTableId": _dt_ref(table), "matchType": "allConditions",
+             "filters": {"conditions": [{"keyName": k, "condition": "eq", "keyValue": "={{ $json.%s }}" % k} for k in conds]}}
+        if op in ("update", "upsert"):
+            p["columns"] = _automap()
+            p["options"] = {}
+        if op == "insert":
+            p = {"resource": "row", "operation": "insert", "dataTableId": _dt_ref(table), "columns": _automap(), "options": {}}
+        n = _node(name, "n8n-nodes-base.dataTable", 1.1, pos, p, onError="continueRegularOutput")
+        new.append(n)
+        return n
+
+    def sheet_get(name, pos):
+        s = json.loads(json.dumps(N["Load CRM Rows"]))
+        s.update({"name": name, "id": "fix-" + name.lower().replace(" ", "-"), "position": pos})
+        new.append(s)
+        return s
+
+    def sheet_set(name, pos, values):
+        s = json.loads(json.dumps(N["Approve In Sheet"]))
+        s.update({"name": name, "id": "fix-" + name.lower().replace(" ", "-"), "position": pos, "onError": "continueRegularOutput"})
+        cols = s["parameters"]["columns"]
+        tmpl = cols["schema"][1]
+        cols["value"] = dict({"Dedupe Key": "={{ $json.dedupe_key }}"}, **values)
+        cols["schema"] = [cols["schema"][0]] + [dict(tmpl, id=c, displayName=c) for c in values]
+        new.append(s)
+        return s
+
+    # 1. settings: daily limit on new people, unverified emails, retention
+    R("App Gate", "'open_tracking', 'public_url'];", "'open_tracking', 'public_url', 'first_cap', 'allow_unverified', 'retention_months'];")
+    R("App Gate", "open_tracking: settings.open_tracking === 'true', public_url: settings.public_url || '' }; };",
+      "open_tracking: settings.open_tracking === 'true', public_url: settings.public_url || '',\n"
+      "  first_cap: Number(settings.first_cap) || 30, allow_unverified: settings.allow_unverified === 'true',\n"
+      "  retention_months: settings.retention_months === undefined || settings.retention_months === '' ? 12 : Number(settings.retention_months) }; };")
+    R("App Gate", "  if (vals.open_tracking === 'true' && !vals.public_url) return reply({ ok: false, error: 'Open tracking needs the public https address of your n8n.' });",
+      "  if (vals.open_tracking === 'true' && !vals.public_url) return reply({ ok: false, error: 'Open tracking needs the public https address of your n8n.' });\n"
+      "  const fc = s.first_cap === undefined || s.first_cap === '' ? (Number(settings.first_cap) || 30) : parseInt(s.first_cap, 10);\n"
+      "  if (!(fc >= 1 && fc <= 200)) return reply({ ok: false, error: 'New people per day must be between 1 and 200.' });\n"
+      "  const rm = s.retention_months === undefined || s.retention_months === '' ? (settings.retention_months === undefined || settings.retention_months === '' ? 12 : Number(settings.retention_months)) : parseInt(s.retention_months, 10);\n"
+      "  if (!(rm >= 0 && rm <= 60)) return reply({ ok: false, error: 'Keep people for 0 to 60 months (0 keeps them).' });\n"
+      "  vals.first_cap = String(fc); vals.allow_unverified = s.allow_unverified === undefined ? (settings.allow_unverified === 'true' ? 'true' : 'false') : (s.allow_unverified === true ? 'true' : 'false'); vals.retention_months = String(rm);")
+    R("App Gate", "open_tracking: vals.open_tracking === 'true', public_url: vals.public_url }",
+      "open_tracking: vals.open_tracking === 'true', public_url: vals.public_url, first_cap: fc, allow_unverified: vals.allow_unverified === 'true', retention_months: rm }")
+
+    # 2. the first email: opt-outs, the daily limit, unverified emails, the notice
+    R("Filter Outreach Queue", "return $input.all().filter(function(i){", FQ_SAFE + "return $input.all().filter(function(i){")
+    R("Filter Outreach Queue", "  return ready && notContacted && hasEmail && notLow && ok(r);\n})",
+      "  if (!(ready && notContacted && hasEmail && notLow) || optedOut(r) || (unverified(r) && !ALLOW_UNVERIFIED)) return false;\n"
+      "  return ok(r);\n}).slice(0, ROOM)")
+    R("Filter Outreach Queue", "{ _pixel: pixel(i.json) }",
+      "{ _pixel: pixel(i.json) }, (function(){ const e = String(i.json['Email'] || '').toLowerCase().trim(); const had = TOK[e]; const t = had || newTok(); TOK[e] = t;\n"
+      "  return { _tok: t, _tok_new: !had, _tok_email: e, _tok_key: String(i.json['Dedupe Key'] || '').split('|req:')[0], _footer: footer(i.json, t) }; })()")
+    msg = N["Send Outreach Email"]["parameters"]
+    assert msg["message"].count("{{ $json._pixel || '' }}") == 1
+    msg["message"] = msg["message"].replace("{{ $json._pixel || '' }}", "{{ $json._footer || '' }}{{ $json._pixel || '' }}")
+
+    ox, oy = N["Load Contact Settings"]["position"]
+    new.append(_dt_ensure("Ensure Opt-outs", "app_optout", OPTOUT_COLUMNS, [ox + 200, oy + 160]))
+    dt_get("Load Opt-outs", "app_optout", [ox + 400, oy + 160])
+    link("Load Contact Settings", "Ensure Opt-outs"); link("Ensure Opt-outs", "Load Opt-outs")
+    fx, fy = N["Filter Outreach Queue"]["position"]
+    code("Outreach Opt-out Links", OPTOUT_TOKENS_JS, [fx + 220, fy + 220])
+    dt_write("Save Outreach Links", "insert", "app_optout", [fx + 440, fy + 220], [])
+    link("Filter Outreach Queue", "Outreach Opt-out Links"); link("Outreach Opt-out Links", "Save Outreach Links")
+
+    # 3. follow-ups: skip opted-out people; the same notice, shorter
+    sx, sy = N["Load Seq Settings"]["position"]
+    assert conns["Load Seq Settings"]["main"] == [[{"node": "Load Sequences", "type": "main", "index": 0}]]
+    conns["Load Seq Settings"]["main"] = [[]]
+    new.append(_dt_ensure("Ensure Seq Opt-outs", "app_optout", OPTOUT_COLUMNS, [sx + 40, sy + 180]))
+    dt_get("Load Seq Opt-outs", "app_optout", [sx + 240, sy + 180])
+    link("Load Seq Settings", "Ensure Seq Opt-outs"); link("Ensure Seq Opt-outs", "Load Seq Opt-outs"); link("Load Seq Opt-outs", "Load Sequences")
+    R("Due Follow-ups", "const optOut = '<p style=\"color:#777;font-size:12px\">Not interested? Just reply \"no thanks\" and I won\\'t follow up again.</p>';",
+      "// people who opted out get nothing; the rest get a way out in every email\n"
+      "const OPTED = {}, OPTKEY = {}, TOK = {};\n"
+      "let optRead = false;\n"
+      "try { $('Load Seq Opt-outs').all().forEach(function(i){ const o = i.json || {}; const e = String(o.email || '').toLowerCase().trim();\n"
+      "  if (o.status && o.status !== 'active') { if (e) OPTED[e] = true; if (o.contact_key) OPTKEY[String(o.contact_key).split('|req:')[0]] = true; }\n"
+      "  else if (e && o.token && !TOK[e]) TOK[e] = String(o.token); }); optRead = true; } catch (e) {}\n"
+      "if (!optRead) return [];\n"
+      "const PUB = String(_S.public_url || '').replace(/\\/+$/, '');\n"
+      "const newTok = function(){ let s = ''; while (s.length < 24) s += Math.random().toString(36).slice(2); return s.slice(0, 24); };\n"
+      "const optOutFor = function(r, t){ return '<p style=\"color:#888;font-size:12px;line-height:1.5;margin-top:18px\">You are getting this because of my earlier note about a role. '\n"
+      "  + (PUB ? 'Not interested? <a href=\"' + PUB + '/webhook/sourcing-optout?t=' + t + '\" style=\"color:#888\">Stop these emails or have your details deleted</a>.' : 'Not interested? Reply \"no thanks\" and I will not follow up again, or \"remove me\" and I will delete your details.') + '</p>'; };")
+    R("Due Follow-ups", "  if (r.status !== 'active' || !r.message_id || !r.next_due_at) return false;",
+      "  if (r.status !== 'active' || !r.message_id || !r.next_due_at) return false;\n"
+      "  if (OPTED[String(r.email || '').toLowerCase().trim()] || OPTKEY[String(r.contact_key || '').split('|req:')[0]]) return false;")
+    R("Due Follow-ups", "  const next = Number(r.step) + 1;\n  return { json: Object.assign({}, r, {",
+      "  const next = Number(r.step) + 1;\n"
+      "  const e = String(r.email || '').toLowerCase().trim(); const had = TOK[e]; const t = had || newTok(); TOK[e] = t;\n"
+      "  return { json: Object.assign({}, r, { _tok: t, _tok_new: !had, _tok_email: e, _tok_key: String(r.contact_key || '').split('|req:')[0],")
+    R("Due Follow-ups", "+ optOut + '<p>' + SIG + (", "+ '<p>' + SIG + optOutFor(r, t) + (")
+    dx, dy = N["Due Follow-ups"]["position"]
+    code("Follow-up Opt-out Links", OPTOUT_TOKENS_JS, [dx + 200, dy + 260])
+    dt_write("Save Follow-up Links", "insert", "app_optout", [dx + 420, dy + 260], [])
+    link("Due Follow-ups", "Follow-up Opt-out Links"); link("Follow-up Opt-out Links", "Save Follow-up Links")
+
+    # 4. searches never add back someone who opted out
+    R("Merge CRM State", "const sameReq = function(r) {",
+      "// opted out (or deleted) for any role: never add them again\n"
+      "const optedOut = rows.some(function(r){ return baseKey && norm(r['Dedupe Key']).split('|req:')[0] === baseKey.split('|req:')[0] && /opted out/i.test(String(r['Outreach Status'] || '')); });\n"
+      "const sameReq = function(r) {")
+    R("Merge CRM State", "return { json: merged };", "if (optedOut) merged.suppressed = true;\nreturn { json: merged };")
+    R("Add Req Header", "const items = $input.all();\nif (!items.length) return [];",
+      "// people who asked not to be contacted are left out\nconst items = $input.all().filter(function(i){ return !i.json.suppressed; });\nif (!items.length) return [];")
+
+    # 5. the opt-out page (GET) and the confirm (POST), and "delete this person" in the app
+    px, py = N["Open Pixel"]["position"]
+    y0 = py + 260
+    pg = _node("Opt-out Page", "n8n-nodes-base.webhook", 2, [px, y0], {"httpMethod": "GET", "path": "sourcing-optout", "responseMode": "responseNode", "options": {}},
+               webhookId="7c1e2a40-8b3d-4f6e-9a12-5d0c3b7e9f04")
+    new.append(pg)
+    new.append(_dt_ensure("Ensure Opt-out Page", "app_optout", OPTOUT_COLUMNS, [px + 220, y0]))
+    dt_get("Find Opt-out Link", "app_optout", [px + 440, y0], matchType="allConditions",
+           filters={"conditions": [{"keyName": "token", "condition": "eq", "keyValue": "={{ String(($('Opt-out Page').first().json.query || {}).t || '').replace(/[^a-z0-9]/gi, '').slice(0, 40) || 'none' }}"}]})
+    code("Opt-out Page Html", OPTOUT_PAGE_JS, [px + 660, y0])
+    sp = json.loads(json.dumps(N["Send Apply Page"]))
+    sp.update({"name": "Send Opt-out Page", "id": "fix-send-opt-out-page", "position": [px + 880, y0]})
+    new.append(sp)
+    link("Opt-out Page", "Ensure Opt-out Page"); link("Ensure Opt-out Page", "Find Opt-out Link"); link("Find Opt-out Link", "Opt-out Page Html"); link("Opt-out Page Html", "Send Opt-out Page")
+
+    y1 = y0 + 220
+    cf = _node("Opt-out Confirm", "n8n-nodes-base.webhook", 2, [px, y1], {"httpMethod": "POST", "path": "sourcing-optout-do", "responseMode": "responseNode", "options": {}},
+               webhookId="7c1e2a40-8b3d-4f6e-9a12-5d0c3b7e9f05")
+    new.append(cf)
+    new.append(_dt_ensure("Ensure Opt-out Confirm", "app_optout", OPTOUT_COLUMNS, [px + 220, y1]))
+    dt_get("Find Opt-out Token", "app_optout", [px + 440, y1], matchType="allConditions",
+           filters={"conditions": [{"keyName": "token", "condition": "eq", "keyValue": "={{ String(($('Opt-out Confirm').first().json.body || {}).t || '').replace(/[^a-z0-9]/gi, '').slice(0, 40) || 'none' }}"}]})
+    link("Opt-out Confirm", "Ensure Opt-out Confirm"); link("Ensure Opt-out Confirm", "Find Opt-out Token")
+    wx = px + 660
+    code("Opt-out Who", OPTOUT_WHO_JS, [wx, y1])
+    link("Find Opt-out Token", "Opt-out Who")
+    dt_get("Opt Load People", "app_candidates", [wx + 220, y1])
+    dt_get("Opt Load Sequences", "outreach_sequence", [wx + 440, y1])
+    dt_get("Opt Load Stages", "app_stages", [wx + 660, y1])
+    dt_get("Opt Load Events", "app_events", [wx + 880, y1])
+    sheet_get("Opt Load Sheet", [wx + 1100, y1])
+    code("Opt-out Plan", OPTOUT_PLAN_JS, [wx + 1320, y1])
+    link("Opt-out Who", "Opt Load People"); link("Opt Load People", "Opt Load Sequences"); link("Opt Load Sequences", "Opt Load Stages")
+    link("Opt Load Stages", "Opt Load Events"); link("Opt Load Events", "Opt Load Sheet"); link("Opt Load Sheet", "Opt-out Plan")
+    cx = wx + 1540
+    steps = [
+        ("cand_del", lambda n, p: dt_write(n, "deleteRows", "app_candidates", p, ["run_id", "dedupe_key"])),
+        ("cand_upd", lambda n, p: dt_write(n, "update", "app_candidates", p, ["run_id", "dedupe_key"])),
+        ("stage_del", lambda n, p: dt_write(n, "deleteRows", "app_stages", p, ["run_id", "dedupe_key"])),
+        ("event_del", lambda n, p: dt_write(n, "deleteRows", "app_events", p, ["dedupe_key"])),
+        ("seq_del", lambda n, p: dt_write(n, "deleteRows", "outreach_sequence", p, ["contact_key"])),
+        ("seq_upd", lambda n, p: dt_write(n, "update", "outreach_sequence", p, ["contact_key"])),
+        ("sheet_redact", lambda n, p: sheet_set(n, p, dict({c: "" for c in ("Role", "Summary", "Key Skills", "Current Company", "Verified Title", "Location", "Email", "Phone",
+                                                                          "GitHub", "Work History", "Education", "LinkedIn", "Resume Link", "Profile URL", "Verified Gender")},
+                                                             **{"Name": "Removed at their request", "Outreach Status": "Opted out", "Pipeline Status": "Removed", "Send Email?": "FALSE"}))),
+        ("sheet_stop", lambda n, p: sheet_set(n, p, {"Outreach Status": "Opted out", "Send Email?": "FALSE"})),
+        ("note", lambda n, p: dt_write(n, "insert", "app_optout", p, [])),
+    ]
+    names = {"cand_del": "People", "cand_upd": "People Status", "stage_del": "Stages", "event_del": "Events", "seq_del": "Sequences",
+             "seq_upd": "Sequences Stop", "sheet_redact": "Sheet", "sheet_stop": "Sheet Stop", "note": "Note"}
+    for i, (op, mk) in enumerate(steps):
+        yy = y1 - 400 + i * 120
+        code("Opt Pick " + names[op], _opt_pick(op), [cx, yy])
+        mk("Opt Write " + names[op], [cx + 220, yy])
+        link("Opt-out Plan", "Opt Pick " + names[op]); link("Opt Pick " + names[op], "Opt Write " + names[op])
+    # the answer goes last (lowest on the canvas), after every write
+    fy2 = y1 - 400 + len(steps) * 120 + 80
+    code("Opt-out Finish", OPTOUT_FINISH_JS, [cx, fy2], executeOnce=True)
+    link("Opt-out Plan", "Opt-out Finish")
+    new.append(_node("From The Link?", "n8n-nodes-base.if", 2.2, [cx + 220, fy2], {
+        "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2},
+                       "conditions": [{"id": "r52-via", "leftValue": "={{ $json.via === 'link' }}", "rightValue": True,
+                                       "operator": {"type": "boolean", "operation": "true", "singleValue": True}}], "combinator": "and"},
+        "options": {}}))
+    sd = json.loads(json.dumps(N["Send Apply Page"]))
+    sd.update({"name": "Send Opt-out Done", "id": "fix-send-opt-out-done", "position": [cx + 440, fy2 - 80]})
+    new.append(sd)
+    link("Opt-out Finish", "From The Link?"); link("From The Link?", "Send Opt-out Done", 0); link("From The Link?", "App Reply", 1)
+
+    # the app's "Delete this person" (and "Stop emails"): same steps
+    sw = N["App Route"]
+    expr = sw["parameters"]["output"]
+    routes = json.loads(expr[expr.index("["):expr.index("]") + 1])
+    assert "forget" not in routes
+    routes = routes + ["forget"]
+    sw["parameters"]["numberOutputs"] = len(routes)
+    sw["parameters"]["output"] = "={{ %s.indexOf($json.route) }}" % json.dumps(routes)
+    while len(conns["App Route"]["main"]) < len(routes):
+        conns["App Route"]["main"].append([])
+    R("App Gate", "'assist', 'find_email'];", "'assist', 'find_email', 'forget'];")
+    R("App Gate", "if (action === 'update_card') {",
+      "if (action === 'forget') {\n"
+      "  // a person asked us to stop, or to delete what we hold (DPDP): any teammate can do it\n"
+      "  const c = body.card || {};\n"
+      "  const email = String(c.email || '').toLowerCase().trim(), key = String(c.dedupe_key || '');\n"
+      "  if (!/@/.test(email) && !key) return reply({ ok: false, error: 'Which person?' });\n"
+      "  const mode = body.mode === 'stop' ? 'stop' : 'delete';\n"
+      "  log(me, mode === 'delete' ? 'deleted a person at their request' : 'stopped emails to a person', mode);\n"
+      "  return out('forget', { forget: { email: /@/.test(email) ? email : '', dedupe_key: key, mode: mode, by: me.name } });\n"
+      "}\n"
+      "if (action === 'update_card') {")
+    new.append(_dt_ensure("Ensure Opt-outs App", "app_optout", OPTOUT_COLUMNS, [wx - 220, y1 + 160]))
+    link("App Route", "Ensure Opt-outs App", routes.index("forget")); link("Ensure Opt-outs App", "Opt-out Who")
+
+    # 6. retention: a nightly clean-up of people nobody contacted
+    rx, ry = px, fy2 + 320
+    new.append(_node("Retention Schedule", "n8n-nodes-base.scheduleTrigger", 1.2, [rx, ry],
+                     {"rule": {"interval": [{"field": "cronExpression", "expression": "41 2 * * *"}]}}))
+    dt_get("Retention Settings", "app_settings", [rx + 220, ry])
+    dt_get("Ret Load People", "app_candidates", [rx + 440, ry])
+    dt_get("Ret Load Sequences", "outreach_sequence", [rx + 660, ry])
+    dt_get("Ret Load Stages", "app_stages", [rx + 880, ry])
+    sheet_get("Ret Load Sheet", [rx + 1100, ry])
+    code("Retention Plan", RETENTION_PLAN_JS, [rx + 1320, ry])
+    link("Retention Schedule", "Retention Settings"); link("Retention Settings", "Ret Load People"); link("Ret Load People", "Ret Load Sequences")
+    link("Ret Load Sequences", "Ret Load Stages"); link("Ret Load Stages", "Ret Load Sheet"); link("Ret Load Sheet", "Retention Plan")
+    for i, (op, mk) in enumerate([
+            ("cand_del", lambda n, p: dt_write(n, "deleteRows", "app_candidates", p, ["run_id", "dedupe_key"])),
+            ("stage_del", lambda n, p: dt_write(n, "deleteRows", "app_stages", p, ["run_id", "dedupe_key"])),
+            ("sheet_retire", lambda n, p: sheet_set(n, p, dict({c: "" for c in ("Role", "Summary", "Key Skills", "Current Company", "Verified Title", "Location", "Email", "Phone",
+                                                                              "GitHub", "Work History", "Education", "LinkedIn", "Resume Link", "Profile URL", "Verified Gender")},
+                                                                 **{"Name": "Removed (not contacted in time)", "Pipeline Status": "", "Send Email?": "FALSE"})))]):
+        nm = {"cand_del": "People", "stage_del": "Stages", "sheet_retire": "Sheet"}[op]
+        code("Ret Pick " + nm, _ret_pick(op), [rx + 1540, ry - 120 + i * 120])
+        mk("Ret Write " + nm, [rx + 1760, ry - 120 + i * 120])
+        link("Retention Plan", "Ret Pick " + nm); link("Ret Pick " + nm, "Ret Write " + nm)
+
+    nodes.extend(new)
+    return nodes, conns

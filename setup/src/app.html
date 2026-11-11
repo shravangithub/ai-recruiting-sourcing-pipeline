@@ -469,6 +469,10 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Weekdays only</b></div><div><button type="button" class="tog on" id="snWk" aria-pressed="true" aria-label="Weekdays only"><i></i></button></div></div>
       <div class="frow"><div><b>Never email the same person twice within</b><div class="help">Across all roles. Protects your sender reputation.</div></div><div style="display:flex;gap:8px;align-items:center"><input id="snRe" type="text" inputmode="numeric" style="max-width:90px"><span class="muted">days</span></div></div>
       <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default. The same public address makes apply pages reachable.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
+      <div class="frow"><div><b>New people emailed per day</b><div class="help">First emails only (1–200). Keeps a new mailbox out of spam.</div></div><input id="snFirst" type="text" inputmode="numeric" style="max-width:120px"></div>
+      <div class="frow"><div><b>Email unverified addresses</b><div class="help">Off: guessed or unverified emails wait until someone checks them. On: they go out like the rest and may bounce.</div></div><div><button type="button" class="tog" id="snUnv" aria-pressed="false" aria-label="Email unverified addresses"><i></i></button></div></div>
+      <div class="frow"><div><b>Delete people nobody contacted after</b><div class="help">Removes found people nobody shortlisted or emailed, every night. 0 keeps them. India's DPDP Act expects personal data to be kept only as long as you need it.</div></div><div style="display:flex;gap:8px;align-items:center"><input id="snRet" type="text" inputmode="numeric" style="max-width:90px"><span class="muted">months</span></div></div>
+      <div class="frow"><div><b>Privacy notice</b></div><div class="muted" style="font-size:14px">Every email says where you found the person and has a link to stop emails or delete their details. The link needs the public address above; without it, emails ask them to reply "remove me". People who opt out are never emailed or added again.</div></div>
       <div class="frow"><div><b>Follow-up schedule</b></div><div class="muted" style="font-size:14px">Days 2, 4, 5 and 7, in the same Gmail thread. Stops on reply or bounce. <a href="#" data-go="outreach">Edit the wording →</a></div></div>
       <div style="display:flex;gap:10px;align-items:center"><button class="btn pri" type="button" id="snSave">Save sending settings</button><span id="snMsg" class="muted" style="font-size:13px"></span></div>
     </div>
@@ -1524,7 +1528,8 @@ function openCard(key, keep){
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Owner</span><select id="dOwner"><option value="">Nobody</option>'+team.map(function(n){ return '<option'+(c.owner===n?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select></label></div>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Note for the team</span><textarea id="dNote" rows="3" placeholder="What did you learn?">'+esc(c.note)+'</textarea></label>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Not now, bring back on</span><input id="dSnooze" type="date" value="'+esc(c.snooze_until)+'" style="max-width:200px"></label>'+
-    '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">(from '+esc(c.contact_source||'search')+')'+esc(emailWhy(c.contact_source))+'</span>':esc(missText(c)||'No email found yet'))+'</p>'+(links?'<p style="margin:4px 0 0">'+links+'</p>':'')+'</div>';
+    '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">(from '+esc(c.contact_source||'search')+')'+esc(emailWhy(c.contact_source))+'</span>':esc(missText(c)||'No email found yet'))+'</p>'+(links?'<p style="margin:4px 0 0">'+links+'</p>':'')+'</div>'+
+    '<div><span class="lbl">If they ask</span><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'+(c.outreach_status==='Opted out'?'<span class="bdup">Opted out · no more emails</span>':'<button type="button" class="btn" data-forget="stop">Stop emails</button>')+'<button type="button" class="btn" data-forget="delete">Delete their details</button></div><p class="muted" style="font-size:12px;margin:6px 0 0">For a reply like "remove me", a call or any other request. Deleting removes them from the board, the sheet and the email sequences, for every role. A note stays so they are never added again.</p></div>';
   else if (B.tab === 'reply') body = replyPanel(c);
   else if (B.tab === 'interview') body = kitPanel(c);
   else body = hist.length ? hist.map(function(h){ return '<div class="hist"><span><b>'+esc(h.by||'')+'</b> '+esc(h.kind==='stage' ? 'moved them to ' + (STAGE_NAME[h.to_stage]||h.to_stage) : h.detail)+'</span><span class="muted" style="font-size:12px">'+esc(ago(h.at))+'</span></div>'; }).join('') : '<p class="muted" style="margin:0">Nobody has changed anything yet. Stage moves, notes and replies show here.</p>';
@@ -1545,6 +1550,15 @@ el('bDrawer').addEventListener('click', function(e){
     saveCard(c, { stage: st, owner: el('dOwner').value, note: el('dNote').value.trim(), snooze_until: el('dSnooze').value }, function(){ toast('Saved.'); loadBoard(B.runId); });
     return; }
   if (e.target.closest('#dApprove')) { approveCard(c); return; }
+  var fg = e.target.closest('[data-forget]');
+  if (fg) {
+    if (fg.dataset.sure !== '1') { fg.dataset.sure = '1'; fg.classList.add('pri'); fg.textContent = fg.dataset.forget === 'delete' ? 'Press again to delete for good' : 'Press again to stop emails'; return; }
+    fg.disabled = true; fg.textContent = 'Working…';
+    call('forget', { mode: fg.dataset.forget, card: { email: c.email || '', dedupe_key: c.dedupe_key } }).then(function(j){
+      if (!j.ok) { fg.disabled = false; fg.dataset.sure = ''; fg.classList.remove('pri'); fg.textContent = fg.dataset.forget === 'delete' ? 'Delete their details' : 'Stop emails'; toast(j.error || 'Could not do that.'); return; }
+      toast(j.message || 'Done.'); if (fg.dataset.forget === 'delete') { B.open = null; el('bDrawer').classList.add('hide'); } loadBoard(B.runId);
+    }).catch(function(err){ fg.disabled = false; if (err.message !== 'locked') toast(err.message); });
+    return; }
   if (e.target.closest('#dDraft')) { draftReply(c); return; }
   if (e.target.closest('#dSend')) { sendReply(c, e.target.closest('#dSend')); return; }
   if (e.target.closest('#dLater')) { var d = new Date(Date.now() + 90*86400000).toISOString().slice(0,10); saveCard(c, { snooze_until: d }, function(){ toast(c.name + ' is parked until ' + d + ' and comes back then.'); }); return; }
@@ -1812,16 +1826,18 @@ el('tmRows').addEventListener('click', function(e){
 });
 function loadSending(){
   var admin = ME.role==='admin';
-  ['snSig','snStart','snEnd','snCap','snSave','snRe','snUrl'].forEach(function(id){ el(id).disabled = !admin; });
+  ['snSig','snStart','snEnd','snCap','snSave','snRe','snUrl','snFirst','snRet'].forEach(function(id){ el(id).disabled = !admin; });
   el('snMsg').textContent = admin ? '' : 'Only admins can change these.';
   call('settings').then(function(j){ if (!j.ok) return; var s=j.settings;
     el('snSig').value=s.signature; el('snStart').value=s.window_start; el('snEnd').value=s.window_end; el('snCap').value=s.daily_cap;
     el('snWk').classList.toggle('on', !!s.weekdays_only); el('snWk').setAttribute('aria-pressed', s.weekdays_only?'true':'false');
-    el('snRe').value = s.recontact_days || 90; el('snUrl').value = s.public_url || ''; el('snOpen').classList.toggle('on', !!s.open_tracking); el('snOpen').setAttribute('aria-pressed', s.open_tracking?'true':'false'); }).catch(function(){}); }
+    el('snRe').value = s.recontact_days || 90; el('snUrl').value = s.public_url || ''; el('snOpen').classList.toggle('on', !!s.open_tracking); el('snOpen').setAttribute('aria-pressed', s.open_tracking?'true':'false');
+    el('snFirst').value = s.first_cap || 30; el('snRet').value = s.retention_months == null ? 12 : s.retention_months; el('snUnv').classList.toggle('on', !!s.allow_unverified); el('snUnv').setAttribute('aria-pressed', s.allow_unverified?'true':'false'); }).catch(function(){}); }
 el('snOpen').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
+el('snUnv').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snWk').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snSave').onclick = function(){ var b=this; el('snMsg').textContent='Saving…';
-  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on'), recontact_days: el('snRe').value.trim(), open_tracking: el('snOpen').classList.contains('on'), public_url: el('snUrl').value.trim() } })
+  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on'), recontact_days: el('snRe').value.trim(), open_tracking: el('snOpen').classList.contains('on'), public_url: el('snUrl').value.trim(), first_cap: el('snFirst').value.trim(), allow_unverified: el('snUnv').classList.contains('on'), retention_months: el('snRet').value.trim() } })
     .then(function(j){ el('snMsg').textContent = j.ok ? 'Saved. The next follow-ups use these settings.' : j.error; }).catch(function(e){ if (e.message!=='locked') el('snMsg').textContent=e.message; }); };
 function loadServices(){
   var render = function(){ el('svRows').innerHTML = (S.services||[]).map(function(s){ return '<tr><td><b>'+esc(s.name)+'</b></td><td class="muted">'+esc(s.uses)+'</td><td>'+(s.last_ok?'<span class="st ok">✓ '+esc(ago(s.last_ok))+'</span>':'<span class="st">Not used yet</span>')+'</td></tr>'; }).join(''); };

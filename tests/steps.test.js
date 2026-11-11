@@ -959,7 +959,7 @@ test('R29: sending settings are checked, saved and used by the follow-ups', asyn
   assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '19:00', window_end: '09:00', daily_cap: 50 } }, ctx)).response.error, /sending window/);
   assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '09:00', window_end: '18:00', daily_cap: 999 } }, ctx)).response.error, /between 1 and 200/);
   const ok = await gate29({ action: 'save_settings', token: s.token, settings: { signature: 'Kumar\nTalent team', window_start: '10:00', window_end: '17:00', daily_cap: 2, weekdays_only: true } }, ctx);
-  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days', 'open_tracking', 'public_url']);
+  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days', 'open_tracking', 'public_url', 'first_cap', 'allow_unverified', 'retention_months']);
   const [w] = await runNode('Settings Writes', [{}], { 'App Gate': [ok] });
   assert.equal(w.key, 'signature');
   const got = await gate29({ action: 'settings', token: s.token }, Object.assign({ settings: ok.writes.settings }, ctx));
@@ -969,7 +969,7 @@ test('R29: sending settings are checked, saved and used by the follow-ups', asyn
   at('2026-10-28T09:45:00'); assert.equal((await runNode('Due Follow-ups', [{}], refs)).length, 0, 'before the new 10:00 start');
   at('2026-10-28T11:00:00'); const due = await runNode('Due Follow-ups', [{}], refs);
   assert.equal(due.length, 2, 'new daily limit');
-  assert.match(due[0].html, /Best regards,<br\/>Kumar<br\/>Talent team<\/p>$/);
+  assert.match(due[0].html, /Best regards,<br\/>Kumar<br\/>Talent team<\/p><p style="color:#888/);
   Settings.now = () => Date.now();
 });
 
@@ -1863,7 +1863,7 @@ test('R43: the assist route is its own output, and only the app gate lets teamma
   const N = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
   const routes = JSON.parse(N['App Route'].parameters.output.match(/(\[[^\]]+\])/)[1]);
   assert.deepEqual((wf.connections['App Route'].main[routes.indexOf('assist')] || []).map((c) => c.node), ['Load Assist Settings']);
-  assert.match(N['App Gate'].parameters.jsCode, /'add_person', 'assist'(, 'find_email')?\];/);
+  assert.match(N['App Gate'].parameters.jsCode, /'add_person', 'assist'(, 'find_email')?(, 'forget')?\];/);
   for (const nm of ['Assist Planner', 'Assist Writer']) assert.match(N[nm].parameters.jsonBody, /model: 'gpt-5-mini'/);
   assert.deepEqual(wf.connections['Email Text'].main[0].map((c) => c.node), ['Email Thread']);
   assert.deepEqual(wf.connections['Email Ask'].main[0].map((c) => c.node), ['Email Add']);
@@ -2170,4 +2170,115 @@ test('R51: assistant replies drop a closing pleasantry; no-email reasons are sho
   const [r] = await runNode('Lookup Result', [{ error: { message: '404 - not_found' } }], { 'Apollo Says': [a] });
   assert.equal(r.why, 'Apollo has no email for them; Hunter does not know them, and their profile shows no company to search by');
   const [rep] = await runNode('Lookup Reply', [r]); assert.equal(rep.response.found[0].why, r.why);
+});
+
+// ------------------------------------------------------------ Round 52: privacy and sending safeguards
+const r52row = (over = {}) => Object.assign({ 'Send Email?': 'TRUE', 'Outreach Status': '', Email: 'asha@northwind.example', Confidence: 'High', 'Dedupe Key': 'url:linkedin.com/in/asha|req:devops@hyderabad',
+  'Contact Source': 'Apollo · verified', 'Source Platform': 'LinkedIn (Exa)', 'Search Role': 'Senior DevOps Engineer', Name: 'Asha Rao' }, over);
+const r52refs = (over = {}) => Object.assign({ 'Load Contact Settings': [{ key: 'public_url', value: 'https://hire.example.com' }], 'Load Recent Contacts': [{}], 'Load Opt-outs': [{}] }, over);
+
+test('R52: every first email says where we found them and links to stop or delete; new links are saved', async () => {
+  const [o] = await runNode('Filter Outreach Queue', [r52row()], r52refs());
+  assert.match(o._footer, /public professional profile on LinkedIn while looking for people for a Senior DevOps Engineer role/);
+  assert.match(o._footer, /https:\/\/hire\.example\.com\/webhook\/sourcing-optout\?t=[a-z0-9]{24}"/);
+  assert.equal(o._tok_new, true); assert.equal(o._tok_key, 'url:linkedin.com/in/asha');
+  const [saved] = await runNode('Outreach Opt-out Links', [o]);
+  assert.deepEqual([saved.email, saved.status, saved.token], ['asha@northwind.example', 'active', o._tok]);
+  const [again] = await runNode('Filter Outreach Queue', [r52row()], r52refs({ 'Load Opt-outs': [{ token: 'abc123', email: 'asha@northwind.example', status: 'active' }] }));
+  assert.equal(again._tok, 'abc123', 'an existing link is reused'); assert.equal(again._tok_new, false);
+  const [noUrl] = await runNode('Filter Outreach Queue', [r52row()], r52refs({ 'Load Contact Settings': [{}] }));
+  assert.match(noUrl._footer, /Reply "remove me"/);
+  assert.match(NODES['Send Outreach Email'].parameters.message, /\{\{ \$json\._footer \|\| '' \}\}\{\{ \$json\._pixel/);
+});
+
+test('R52: opted-out people, unverified emails and the daily limit hold emails back; a missing opt-out list sends nothing', async () => {
+  const stop = { email: 'asha@northwind.example', status: 'stopped' };
+  assert.equal((await runNode('Filter Outreach Queue', [r52row()], r52refs({ 'Load Opt-outs': [stop] }))).length, 0);
+  assert.equal((await runNode('Filter Outreach Queue', [r52row({ Email: 'new@x.example' })], r52refs({ 'Load Opt-outs': [{ contact_key: 'url:linkedin.com/in/asha', status: 'deleted' }] }))).length, 0, 'matched by profile too');
+  assert.equal((await runNode('Filter Outreach Queue', [r52row({ 'Contact Source': 'Apollo · guessed, not verified' })], r52refs())).length, 0);
+  assert.equal((await runNode('Filter Outreach Queue', [r52row({ 'Contact Source': 'Apollo · guessed, not verified' })],
+    r52refs({ 'Load Contact Settings': [{ key: 'allow_unverified', value: 'true' }] }))).length, 1, 'an admin can allow them');
+  const many = [1, 2, 3, 4].map((i) => r52row({ Email: 'p' + i + '@x.example', 'Dedupe Key': 'k' + i }));
+  assert.equal((await runNode('Filter Outreach Queue', many, r52refs({ 'Load Contact Settings': [{ key: 'first_cap', value: '3' }] }))).length, 3);
+  at('2026-10-27T11:00:00');
+  const today = [{ started_at: '2026-10-27T05:00:00Z', email: 'z@x.example' }, { started_at: '2026-10-27T06:00:00Z', email: 'y@x.example' }];
+  assert.equal((await runNode('Filter Outreach Queue', many, r52refs({ 'Load Contact Settings': [{ key: 'first_cap', value: '3' }], 'Load Recent Contacts': today }))).length, 1, 'counts first emails already sent today');
+  const refs = r52refs({ 'Load Opt-outs': null });
+  assert.equal((await runNode('Filter Outreach Queue', [r52row()], refs)).length, 0, 'fails closed');
+});
+
+test('R52: follow-ups skip opted-out people and carry the link', async () => {
+  const seq = (over) => Object.assign({ contact_key: 'url:a|req:x', email: 'a@x.example', status: 'active', message_id: 'm1', step: 1, next_due_at: '2026-10-25T04:00:00Z', started_at: '2026-10-23T04:00:00Z', first_name: 'A' }, over);
+  const refs = { 'Load Seq Settings': [{ key: 'public_url', value: 'https://hire.example.com' }], 'Load Sequences': [seq(), seq({ contact_key: 'url:b', email: 'b@x.example' })], 'Load Templates': [{}],
+    'Load Seq Opt-outs': [{ email: 'b@x.example', status: 'deleted' }] };
+  at('2026-10-28T11:00:00');
+  const out = await runNode('Due Follow-ups', [{}], refs);
+  assert.equal(out.length, 1); assert.equal(out[0].email, 'a@x.example');
+  assert.match(out[0].html, /Best regards,<br\/>.*<\/p><p style="color:#888[^>]*>You are getting this because of my earlier note about a role\. Not interested\? <a href="https:\/\/hire\.example\.com\/webhook\/sourcing-optout\?t=/s);
+  const [sv] = await runNode('Follow-up Opt-out Links', out); assert.equal(sv.contact_key, 'url:a');
+});
+
+test('R52: a search never adds back someone who opted out, for any role', async () => {
+  const cand = { dedupe_key: 'url:linkedin.com/in/asha', search_role: 'Platform Engineer', search_location: 'Pune', verified_linkedin: '' };
+  const [m] = await runNode('Merge CRM State', [cand], { 'Load CRM Rows': [{ 'Dedupe Key': 'url:linkedin.com/in/asha|req:devops@hyderabad', 'Outreach Status': 'Opted out', 'Search Role': 'DevOps', 'Search Location': 'Hyderabad' }] }, {});
+  assert.equal(m.suppressed, true);
+  const [n] = await runNode('Merge CRM State', [Object.assign({}, cand, { dedupe_key: 'url:someone-else' })], { 'Load CRM Rows': [{ 'Dedupe Key': 'url:linkedin.com/in/asha|req:x@y', 'Outreach Status': 'Opted out' }] });
+  assert.equal(n.suppressed, undefined);
+  assert.match(NODES['Add Req Header'].parameters.jsCode, /filter\(function\(i\)\{ return !i\.json\.suppressed; \}\)/);
+});
+
+test('R52: the opt-out page asks first; "delete" removes the person everywhere and keeps only a note', async () => {
+  const tok = [{ token: 'abc123', email: 'asha@northwind.example', contact_key: 'url:linkedin.com/in/asha', status: 'active' }];
+  const [pg] = await runNode('Opt-out Page Html', [{}], { 'Opt-out Page': [{ query: { t: 'abc123' } }], 'Find Opt-out Link': tok });
+  assert.match(pg.html, /a•••@northwind\.example/); assert.match(pg.html, /method="post" action="sourcing-optout-do"/); assert.doesNotMatch(pg.html, /asha@/);
+  const [bad] = await runNode('Opt-out Page Html', [{}], { 'Opt-out Page': [{ query: { t: 'nope' } }], 'Find Opt-out Link': [{}] });
+  assert.match(bad.html, /expired/);
+  const [who] = await runNode('Opt-out Who', [{}], { 'Opt-out Confirm': [{ body: { t: 'abc123', mode: 'delete' } }], 'Find Opt-out Token': tok });
+  assert.deepEqual([who.ok, who.mode, who.via, who.base], [true, 'delete', 'link', 'url:linkedin.com/in/asha']);
+  const refs = { 'Opt-out Who': [who],
+    'Opt Load People': [{ run_id: '1', dedupe_key: 'url:linkedin.com/in/asha|req:a@b', name: 'Asha Rao', email: '' }, { run_id: '2', dedupe_key: 'url:other|req:a@b', email: 'asha@northwind.example' }, { run_id: '3', dedupe_key: 'url:nobody', email: 'x@y.example' }],
+    'Opt Load Sequences': [{ contact_key: 'url:linkedin.com/in/asha|req:a@b', email: 'asha@northwind.example' }],
+    'Opt Load Stages': [{ run_id: '1', dedupe_key: 'url:linkedin.com/in/asha|req:a@b', stage: 'shortlisted' }],
+    'Opt Load Events': [{ dedupe_key: 'url:linkedin.com/in/asha|req:a@b' }, { dedupe_key: 'url:linkedin.com/in/asha|req:a@b' }],
+    'Opt Load Sheet': [{ Rank: 'REQ', 'Dedupe Key': 'req' }, { 'Dedupe Key': 'url:linkedin.com/in/asha|req:a@b', Email: 'asha@northwind.example', Name: 'Asha Rao' }] };
+  const plan = await runNode('Opt-out Plan', [{}], refs);
+  const ops = plan.map((p) => p.op);
+  assert.deepEqual(ops.filter((o) => o === 'cand_del').length, 2, 'both rows, found by profile and by email'); assert.ok(!plan.some((p) => p.dedupe_key === 'url:nobody'));
+  ['stage_del', 'event_del', 'seq_del', 'sheet_redact', 'note', 'done'].forEach((o) => assert.ok(ops.includes(o), o));
+  assert.equal(ops.filter((o) => o === 'event_del').length, 1);
+  const note = plan.find((p) => p.op === 'note'); assert.deepEqual([note.email, note.status, note.token], ['asha@northwind.example', 'deleted', 'abc123']);
+  const picked = await runNode('Opt Pick Sheet', [{}], { 'Opt-out Plan': plan }); assert.equal(picked[0].op, undefined); assert.equal(picked.length, 1);
+  const [fin] = await runNode('Opt-out Finish', [{}], { 'Opt-out Plan': plan, 'Opt-out Who': [who] });
+  assert.equal(fin.via, 'link'); assert.match(fin.html, /Your details are deleted/);
+  const stopPlan = await runNode('Opt-out Plan', [{}], Object.assign({}, refs, { 'Opt-out Who': [Object.assign({}, who, { mode: 'stop' })] }));
+  assert.deepEqual([...new Set(stopPlan.map((p) => p.op))].sort(), ['cand_upd', 'done', 'note', 'seq_upd', 'sheet_stop']);
+  const redact = NODES['Opt Write Sheet'].parameters.columns.value;
+  assert.equal(redact.Email, ''); assert.equal(redact.Name, 'Removed at their request'); assert.equal(redact['Outreach Status'], 'Opted out');
+  assert.equal(NODES['Opt Write People'].parameters.operation, 'deleteRows');
+  assert.equal(NODES['Opt-out Page'].parameters.httpMethod, 'GET'); assert.equal(NODES['Opt-out Confirm'].parameters.httpMethod, 'POST');
+});
+
+test('R52: a recruiter can delete a person from the board; the app gets an answer', async () => {
+  const [who] = await runNode('Opt-out Who', [{}], { 'App Gate': [{ forget: { email: 'Asha@Northwind.example', dedupe_key: 'url:a|req:b', mode: 'delete', by: 'Kumar' } }] });
+  assert.deepEqual([who.via, who.ok, who.email, who.base, who.by], ['app', true, 'asha@northwind.example', 'url:a', 'Kumar']);
+  const [fin] = await runNode('Opt-out Finish', [{}], { 'Opt-out Plan': [{ op: 'done', via: 'app', ok: true, mode: 'delete', people: 1, name: 'Asha Rao' }] });
+  assert.equal(fin.response.ok, true); assert.match(fin.response.message, /^Asha Rao is deleted/);
+  assert.match(NODES['App Route'].parameters.output, /"forget"\]/);
+  assert.match(NODES['App Gate'].parameters.jsCode, /action === 'forget'/);
+});
+
+test('R52: retention deletes people nobody contacted or moved forward after N months; 0 keeps them', async () => {
+  const old = '2025-06-01T00:00:00Z', fresh = '2026-10-01T00:00:00Z';
+  const refs = (months) => ({ 'Retention Settings': months == null ? [{}] : [{ key: 'retention_months', value: String(months) }],
+    'Ret Load People': [{ run_id: '1', dedupe_key: 'url:a|req:x', createdAt: old }, { run_id: '1', dedupe_key: 'url:b|req:x', createdAt: old }, { run_id: '1', dedupe_key: 'url:c|req:x', createdAt: old },
+      { run_id: '2', dedupe_key: 'url:d|req:x', createdAt: fresh }, { run_id: '1', dedupe_key: 'url:e|req:x', createdAt: old, approved: true }],
+    'Ret Load Sequences': [{ contact_key: 'url:b|req:y', email: 'b@x.example' }],
+    'Ret Load Stages': [{ run_id: '1', dedupe_key: 'url:c|req:x', stage: 'shortlisted' }, { run_id: '1', dedupe_key: 'url:a|req:x', stage: 'found' }],
+    'Ret Load Sheet': [{ 'Dedupe Key': 'url:a|req:x', 'Date Added': '2025-05-01 10:00', 'Outreach Status': '' }, { 'Dedupe Key': 'url:z|req:x', 'Date Added': '2026-10-01 10:00' }] });
+  const out = await runNode('Retention Plan', [{}], refs());
+  assert.deepEqual(out.filter((o) => o.op === 'cand_del').map((o) => o.dedupe_key), ['url:a|req:x'], 'contacted, shortlisted, approved and recent people stay');
+  assert.deepEqual(out.filter((o) => o.op === 'stage_del').map((o) => o.dedupe_key), ['url:a|req:x']);
+  assert.deepEqual(out.filter((o) => o.op === 'sheet_retire').map((o) => o.dedupe_key), ['url:a|req:x']);
+  assert.deepEqual(await runNode('Retention Plan', [{}], refs(0)), []);
+  assert.equal(NODES['Retention Schedule'].type, 'n8n-nodes-base.scheduleTrigger');
 });

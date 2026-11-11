@@ -17,7 +17,10 @@ async function runNode(name, input = [], refs = {}, opts = {}) {
   if (!node) throw new Error('no node ' + name);
   const code = node.parameters.jsCode;
   const inItems = wrap(input);
-  const refItems = Object.fromEntries(Object.entries(refs).map(([k, v]) => [k, wrap(v)]));
+  // the opt-out lists are always read in n8n (alwaysOutputData); pass null to test a missing one
+  const allRefs = Object.assign({ 'Load Opt-outs': [{}], 'Load Seq Opt-outs': [{}] }, refs);
+  Object.keys(allRefs).forEach((k) => { if (allRefs[k] === null) delete allRefs[k]; });
+  const refItems = Object.fromEntries(Object.entries(allRefs).map(([k, v]) => [k, wrap(v)]));
   const itemIndex = opts.itemIndex || 0;
   const $ = (n) => {
     if (!refItems[n]) throw new Error('node "' + n + '" has not run');
