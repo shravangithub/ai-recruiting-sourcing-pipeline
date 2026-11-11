@@ -6826,7 +6826,8 @@ const has = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(S(r.email));
 const name = S(r.name).replace(/\s*[\(\[|,-].*$/, '').replace(/\s+/g, ' ');
 const li = [S(r.linkedin), S(r.profile_url)].find(function(u){ return /linkedin\.com\/in\//i.test(u); }) || '';
 const handle = (li.match(/linkedin\.com\/in\/([^\/?#]+)/i) || [])[1] || '';
-const company = S(r.company).replace(/\s*\(.*\)$/, '');
+// "Accenture in India", "Acme Technologies Pvt Ltd" -> "Accenture", "Acme Technologies": Hunter matches the company name
+const company = S(r.company).replace(/\s*\(.*\)$/, '').replace(/\s+(in|-|,)\s*india$/i, '').replace(/[,\s]+(pvt\.?|private)?\s*(ltd\.?|limited|llp|inc\.?|llc|gmbh)$/i, '').replace(/\s+india$/i, '').trim();
 const qs = function(o){ return Object.keys(o).filter(function(k){ return o[k]; }).map(function(k){ return k + '=' + encodeURIComponent(o[k]); }).join('&'); };
 const found = !!r.dedupe_key;
 const canLook = found && !has && (li || (name.indexOf(' ') > 0 && company));
@@ -6835,7 +6836,8 @@ return { json: {
   had_email: has, email: has ? S(r.email) : '', email_source: has ? S(r.contact_source) : '',
   need_apollo: !!canLook,
   apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs({ linkedin_url: li, name: name, organization_name: company, reveal_personal_emails: 'false' }),
-  hunter_url: 'https://api.hunter.io/v2/email-finder?' + qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '', company: company })
+  // name + company is how Hunter finds most emails; its LinkedIn lookup only knows profiles it has seen
+  hunter_url: 'https://api.hunter.io/v2/email-finder?' + (name.indexOf(' ') > 0 && company ? qs({ full_name: name, company: company }) : qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '' }))
 } };
 });
 """
@@ -6871,9 +6873,10 @@ if (a.need_hunter) {
   if (d && d.email && (score >= 50 || valid)) { o.email = String(d.email); o.email_source = 'Hunter (' + (valid ? 'verified' : score + '% confidence') + ')'; }
   else if (d && d.email) o.notes.push('Hunter only had a low-confidence guess');
   else if (res.error || res.errors) {
-    const t = JSON.stringify(res.error || res.errors).toLowerCase();
-    o.notes.push(/401|unauthori|no credential|credentials|api key|authenticat/.test(t) ? 'Hunter is not set up (n8n → Credentials → Sourcing · Hunter)'
-      : (/429|403|limit|quota|credit|usage/.test(t) ? 'Hunter is out of credits for this month' : 'Hunter could not be reached'));
+    const e = res.error || {}, m = String(e.message || JSON.stringify(res.errors || '')), code = Number((m.match(/^(\d{3})\b/) || [])[1]) || Number(e.httpCode) || 0;
+    o.notes.push(code === 404 || /not_found|does not exist/i.test(m) ? 'Hunter does not know them' + (a.company ? '' : ' (no company on their profile to search by)')
+      : (code === 401 || /no credentials|credentials? (not|were not)|unauthori/i.test(m) ? 'Hunter is not set up (n8n → Credentials → Sourcing · Hunter)'
+      : (code === 429 || code === 402 || code === 403 || /usage limit|quota|too many/i.test(m) ? 'Hunter is out of credits for this month' : 'Hunter could not be reached')));
   } else o.notes.push('Hunter has no email for them');
 }
 const isNew = !!o.email && !a.had_email;
