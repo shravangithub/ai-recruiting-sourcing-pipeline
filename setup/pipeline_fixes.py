@@ -7141,7 +7141,7 @@ const cost = (function(){
   let tin = 0, tout = 0, calls = 0;
   ['Message a model'].forEach(function(name){ try { $(name).all().forEach(function(i){ const u = (i.json || {}).usage || {}; if (u.input_tokens || u.output_tokens) { tin += Number(u.input_tokens) || 0; tout += Number(u.output_tokens) || 0; calls++; } }); } catch (e) {} });
   const serper = n('Serper Search') + n('Resume Search') + n('Serper Retry');
-  const apollo = n('Apollo Enrich') + n('Apollo People Search');
+  const apollo = n('Apollo Enrich');   // Apollo's people search itself uses no credits
   const usd = tin * 0.15 / 1e6 + tout * 0.6 / 1e6 + serper * 0.001;
   return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, usd: Math.round(usd * 1000) / 1000 };
 })();
