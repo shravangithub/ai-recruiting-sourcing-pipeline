@@ -1938,7 +1938,7 @@ test('R44: the search rates every person on each requirement and the score is co
 test('R44: a recruiter rubric becomes the criteria, weights and all', async () => {
   const fmt = await runNode('Format Search Results', [{ organic: [{ title: 'A', snippet: 'x', link: 'https://in.linkedin.com/in/a' }] }],
     { 'Search Criteria': [criteria({ 'Target Role': 'Product Manager', Rubric: '- B2B SaaS pricing (weight 3): has owned pricing\n- SQL (weight 2): writes queries\n- Seniority (weight 2): 6+ years' })] });
-  assert.deepEqual(fmt[0].crit.map((c) => c.name + '/' + c.w), ['B2B SaaS pricing/3', 'SQL/2', 'Seniority/2']);
+  assert.deepEqual(fmt[0].crit.map((c) => c.name + '/' + c.w), ['B2B SaaS pricing/3', 'SQL/2', 'Seniority/2', 'Based in Bangalore/1'], 'the city is scored even when the rubric leaves it out');
 });
 
 test('R44: a person added by link is rated on the same requirements', async () => {
@@ -2148,4 +2148,26 @@ test('R50: a must-have the profile contradicts caps the score (3 years on a 6-9 
   assert.ok(f.scoreFrom(crit, noK8s).fit <= 6, 'a must-have contradicted -> at most 60%');
   const city = all.map((r, i) => (/Based in/.test(crit[i].name) ? { c: r.c, s: 0 } : r));
   assert.ok(f.scoreFrom(crit, city).fit > 9, 'city (weight 1) lowers the score but does not cap it');
+});
+test('R51: a rubric without years still scores the years and city of the brief', async () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../setup/pipeline_fixes.py'), 'utf8');
+  const f = new Function(src.split('CRIT_JS = r"""')[1].split('"""')[0] + '; return { buildCrit, scoreFrom };')();
+  const rubric = '- Role: Senior DevOps Engineer (weight 3): same job\n- Kubernetes expertise (weight 3): runs clusters\n- AWS proficiency (weight 3): AWS\n- DevOps experience (weight 2): CI/CD and automation';
+  const crit = f.buildCrit({ role: 'Senior DevOps Engineer', experience: '6-9 years', city: 'Hyderabad', rubric });
+  assert.deepEqual(crit.map((c) => c.name), ['Role: Senior DevOps Engineer', 'Kubernetes expertise', 'AWS proficiency', 'DevOps experience', 'Experience 6-9 years', 'Based in Hyderabad']);
+  const three = crit.map((c, i) => ({ c: i + 1, s: /Experience 6-9/.test(c.name) ? 0 : 3 }));
+  assert.ok(f.scoreFrom(crit, three).fit <= 6.9, '3 years on a 6-9 year role is no longer 94%');
+  const withYears = f.buildCrit({ role: 'X', experience: '6-9 years', rubric: '- 6-9 years in DevOps (weight 2): years' });
+  assert.equal(withYears.filter((c) => /6-9/.test(c.name)).length, 1, 'not added twice');
+});
+test('R51: assistant replies drop a closing pleasantry; no-email reasons are short', async () => {
+  const js = NODES['Assist Reply'].parameters.jsCode;
+  assert.match(js, /nice progress\|great progress/);
+  const strip = (t) => t.replace(/(\n\s*)+(thanks|thank you|nice progress|great progress|cheers|hope this helps|happy to help|good luck)[^\n]{0,30}\s*$/i, '').trim();
+  assert.equal(strip('Moved two people.\n\n- 2. A\n\nNice progress.'), 'Moved two people.\n\n- 2. A');
+  assert.equal(strip('Moved two people. Thanks.'), 'Moved two people. Thanks.', 'only a closing line on its own is dropped');
+  const a = { run_id: '1', dedupe_key: 'a', name: 'A B', company: '', row_found: true, need_apollo: true, need_hunter: true, apollo_note: 'Apollo has no email for them', none_by: ['apollo'], said_none: [], email: '', base: { ok: true } };
+  const [r] = await runNode('Lookup Result', [{ error: { message: '404 - not_found' } }], { 'Apollo Says': [a] });
+  assert.equal(r.why, 'Apollo has no email for them; Hunter does not know them, and their profile shows no company to search by');
+  const [rep] = await runNode('Lookup Reply', [r]); assert.equal(rep.response.found[0].why, r.why);
 });
