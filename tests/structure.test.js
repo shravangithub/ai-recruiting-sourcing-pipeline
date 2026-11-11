@@ -50,11 +50,11 @@ test("every $('Node') reference exists", () => {
   for (const m of txt.matchAll(/\$\('([^']+)'\)/g)) assert.ok(NODES[m[1]], 'unknown node referenced: ' + m[1]);
 });
 
-test('all 12 sources feed the single "Wait For All Sources" merge', () => {
+test('all 13 sources (with Exa) feed the single "Wait For All Sources" merge', () => {
   const merge = NODES['Wait For All Sources'];
-  assert.equal(merge.parameters.numberInputs, 12);
+  assert.equal(merge.parameters.numberInputs, 13);
   const feeding = Object.entries(WF.connections).filter(([, v]) => (v.main || []).some((br) => (br || []).some((t) => t.node === 'Wait For All Sources')));
-  assert.equal(feeding.length, 12);
+  assert.equal(feeding.length, 13);
 });
 
 test('results sheet writes only to columns the setup creates', () => {

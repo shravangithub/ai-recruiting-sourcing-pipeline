@@ -26,6 +26,7 @@ CRED_NAMES = {
     "SERPER": "Sourcing · Serper",
     "APOLLO": "Sourcing · Apollo",
     "HUNTER": "Sourcing · Hunter",
+    "EXA": "Sourcing · Exa",
     "GITHUB": "Sourcing · GitHub",
     "GITLAB": "Sourcing · GitLab",
     "KAGGLE": "Sourcing · Kaggle",
@@ -121,6 +122,7 @@ def main():
     src_nodes, src_conns = pipeline_fixes.apply_round46_cost(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round47(src_nodes, src_conns)
     src_nodes, src_conns = pipeline_fixes.apply_round48(src_nodes, src_conns)
+    src_nodes, src_conns = pipeline_fixes.apply_round49(src_nodes, src_conns)
     nodes = []
     for n in src_nodes:
         n = swap(n)
@@ -130,7 +132,7 @@ def main():
             new = {}
             for ctype in n["credentials"]:
                 if ctype == "httpHeaderAuth":
-                    key = "APOLLO" if "apollo" in n["name"].lower() else ("HUNTER" if "hunter" in n["name"].lower() else "SERPER")
+                    key = "APOLLO" if "apollo" in n["name"].lower() else ("HUNTER" if "hunter" in n["name"].lower() else ("EXA" if "exa" in n["name"].lower().split() else "SERPER"))
                 else:
                     key = TYPE_TO_KEY[ctype]
                 new[ctype] = {"id": f"__CRED_{key}__", "name": CRED_NAMES[key]}
