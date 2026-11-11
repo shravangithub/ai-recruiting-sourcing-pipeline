@@ -163,7 +163,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .rv{flex:1 1 760px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .seg{display:inline-flex;gap:0;margin-right:10px;border:1px solid #D4D4D8;border-radius:999px;padding:2px;background:#fff}.seg .f{border:0;margin:0}
 .rvside{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #E4E4E7;border-radius:12px;font-size:13.5px}
-.rvact2{display:flex;gap:8px;flex-wrap:wrap}.rvact2 button{min-height:38px;padding:0 14px;border-radius:9px;border:1px solid #E4E4E7;background:#F6F6F7;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--char);cursor:pointer}
+.rvact2{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.rvstage{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;margin-left:auto}.rvstage select{min-height:38px;padding:0 10px;border:1px solid #D4D4D8;border-radius:9px;background:#fff;font-family:inherit;font-size:13.5px}.rvact2 button{min-height:38px;padding:0 14px;border-radius:9px;border:1px solid #E4E4E7;background:#F6F6F7;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--char);cursor:pointer}
 .rvtiers{display:flex;gap:10px;flex-wrap:wrap}
 .rvtier{min-width:170px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:10px 14px;border:1px solid #E4E4E7;border-radius:12px;background:#fff;font:inherit;color:var(--char);cursor:pointer;text-align:left}
 .rvtier.on{border:2px solid var(--red2);padding:9px 13px}
@@ -1329,6 +1329,10 @@ function rerun(edit){
     B.runId = String(r.run_id); B.srcSel = null; toast('Searching again. People you already have are kept, new ones land in Found.'); loadBoard(B.runId);
   }).catch(function(e){ if (e.message!=='locked') toast(e.message); });
 }
+el('bWrap').addEventListener('change', function(e){ if (e.target.id !== 'rvStage') return; var c = cardOf(B.rv), to = e.target.value; if (!c || c.stage === to) return;
+  if (to === 'approved') { approveCard(c); return; }
+  if (to === 'followup' || to === 'replied') { toast('Follow-up and Replied are set by the emails themselves. Approve someone to start their emails.'); renderBoard(); return; }
+  moveCard(c.dedupe_key, to); });
 el('bWrap').addEventListener('input', function(e){ if (e.target.id === 'rvQ') { B.rq = e.target.value; clearTimeout(B.rqT); B.rqT = setTimeout(function(){ var pos = e.target.selectionStart; B.rv = null; renderBoard(); var q = el('rvQ'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } }, 250); return; } if (e.target.id === 'nbCos') { B.nb.companies = e.target.value; B.nb.touchedCos = true; return; } if (e.target.id === 'nbBrief') { B.nb.brief = e.target.value; clearTimeout(nbT); nbT = setTimeout(nbIntake, 1200); } });
 el('bWrap').addEventListener('click', function(e){
   var rv = e.target.closest('[data-rv]'); if (rv) { B.rv = rv.dataset.rv; renderBoard(); return; }
@@ -1440,7 +1444,8 @@ function rvPanel(c, list){
     '<div class="rvact"><button type="button" class="go" data-rva="shortlisted">'+(c.stage==='shortlisted'?'Shortlisted ✓':'Shortlist')+'<kbd>S</kbd></button><button type="button" data-rva="not_fit">Not a fit<kbd>X</kbd></button><button type="button" data-rva="skip">Skip<kbd>N</kbd></button></div>'+
     '<div class="rvact2">'+(c.email && ['found','shortlisted'].indexOf(c.stage) !== -1 ? '<button type="button" data-rvx="approve">Approve and email</button>' : '')+
       (!c.email ? '<button type="button" data-rvx="email">Find email</button>' : '')+
-      '<button type="button" data-rvx="later">Not now (90 days)</button><button type="button" data-rvo="'+esc(c.dedupe_key)+'">Note, owner, LinkedIn draft…</button></div>'+
+      '<button type="button" data-rvx="later">Not now (90 days)</button><button type="button" data-rvo="'+esc(c.dedupe_key)+'">Note, owner, LinkedIn draft…</button>'+
+      '<label class="rvstage">Stage <select id="rvStage" aria-label="Move to stage">'+COLS.concat([['not_fit','Not a fit']]).map(function(x){ return '<option value="'+x[0]+'"'+(c.stage===x[0]?' selected':'')+'>'+esc(x[1])+'</option>'; }).join('')+'</select></label></div>'+
     (w.parts.length ? '<div class="rvwhy">'+w.parts.map(function(x){ return '<div class="'+x.cls+'"><b>'+esc(x.mark)+': '+esc(x.c)+'</b>'+esc(x.e || '')+'</div>'; }).join('')+'</div>' : '')+
     (w.text ? '<p style="margin:0;font-size:14px;line-height:1.55;color:#3F3F46">'+esc(w.text)+'</p>' : '')+
     '<div style="display:flex;gap:14px;align-items:center;font-size:14px">'+links+'<button type="button" class="bmore" data-rvo="'+esc(c.dedupe_key)+'" style="margin-left:auto">Full profile ↵</button></div>'+
