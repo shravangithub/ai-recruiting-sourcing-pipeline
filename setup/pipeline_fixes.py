@@ -7848,3 +7848,28 @@ def apply_round52(nodes, conns):
 
     nodes.extend(new)
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 53
+# After the 00:45 freeze: the two senders fired on the same second and raced to
+# create the new app_optout table, wedging SQLite's write lock.
+#  - the follow-up sender now runs at :07/:22/:37/:52, so no two senders share a tick
+#  - a FAILED read of the opt-out list (not just a missing one) also sends nothing:
+#    those loads continue on error, so the senders must check for error items too
+
+def apply_round53(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round53 %s: anchor: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    N["Follow-up Schedule"]["parameters"]["rule"] = {"interval": [{"field": "cronExpression", "expression": "7,22,37,52 * * * *"}]}
+    R("Filter Outreach Queue",
+      "$('Load Opt-outs').all().forEach(function(i){ const o = i.json || {}; const e = String(o.email",
+      "$('Load Opt-outs').all().forEach(function(i){ const o = i.json || {}; if (o.error) throw new Error('opt-out list unreadable'); const e = String(o.email")
+    R("Due Follow-ups",
+      "$('Load Seq Opt-outs').all().forEach(function(i){ const o = i.json || {}; const e = String(o.email",
+      "$('Load Seq Opt-outs').all().forEach(function(i){ const o = i.json || {}; if (o.error) throw new Error('opt-out list unreadable'); const e = String(o.email")
+    return nodes, conns

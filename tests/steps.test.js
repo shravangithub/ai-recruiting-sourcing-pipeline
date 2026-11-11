@@ -2285,3 +2285,15 @@ test('R52: retention deletes people nobody contacted or moved forward after N mo
   assert.deepEqual(await runNode('Retention Plan', [{}], refs(0)), []);
   assert.equal(NODES['Retention Schedule'].type, 'n8n-nodes-base.scheduleTrigger');
 });
+
+// ------------------------------------------------------------ Round 53: the 00:45 freeze
+test('R53: the senders never share a tick, and a FAILED opt-out read (error item) sends nothing', async () => {
+  assert.equal(NODES['Follow-up Schedule'].parameters.rule.interval[0].expression, '7,22,37,52 * * * *');
+  assert.deepEqual(NODES['Outreach Schedule'].parameters.rule, { interval: [{ field: 'minutes', minutesInterval: 15 }] });
+  const err = [{ error: 'table app_optout not found' }];
+  assert.equal((await runNode('Filter Outreach Queue', [r52row()], r52refs({ 'Load Opt-outs': err }))).length, 0, 'first emails hold');
+  const seq = { contact_key: 'url:a|req:x', email: 'a@x.example', status: 'active', message_id: 'm1', step: 1, next_due_at: '2026-10-25T04:00:00Z', started_at: '2026-10-23T04:00:00Z', first_name: 'A' };
+  at('2026-10-28T11:00:00');
+  const out = await runNode('Due Follow-ups', [{}], { 'Load Seq Settings': [{}], 'Load Sequences': [seq], 'Load Templates': [{}], 'Load Seq Opt-outs': err });
+  assert.equal(out.length, 0, 'follow-ups hold');
+});
