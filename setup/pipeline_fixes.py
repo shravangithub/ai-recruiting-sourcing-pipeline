@@ -7254,3 +7254,97 @@ def apply_round48(nodes, conns):
     R("Results Note", "top_html: top_html + (cost.serper ?",
       "reviewed: reviewed, top_html: (reviewed > count ? '<p style=\"color:#555\">Reviewed ' + reviewed + ' profiles to find these ' + count + '.</p>' : '') + top_html + (cost.serper ?")
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 49
+# Exa people search: a database of 1B+ public profiles searched in plain English.
+# Runs with LinkedIn (like Apollo), 100 full profiles per search (~$0.10), into the
+# same pool the AI scores. Web search over the other channels is unchanged.
+
+EXA_QUERY_JS = r"""
+// One plain-English search from the brief, as a recruiter would write it.
+const form = $('Search Criteria').first().json;
+let platforms = form['Target Platforms'];
+if (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+if (!platforms.some(function(p){ return /linkedin|exa|people database/i.test(String(p)); })) return [];
+const S = function(k){ return String(form[k] || '').trim(); };
+const role = S('Target Role'); if (!role) return [];
+const city = S('Location').split('-')[0].trim(), region = S('Region');
+const exp = S('Experience Range (Years)'), skills = S('Primary Skills') || S('Key Skills & Criteria');
+const employer = S('Current Employer'), industry = S('Preferred Industry');
+const india = /india/i.test(region) || /bengaluru|bangalore|hyderabad|pune|chennai|mumbai|delhi|gurgaon|gurugram|noida|kolkata|ahmedabad|kochi|coimbatore|jaipur|indore|chandigarh|trivandrum|thiruvananthapuram/i.test(city);
+let q = role + (city ? ' in ' + city + (india && !/india/i.test(city) ? ', India' : '') : '');
+if (exp && !/^any$/i.test(exp)) q += ' with ' + exp.replace(/\+/, ' or more') + ' of experience';
+if (skills) q += ', skilled in ' + skills.split(',').map(function(s){ return s.trim(); }).filter(Boolean).slice(0, 5).join(', ');
+if (employer) q += ', currently or previously at ' + employer;
+if (industry && !/^any$/i.test(industry)) q += ', in ' + industry;
+return [{ json: { exa_query: q, exa_body: { query: q, type: 'auto', category: 'people', numResults: 100, contents: { text: { maxCharacters: 2500 } } } } }];
+"""
+
+EXA_ORGANIC_JS = r"""
+// Exa profiles into the shared shape: name, headline and city as the title and snippet,
+// and the LinkedIn link, so the AI scores them with everyone else.
+const out = [];
+let cost = 0;
+for (const it of $input.all()) {
+  const j = it.json || {};
+  if (j.costDollars) cost += Number(j.costDollars.total) || 0;
+  for (const r of (j.results || [])) {
+    const t = String(r.text || '');
+    const lines = t.split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+    const name = String(r.title || (lines[0] || '').replace(/^#\s*/, '')).trim();
+    if (!name) continue;
+    const headline = (lines[1] || '').replace(/^#+\s*/, '');
+    const loc = (lines.find(function(x){ return /\([A-Z]{2}\)$|, India$/.test(x); }) || '');
+    const about = (t.split(/##\s*About/i)[1] || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+    let link = String(r.url || '');
+    const h = (link.match(/linkedin\.com\/in\/([^\/?#]+)/i) || [])[1];
+    if (h) link = (/India|\(IN\)/.test(loc) ? 'https://in.linkedin.com/in/' : 'https://www.linkedin.com/in/') + h;
+    out.push({ title: name + (headline ? ' - ' + headline : ''), snippet: [headline, loc].filter(Boolean).join(' | ') + (about ? '. ' + about : ''), link: link, exa: true });
+  }
+}
+return [{ json: { organic: out, source: 'exa', results_count: out.length, exa_cost: Math.round(cost * 1000) / 1000 } }];
+"""
+
+
+def apply_round49(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv, field="jsCode"):
+        p = N[name]["parameters"]
+        assert p[field].count(old) == 1, "round49 %s: anchor: %s" % (name, old[:70])
+        p[field] = p[field].replace(old, newv, 1)
+
+    x, y = N["Build Apollo Query"]["position"]
+    nodes.append(_node("Build Exa Query", "n8n-nodes-base.code", 2, [x, y - 200], {"jsCode": EXA_QUERY_JS}))
+    ex = _node("Exa People Search", "n8n-nodes-base.httpRequest", 4.2, [x + 192, y - 200], {
+        "method": "POST", "url": "https://api.exa.ai/search", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": True, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.exa_body) }}", "options": {"timeout": 60000}},
+        onError="continueRegularOutput")
+    ex["credentials"] = {"httpHeaderAuth": {"id": "exa", "name": "Sourcing · Exa"}}
+    nodes.append(ex)
+    nodes.append(_node("Exa To Organic", "n8n-nodes-base.code", 2, [x + 400, y - 200], {"jsCode": EXA_ORGANIC_JS}))
+    src = [k for k, v in conns.items() for o in v.get("main", []) for c in (o or []) if c["node"] == "Build Apollo Query"]
+    assert src == ["Load CRM Rows"], src
+    conns["Load CRM Rows"]["main"][0].append({"node": "Build Exa Query", "type": "main", "index": 0})
+    conns["Build Exa Query"] = {"main": [[{"node": "Exa People Search", "type": "main", "index": 0}]]}
+    conns["Exa People Search"] = {"main": [[{"node": "Exa To Organic", "type": "main", "index": 0}]]}
+    wf = N["Wait For All Sources"]
+    n_in = wf["parameters"]["numberInputs"]
+    wf["parameters"]["numberInputs"] = n_in + 1
+    conns["Exa To Organic"] = {"main": [[{"node": "Wait For All Sources", "type": "main", "index": n_in}]]}
+
+    # where the person came from: "LinkedIn (Exa)" when Exa found them
+    R("Parse Contact", "merged.source_platform = platformOf(merged.profile_url)",
+      "const EXA_LINKS = (function(){ try { return $('Exa To Organic').first().json.organic.map(function(o){ return String(o.link).toLowerCase().replace(/^https?:\\/\\/([a-z]{2}\\.|www\\.)?/, '').replace(/\\/$/, ''); }); } catch (e) { return []; } })();\n"
+      "const exaKey = String(merged.profile_url || '').toLowerCase().replace(/^https?:\\/\\/([a-z]{2}\\.|www\\.)?/, '').replace(/\\/$/, '');\n"
+      "merged.source_platform = (EXA_LINKS.indexOf(exaKey) !== -1 && /linkedin/i.test(platformOf(merged.profile_url)) ? 'LinkedIn (Exa)' : platformOf(merged.profile_url))")
+
+    # the cost line counts Exa
+    R("Results Note", "  const usd = tin * 0.15 / 1e6 + tout * 0.6 / 1e6 + serper * 0.001;",
+      "  let exa = 0; try { exa = Number($('Exa To Organic').first().json.exa_cost) || 0; } catch (e) {}\n"
+      "  const usd = tin * 0.15 / 1e6 + tout * 0.6 / 1e6 + serper * 0.001 + exa;")
+    R("Results Note", "return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, usd: Math.round(usd * 1000) / 1000 };",
+      "return { serper: serper, ai_tokens: tin + tout, ai_calls: calls, apollo: apollo, exa_usd: exa, usd: Math.round(usd * 1000) / 1000 };")
+    R("Results Note", "' AI tokens' + (cost.apollo ?", "' AI tokens' + (cost.exa_usd ? ', an Exa people search' : '') + (cost.apollo ?")
+    return nodes, conns

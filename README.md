@@ -250,6 +250,7 @@ Complete (with counts) or Paused.
 | LinkedIn | Google X-ray (`site:linkedin.com/in`) with title synonyms, skills and city aliases | Serper |
 | GitHub | GitHub user search by language and location, then each profile (name, company, public email, site) | GitHub token (recommended) |
 | Apollo | People search by title, city and seniority; email lookup for people you shortlist | Apollo (optional) |
+| Exa | People search over 1B+ public profiles in plain English, run with LinkedIn (about $0.10 a search, 100 full profiles) | Exa (optional, $10 free a month) |
 | Hunter | Email lookup for people you shortlist when Apollo has none or is out of credits | Hunter (optional, free monthly credits) |
 | Kaggle | Kaggle API (top notebooks) plus Google search of Kaggle profiles in the city | Kaggle **legacy** API key + Serper |
 | Stack Overflow / Hugging Face / GitLab | Google search of profiles in the city (GitLab's own search only matches usernames) | Serper |

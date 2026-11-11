@@ -2075,7 +2075,7 @@ test('R46: each search says what it used (Google searches, AI tokens, Apollo) in
   const usage = (i, o) => ({ usage: { input_tokens: i, output_tokens: o } });
   const [note] = await runNode('Results Note', [{}], { 'Sourcing Summary': [{ count: 12, search_role: 'PM' }], 'Add Req Header': [{}], 'Search Criteria': [{}], 'Location Check & Rank': [{}],
     'Message a model': [usage(100000, 20000), usage(80000, 10000)], 'Serper Search': [{}, {}, {}], 'Resume Search': [{}, {}], 'Serper Retry': [] });
-  assert.deepEqual(note.cost, { serper: 5, ai_tokens: 210000, ai_calls: 2, apollo: 0, usd: 0.05 });
+  assert.deepEqual(note.cost, { serper: 5, ai_tokens: 210000, ai_calls: 2, apollo: 0, exa_usd: 0, usd: 0.05 });
   assert.match(note.top_html, /This search used 5 Google searches, 210k AI tokens \(about \$0\.05\)/);
   const [row] = await runNode('Cost Row', [note]); assert.equal(row.key, 'cost:999'); assert.equal(JSON.parse(row.value).serper, 5);
   assert.deepEqual(WF.connections['Cost Row'].main[0].map((c) => c.node), ['Save Cost']);
@@ -2117,4 +2117,21 @@ test('R47: a guessed Apollo email says so; "no email" answers are remembered for
   const [apr] = await runNode('Lookup Result', [aps], { 'Apollo Says': [aps] });
   const [sv] = await runNode('Lookup Save', [apr]);
   assert.equal(sv.name, 'Ravi Menon'); assert.equal(sv.linkedin, 'https://www.linkedin.com/in/ravi'); assert.equal(sv.contact_source, 'Apollo · verified');
+});
+
+// ------------------------------------------------------------ Round 49: Exa people search
+test('R49: Exa searches the brief in plain English and its profiles join the pool as "LinkedIn (Exa)"', async () => {
+  const c = criteria({ 'Target Role': 'Senior DevOps Engineer', Location: 'Hyderabad', 'Experience Range (Years)': '5-8 years', 'Primary Skills': 'Kubernetes, AWS', 'Target Platforms': ['LinkedIn'] });
+  const [q] = await runNode('Build Exa Query', [{}], { 'Search Criteria': [c] });
+  assert.equal(q.exa_query, 'Senior DevOps Engineer in Hyderabad, India with 5-8 years of experience, skilled in Kubernetes, AWS');
+  assert.equal(q.exa_body.category, 'people'); assert.equal(q.exa_body.numResults, 100);
+  assert.deepEqual(await runNode('Build Exa Query', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['GitHub'] })] }), [], 'GitHub-only searches skip Exa');
+  const exa = { costDollars: { total: 0.107 }, results: [{ title: 'Asha Rao', url: 'https://linkedin.com/in/asha-rao-1', text: '# Asha Rao\n\nSenior DevOps Engineer at Northwind\n\nHyderabad, Telangana, India (IN)\n\n## About\n\n7 years with Kubernetes and AWS.' }] };
+  const [o] = await runNode('Exa To Organic', [exa]);
+  assert.equal(o.organic[0].link, 'https://in.linkedin.com/in/asha-rao-1');
+  assert.equal(o.organic[0].title, 'Asha Rao - Senior DevOps Engineer at Northwind');
+  assert.match(o.organic[0].snippet, /Hyderabad, Telangana, India \(IN\)\. 7 years with Kubernetes/); assert.equal(o.exa_cost, 0.107);
+  assert.equal(NODES['Exa People Search'].credentials.httpHeaderAuth.name, 'Sourcing · Exa');
+  assert.equal(NODES['Exa People Search'].onError, 'continueRegularOutput', 'an Exa failure never stops the search');
+  assert.match(NODES['Parse Contact'].parameters.jsCode, /'LinkedIn \(Exa\)'/);
 });
