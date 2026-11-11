@@ -1336,6 +1336,7 @@ el('bWrap').addEventListener('change', function(e){ if (e.target.id !== 'rvStage
   moveCard(c.dedupe_key, to); });
 el('bWrap').addEventListener('input', function(e){ if (e.target.id === 'rvQ') { B.rq = e.target.value; clearTimeout(B.rqT); B.rqT = setTimeout(function(){ var pos = e.target.selectionStart; B.rv = null; renderBoard(); var q = el('rvQ'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } }, 250); return; } if (e.target.id === 'nbCos') { B.nb.companies = e.target.value; B.nb.touchedCos = true; return; } if (e.target.id === 'nbBrief') { B.nb.brief = e.target.value; clearTimeout(nbT); nbT = setTimeout(nbIntake, 1200); } });
 el('bWrap').addEventListener('click', function(e){
+  if (e.target.closest('#bFindEmails')) { findEmailsAll(); return; }
   var rv = e.target.closest('[data-rv]'); if (rv) { B.rv = rv.dataset.rv; renderBoard(); if (window.innerWidth <= 900) { var pn = document.querySelector('.rvpanel'); if (pn) pn.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
   var rt = e.target.closest('[data-rvt]'); if (rt) { B.tier = rt.dataset.rvt; B.rv = null; renderBoard(); return; }
   var rs = e.target.closest('[data-rvs]'); if (rs) { B.rsrc = rs.dataset.rvs || null; B.rv = null; renderBoard(); return; }
@@ -1371,17 +1372,7 @@ el('bWrap').addEventListener('click', function(e){
 });
 el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) { approveAll(b); return; }
   if (e.target.closest('#bDoneX')) { B.justDone = false; renderBoard(); return; }
-  if (e.target.closest('#bFindEmails')) { if (B.findingAll) return;
-    var miss = ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'shortlisted' && !c.email && !(/^lookup:none:/.test(c.contact_source||'') && (Date.now() - new Date(String(c.contact_source).slice(12,22))) < 30*864e5); }).slice(0, 10);
-    if (!miss.length) return; B.findingAll = true; miss.forEach(function(c){ c.finding = true; }); renderBoard();
-    toast('Looking up emails for ' + miss.length + ' shortlisted ' + (miss.length === 1 ? 'person' : 'people') + '…');
-    call('find_email', { run_id: B.runId, keys: miss.map(function(c){ return c.dedupe_key; }) }).then(function(j){
-      var got = 0, guessed = 0; (j.found||[]).forEach(function(f){ var c = cardOf(f.dedupe_key); if (!c) return; if (f.email && !c.email) { c.email = f.email; c.contact_source = f.email_source || ''; got++; if (f.guessed) guessed++; } else if (!f.email && /^No email found/.test(f.note||'')) c.contact_source = 'lookup:none:' + new Date().toISOString().slice(0,10) + ':'; });
-      var why = (j.found||[]).filter(function(f){ return !f.email && f.note; }).map(function(f){ return (f.note.match(/\(([^)]+)\)/)||[])[1]; }).filter(Boolean)[0];
-      toast(got ? 'Found ' + got + ' of ' + miss.length + ' emails' + (guessed ? ' (' + guessed + ' unverified guesses, shown in amber)' : '') + '.' + (got < miss.length && why ? ' For the rest: ' + why + '.' : '') : 'No new emails' + (why ? ': ' + why : '') + '.');
-    }).catch(function(err){ if (err.message!=='locked') toast(err.message); })
-      .then(function(){ B.findingAll = false; miss.forEach(function(c){ c.finding = false; }); renderBoard(); });
-    return; }
+  if (e.target.closest('#bFindEmails')) { findEmailsAll(); return; }
   if (e.target.closest('#bShortStrong')) { B.justDone = false; ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'found' && bPct(c) >= 80; }).forEach(function(c){ moveCard(c.dedupe_key, 'shortlisted'); }); return; }
   var r = e.target.closest('[data-rail]'); if (!r) return; if (window.innerWidth <= 640) { B.pcol = r.dataset.rail; renderBoard(); return; } var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
   col.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
@@ -1457,6 +1448,17 @@ function rvNext(){ var list = rvList((B.data||{}).cards||[]), i = list.findIndex
   var n = list.slice(i+1).find(function(c){ return !reviewed(c); }) || list.find(function(c){ return !reviewed(c) && c.dedupe_key !== B.rv; }); if (n) B.rv = n.dedupe_key; }
 function rvAct(a){ var c = cardOf(B.rv); if (!c) return; if (a === 'skip') { rvNext(); renderBoard(); return; }
   var key = c.dedupe_key; rvNext(); moveCard(key, a); }
+function findEmailsAll(){ if (B.findingAll) return;
+    var miss = ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'shortlisted' && !c.email && !(/^lookup:none:/.test(c.contact_source||'') && (Date.now() - new Date(String(c.contact_source).slice(12,22))) < 30*864e5); }).slice(0, 10);
+    if (!miss.length) return; B.findingAll = true; miss.forEach(function(c){ c.finding = true; }); renderBoard();
+    toast('Looking up emails for ' + miss.length + ' shortlisted ' + (miss.length === 1 ? 'person' : 'people') + '…');
+    call('find_email', { run_id: B.runId, keys: miss.map(function(c){ return c.dedupe_key; }) }).then(function(j){
+      var got = 0, guessed = 0; (j.found||[]).forEach(function(f){ var c = cardOf(f.dedupe_key); if (!c) return; if (f.email && !c.email) { c.email = f.email; c.contact_source = f.email_source || ''; got++; if (f.guessed) guessed++; } else if (!f.email && /^No email found/.test(f.note||'')) c.contact_source = 'lookup:none:' + new Date().toISOString().slice(0,10) + ':'; });
+      var why = (j.found||[]).filter(function(f){ return !f.email && f.note; }).map(function(f){ return (f.note.match(/\(([^)]+)\)/)||[])[1]; }).filter(Boolean)[0];
+      toast(got ? 'Found ' + got + ' of ' + miss.length + ' emails' + (guessed ? ' (' + guessed + ' unverified ' + (guessed === 1 ? 'guess' : 'guesses') + ', shown in amber)' : '') + '.' + (got < miss.length && why ? ' For the rest: ' + why + '.' : '') : 'No new emails' + (why ? ': ' + why : '') + '.');
+    }).catch(function(err){ if (err.message!=='locked') toast(err.message); })
+      .then(function(){ B.findingAll = false; miss.forEach(function(c){ c.finding = false; }); renderBoard(); });
+}
 function cardOf(k){ return ((B.data||{}).cards||[]).find(function(c){ return c.dedupe_key === k; }); }
 function saveCard(c, patch, done){
   var prev = { stage: c.stage, owner: c.owner, note: c.note, snooze_until: c.snooze_until };
