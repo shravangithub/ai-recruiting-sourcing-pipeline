@@ -1016,6 +1016,7 @@ var STAGE_NAME = { found:'Found', shortlisted:'Shortlisted', approved:'Approved'
 function bList(v){ return (Array.isArray(v) ? v : String(v||'').split(',')).map(function(x){ return String(x).trim(); }).filter(Boolean); }
 function loadBoard(runId){
   clearTimeout(B.poll);
+  if (runId && String(runId) !== String(B.runId || '')) { B.rq = ''; B.rsrc = null; B.rv = null; B.tier = 'strong'; }
   call('board', { run_id: runId || '' }).then(function(j){
     if (!j.ok) { toast(j.error || 'Could not load the board.'); return; }
     var was = B.data && B.data.run && B.data.run.status === 'running' && String(B.data.run.run_id) === String((j.run||{}).run_id);
@@ -1335,7 +1336,7 @@ el('bWrap').addEventListener('change', function(e){ if (e.target.id !== 'rvStage
   moveCard(c.dedupe_key, to); });
 el('bWrap').addEventListener('input', function(e){ if (e.target.id === 'rvQ') { B.rq = e.target.value; clearTimeout(B.rqT); B.rqT = setTimeout(function(){ var pos = e.target.selectionStart; B.rv = null; renderBoard(); var q = el('rvQ'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } }, 250); return; } if (e.target.id === 'nbCos') { B.nb.companies = e.target.value; B.nb.touchedCos = true; return; } if (e.target.id === 'nbBrief') { B.nb.brief = e.target.value; clearTimeout(nbT); nbT = setTimeout(nbIntake, 1200); } });
 el('bWrap').addEventListener('click', function(e){
-  var rv = e.target.closest('[data-rv]'); if (rv) { B.rv = rv.dataset.rv; renderBoard(); return; }
+  var rv = e.target.closest('[data-rv]'); if (rv) { B.rv = rv.dataset.rv; renderBoard(); if (window.innerWidth <= 900) { var pn = document.querySelector('.rvpanel'); if (pn) pn.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
   var rt = e.target.closest('[data-rvt]'); if (rt) { B.tier = rt.dataset.rvt; B.rv = null; renderBoard(); return; }
   var rs = e.target.closest('[data-rvs]'); if (rs) { B.rsrc = rs.dataset.rvs || null; B.rv = null; renderBoard(); return; }
   var ra = e.target.closest('[data-rva]'); if (ra) { rvAct(ra.dataset.rva); return; }
@@ -1632,7 +1633,7 @@ el('cmdIn').addEventListener('keydown', function(e){
 el('cmdList').addEventListener('click', function(e){ var b = e.target.closest('[data-ci]'); if (!b) return; var it = CMD.items[+b.dataset.ci]; cmdClose(); if (it) it.f(); });
 el('cmdk').addEventListener('click', function(e){ if (e.target === el('cmdk')) cmdClose(); });
 document.addEventListener('keydown', function(e){
-  if (B.view === 'review' && TOKEN && !e.metaKey && !e.ctrlKey && !e.altKey && el('cmdk').classList.contains('hide') && (!B.open || el('bDrawer').classList.contains('hide'))) {
+  if (B.view === 'review' && TOKEN && !el('v-board').classList.contains('hide') && !e.metaKey && !e.ctrlKey && !e.altKey && el('cmdk').classList.contains('hide') && (!B.open || el('bDrawer').classList.contains('hide'))) {
     var tg = e.target; if (!(tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable))) {
       var k = e.key.toLowerCase();
       if (k === 'j' || e.key === 'ArrowDown') { e.preventDefault(); rvMove(1); return; }

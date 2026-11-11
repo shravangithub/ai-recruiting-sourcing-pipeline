@@ -2135,3 +2135,17 @@ test('R49: Exa searches the brief in plain English and its profiles join the poo
   assert.equal(NODES['Exa People Search'].onError, 'continueRegularOutput', 'an Exa failure never stops the search');
   assert.match(NODES['Parse Contact'].parameters.jsCode, /'LinkedIn \(Exa\)'/);
 });
+test('R50: a must-have the profile contradicts caps the score (3 years on a 6-9 year role is not a Strong match)', async () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../setup/pipeline_fixes.py'), 'utf8');
+  const js = src.split('CRIT_JS = r"""')[1].split('"""')[0];
+  const f = new Function(js + '; return { buildCrit, scoreFrom };')();
+  const crit = f.buildCrit({ role: 'Senior DevOps Engineer', must: 'Kubernetes, AWS', experience: '6-9 years', city: 'Hyderabad' });
+  const all = crit.map((c, i) => ({ c: i + 1, s: 3 }));
+  assert.equal(f.scoreFrom(crit, all).fit, 10);
+  const shortYears = all.map((r, i) => (/Experience/.test(crit[i].name) ? { c: r.c, s: 0 } : r));
+  assert.ok(f.scoreFrom(crit, shortYears).fit <= 6.9, 'experience contradicted -> at most 69%');
+  const noK8s = all.map((r, i) => (/Kubernetes/.test(crit[i].name) ? { c: r.c, s: 0 } : r));
+  assert.ok(f.scoreFrom(crit, noK8s).fit <= 6, 'a must-have contradicted -> at most 60%');
+  const city = all.map((r, i) => (/Based in/.test(crit[i].name) ? { c: r.c, s: 0 } : r));
+  assert.ok(f.scoreFrom(crit, city).fit > 9, 'city (weight 1) lowers the score but does not cap it');
+});

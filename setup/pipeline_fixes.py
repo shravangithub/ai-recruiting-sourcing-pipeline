@@ -6700,10 +6700,12 @@ const buildCrit = function(o){
 // Ratings -> a 0.5-10 score (one decimal) and a short breakdown.
 const scoreFrom = function(crit, rated){
   if (!Array.isArray(rated) || !rated.length || !crit.length) return null;
-  let got = 0, max = 0; const parts = [];
+  let got = 0, max = 0, cap = 1; const parts = [];
   crit.forEach(function(c, i){ const r = rated.find(function(x){ return x && Number(x.c) === i + 1; }) || {}; let s = Number(r.s); if (isNaN(s)) s = 1; s = Math.max(0, Math.min(3, Math.round(s)));
+    // a must-have the profile contradicts (3 years for a 6-9 year role, another city) caps the score
+    if (s === 0 && c.w >= 3) cap = Math.min(cap, 0.6); else if (s === 0 && c.w >= 2) cap = Math.min(cap, 0.69);
     got += c.w * s; max += c.w * 3; parts.push(c.name + ' ' + ['✗', '?', '~', '✓'][s] + (s >= 2 && r.e ? ' ("' + String(r.e).slice(0, 60) + '")' : '')); });
-  const pct = max ? got / max : 0;
+  const pct = max ? Math.min(got / max, cap) : 0;
   return { fit: Math.max(0.5, Math.round(pct * 100) / 10), breakdown: 'Scored: ' + parts.join('; ') + '.' };
 };
 """
