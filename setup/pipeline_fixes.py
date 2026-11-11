@@ -6689,13 +6689,20 @@ const buildCrit = function(o){
   const has = function(word){ word = String(word).toLowerCase(); return out.some(function(c){ return c.name.toLowerCase().indexOf(word) !== -1; }); };
   const list = function(s){ return String(s || '').split(/[,;\n]/).map(function(x){ return x.trim(); }).filter(Boolean); };
   if (o.role && !out.some(function(c){ return /role|title|seniority/i.test(c.name); })) out.unshift({ name: 'Role: ' + String(o.role).slice(0, 60), w: 3, how: 'does the same job or an equivalent title' });
+  // years and city are always scored, even with a rubric that leaves them out ("DevOps experience" is not "6-9 years")
+  const yearsCovered = out.some(function(c){ return /\d+\s*(\+|-|to)?\s*\d*\s*(years|yrs)|years of experience|seniority/i.test(c.name + ' ' + c.how); });
+  const cityCovered = out.some(function(c){ return /based in|location|located|city/i.test(c.name); });
+  const exp = o.experience && !/^(any|auto)/i.test(String(o.experience)) && !yearsCovered ? { name: 'Experience ' + o.experience, w: 2, how: 'years or seniority as stated' } : null;
+  const city = o.city && !cityCovered ? { name: 'Based in ' + String(o.city).split('-')[0].trim(), w: 1, how: 'location on the profile' } : null;
   if (!rub.length) {
     list(o.must).slice(0, 4).forEach(function(s){ if (!has(s)) out.push({ name: s.slice(0, 60), w: 3, how: 'must-have' }); });
-    if (o.experience && !/^(any|auto)/i.test(String(o.experience))) out.push({ name: 'Experience ' + o.experience, w: 2, how: 'years or seniority as stated' });
-    if (o.city) out.push({ name: 'Based in ' + String(o.city).split('-')[0].trim(), w: 1, how: 'location on the profile' });
+    if (exp) out.push(exp);
+    if (city) out.push(city);
     list(o.nice).slice(0, 3).forEach(function(s){ if (!has(s)) out.push({ name: s.slice(0, 60), w: 1, how: 'nice to have' }); });
+    return out.slice(0, 8);
   }
-  return out.slice(0, 8);
+  const keep = out.slice(0, 8 - (exp ? 1 : 0) - (city ? 1 : 0));
+  return keep.concat(exp ? [exp] : [], city ? [city] : []);
 };
 // Ratings -> a 0.5-10 score (one decimal) and a short breakdown.
 const scoreFrom = function(crit, rated){
