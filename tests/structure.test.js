@@ -122,12 +122,13 @@ test('UAT: setup checkbox rule is open-ended too', () => {
   assert.ok(!/endRowIndex: 5000/.test(handler));
 });
 
-test('UAT: every Apollo-sourced row is enriched (first-name-only rows are useless); LinkedIn rows wait for a shortlist', () => {
+test('UAT: Apollo-sourced rows in the top 15 are enriched (credits); the rest and LinkedIn rows wait for a shortlist', () => {
   const c = NODES['Has LinkedIn'].parameters.conditions.conditions;
   const expr = c.map((x) => x.leftValue).join(' ');
   const evalRow = (row, used = 0) => Function('$json', '$', 'return ' + expr.replace(/^=\{\{|\}\}$/g, ''))(row, () => ({ first: () => ({ json: { PDL_Used: used } }) }));
   assert.equal(c.length, 1);
-  assert.equal(evalRow({ profile_url: 'https://www.apollo.io/people/abc', rank: 40 }), true);
+  assert.equal(evalRow({ profile_url: 'https://www.apollo.io/people/abc', rank: 12 }), true);
+  assert.equal(evalRow({ profile_url: 'https://www.apollo.io/people/abc', rank: 40 }), false, 'not every Apollo row spends a credit');
   assert.equal(evalRow({ profile_url: 'https://in.linkedin.com/in/x', rank: 1 }), false, 'no bulk LinkedIn lookups');
   assert.equal(evalRow({ profile_url: 'https://in.linkedin.com/in/x', rank: 40 }), false);
   assert.equal(evalRow({ profile_url: 'https://github.com/x', rank: 1 }), false);

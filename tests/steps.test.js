@@ -1977,9 +1977,9 @@ test('R45: Apollo first; out of credits -> Hunter; the found email is saved and 
   const [a] = await runNode('Apollo Says', [{ error: { message: '422 - {"error":"insufficient credits","error_code":"BILLING.LIMIT.CREDITS_EXHAUSTED"}' } }], { 'Lookup Prep': [p] });
   assert.equal(a.need_hunter, true); assert.equal(a.apollo_note, 'Apollo is out of credits');
   const [res] = await runNode('Lookup Result', [{ data: { email: 'ravi.menon@acmepay.example', score: 91, verification: { status: 'valid' } } }], { 'Apollo Says': [a] });
-  assert.equal(res.email, 'ravi.menon@acmepay.example'); assert.equal(res.email_source, 'Hunter (verified)'); assert.equal(res.is_new, true);
+  assert.equal(res.email, 'ravi.menon@acmepay.example'); assert.equal(res.email_source, 'Hunter · verified'); assert.equal(res.is_new, true);
   const [save] = await runNode('Lookup Save', [res]);
-  assert.deepEqual(save, { run_id: '42', dedupe_key: 'p1', email: 'ravi.menon@acmepay.example', contact_source: 'Hunter (verified)' });
+  assert.deepEqual(save, { run_id: '42', dedupe_key: 'p1', email: 'ravi.menon@acmepay.example', contact_source: 'Hunter · verified' });
   const [rep] = await runNode('Lookup Reply', [res]);
   assert.equal(rep.response.ok, true); assert.equal(rep.response.card.stage, 'shortlisted'); assert.equal(rep.response.email, 'ravi.menon@acmepay.example');
   const sheet = NODES['Found Email In Sheet'].parameters.columns;
@@ -1990,7 +1990,7 @@ test('R45: Apollo first; out of credits -> Hunter; the found email is saved and 
 test('R45: Apollo has the email -> Hunter is not asked', async () => {
   const p = await r45prep(r45person);
   const [a] = await runNode('Apollo Says', [{ person: { email: 'ravi@acmepay.example', email_status: 'verified' } }], { 'Lookup Prep': [p] });
-  assert.equal(a.need_hunter, false); assert.equal(a.email_source, 'Apollo (verified)');
+  assert.equal(a.need_hunter, false); assert.equal(a.email_source, 'Apollo · verified');
   const [res] = await runNode('Lookup Result', [a], { 'Apollo Says': [a] });
   assert.equal(res.email, 'ravi@acmepay.example'); assert.equal(res.is_new, true);
   const [locked] = await runNode('Apollo Says', [{ person: { email: 'email_not_unlocked@domain.com' } }], { 'Lookup Prep': [p] });
@@ -2057,7 +2057,7 @@ test('R46: "shortlist 1 and 3" moves both people and looks up their emails; appr
   // the reply's facts
   const [w] = await runNode('Assist Write Prompt', [{}], { 'Assist Prompt': [k], 'Assist Act': [a], 'Assist Call A': [rep.response], 'Assist Step B': [{ b: { action: 'ping' } }] });
   assert.match(w.facts.done[0], /Moved Asha Rao, Neha S to Shortlisted/);
-  assert.deepEqual(w.facts.emails.map((e) => [e.name, e.email, e.found_by]), [['Asha Rao', 'asha@example.com', 'already had it'], ['Neha S', 'neha@acme.example', 'Apollo (verified)']]);
+  assert.deepEqual(w.facts.emails.map((e) => [e.name, e.email, e.found_by]), [['Asha Rao', 'asha@example.com', 'already had it'], ['Neha S', 'neha@acme.example', 'Apollo · verified']]);
   assert.match(w.facts.next, /approve them on the Board/);
 });
 test('R46: each search says what it used (Google searches, AI tokens, Apollo) in the email and on the Board', async () => {
@@ -2069,4 +2069,41 @@ test('R46: each search says what it used (Google searches, AI tokens, Apollo) in
   const [row] = await runNode('Cost Row', [note]); assert.equal(row.key, 'cost:999'); assert.equal(JSON.parse(row.value).serper, 5);
   assert.deepEqual(WF.connections['Cost Row'].main[0].map((c) => c.node), ['Save Cost']);
   assert.match(NODES['Board Reply'].parameters.jsCode, /cost: cost, criteria/);
+});
+
+// ------------------------------------------------------------ Round 47: email confidence, credits
+test('R47: a guessed Apollo email says so; "no email" answers are remembered for 30 days so credits are not spent twice', async () => {
+  const p = await r45prep(r45person);
+  const [g] = await runNode('Apollo Says', [{ person: { email: 'ravi.menon@acme.example', email_status: 'extrapolated' } }], { 'Lookup Prep': [p] });
+  assert.equal(g.email_source, 'Apollo · guessed, not verified');
+  const [gr] = await runNode('Lookup Result', [g], { 'Apollo Says': [g] }); assert.equal(gr.guessed, true);
+  const [h] = await runNode('Lookup Result', [{ data: { email: 'r@acme.example', score: 82, verification: { status: 'accept_all' } } }], { 'Apollo Says': [Object.assign({}, g, { email: '', email_source: '', need_hunter: true })] });
+  assert.equal(h.email_source, 'Hunter · likely (82%), not verified');
+  // both said none -> remembered
+  const [a] = await runNode('Apollo Says', [{ person: null }], { 'Lookup Prep': [p] });
+  assert.deepEqual(a.none_by, ['apollo']);
+  const [r] = await runNode('Lookup Result', [{ error: { message: '404 - not_found' } }], { 'Apollo Says': [a] });
+  assert.match(r.marker, /^lookup:none:\d{4}-\d\d-\d\d:apollo,hunter$/);
+  const [miss] = await runNode('Lookup Miss', [r]); assert.equal(miss.contact_source, r.marker);
+  assert.deepEqual(WF.connections['Lookup Miss'].main[0].map((c) => c.node), ['Save Lookup Miss']);
+  // next time: neither is asked, and the note says when it was tried
+  const again = await r45prep(Object.assign({}, r45person, { contact_source: r.marker }));
+  assert.equal(again.need_apollo, false); assert.equal(again.hunter_ok, false);
+  const [a2] = await runNode('Apollo Says', [again], { 'Lookup Prep': [again] }); assert.equal(a2.need_hunter, false);
+  const [r2] = await runNode('Lookup Result', [a2], { 'Apollo Says': [a2] });
+  assert.match(r2.note, /Already looked up on \d{4}-\d\d-\d\d: Apollo and Hunter had no email/); assert.equal(r2.marker, '');
+  // out of credits is not "no email": nothing remembered, so it is tried again after a top-up
+  const [oc] = await runNode('Apollo Says', [{ error: { message: '422 - insufficient credits' } }], { 'Lookup Prep': [p] });
+  const [ocr] = await runNode('Lookup Result', [{ error: { message: '429 - usage limit' } }], { 'Apollo Says': [oc] });
+  assert.equal(ocr.marker, '');
+  // an old "none" (over 30 days) is asked again
+  const old = await r45prep(Object.assign({}, r45person, { contact_source: 'lookup:none:2020-01-01:apollo,hunter' }));
+  assert.equal(old.need_apollo, true);
+  // Apollo-search rows are looked up by their Apollo id, and the full name comes back
+  const ap = await r45prep({ run_id: '42', dedupe_key: 'p1', name: 'Ravi M.', company: 'Acme', profile_url: 'https://www.apollo.io/people/5f2a9c' });
+  assert.equal(ap.need_apollo, true); assert.match(ap.apollo_url, /\?id=5f2a9c&/); assert.equal(ap.hunter_ok, false, '"Ravi M." is not a full name for Hunter');
+  const [aps] = await runNode('Apollo Says', [{ person: { name: 'Ravi Menon', email: 'ravi@acme.example', email_status: 'verified', linkedin_url: 'https://www.linkedin.com/in/ravi' } }], { 'Lookup Prep': [ap] });
+  const [apr] = await runNode('Lookup Result', [aps], { 'Apollo Says': [aps] });
+  const [sv] = await runNode('Lookup Save', [apr]);
+  assert.equal(sv.name, 'Ravi Menon'); assert.equal(sv.linkedin, 'https://www.linkedin.com/in/ravi'); assert.equal(sv.contact_source, 'Apollo · verified');
 });

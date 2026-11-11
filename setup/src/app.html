@@ -189,7 +189,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .csub{grid-area:sub;font-size:13px;color:var(--muted);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ccomp{grid-area:comp;display:flex;align-items:center;gap:6px;min-width:0;font-size:13px;font-weight:600;color:var(--char)}.ccomp svg{flex:none;color:var(--muted)}.ccomp span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ccomp .loc{font-weight:400;color:var(--muted);flex:none;max-width:45%}
 .cskill{grid-area:skill;font-size:12px;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bsrc{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EEF2FF;color:#3B4BA8}.bmail{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:6px;background:#E8F6EE;color:#1F7A47}
+.bsrc{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EEF2FF;color:#3B4BA8}.bmail{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:6px;background:#E8F6EE;color:#1F7A47}.bmail.guess{background:#FFF4DB;color:#8A5A00}
 .ctags{grid-area:tags;display:flex;gap:6px;flex-wrap:wrap}.ctags span{white-space:nowrap}.ctags:empty{display:none}
 /* match % as rising signal bars, warm to green */
 .sig{grid-area:ring;align-self:start;justify-self:end;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -827,6 +827,9 @@ function pct(c){
   return c._pct;
 }
 function tint(s){ s = String(s||'').toLowerCase().replace(/\b(pvt|private|ltd|limited|inc|llp|technologies|technology|india)\b/g,''); var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 8; }
+function guessEmail(c){ return /not verified|guess|extrapolat|likely/i.test(c.contact_source||''); }
+function missText(c){ var m = String(c.contact_source||'').match(/^lookup:none:(\d{4}-\d\d-\d\d):(.*)$/); if (!m) return ''; return 'Looked up on '+m[1]+': '+m[2].split(',').map(function(x){ return x === 'apollo' ? 'Apollo' : 'Hunter'; }).join(' and ')+' had no email. Not asked again for 30 days, to save credits.'; }
+function emailWhy(src){ return guessEmail({ contact_source: src }) ? ' It is a guess from the company\'s email format and may bounce.' : ''; }
 function niceName(n){ n = String(n||''); return (n.length > 3 && n === n.toUpperCase() && /[A-Z]/.test(n)) ? n.toLowerCase().replace(/(^|[\s'-])([a-z])/g, function(m, a, b){ return a + b.toUpperCase(); }) : n; }
 function initials(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(s){ return s[0]; }).join('').toUpperCase(); }
 function checks(c){
@@ -911,7 +914,7 @@ function renderList(){
         '<p style="margin:0 0 4px">'+esc(c.summary||'No summary.')+'</p><div>'+whyPanel(c)+'</div>'+
         '<p class="muted" style="margin:6px 0 0;font-size:12px">Every point comes from their public profile. Nothing is guessed.</p></div>'+
       '<div><span class="lbl">Found on '+esc(c.source||'the web')+'</span><p style="margin:0">'+(links||'—')+'</p>'+
-        '<span class="lbl" style="margin-top:8px">Contact</span><p style="margin:0">'+(c.email?esc(c.email)+' <span class="muted">('+esc(c.contact_source||'')+')</span>':'No email found yet')+'</p>'+
+        '<span class="lbl" style="margin-top:8px">Contact</span><p style="margin:0">'+(c.email?esc(c.email)+' <span class="muted">('+esc(c.contact_source||'')+')'+esc(emailWhy(c.contact_source))+'</span>':esc(missText(c)||'No email found yet'))+'</p>'+
         '<span class="lbl" style="margin-top:8px">If you approve</span><div>'+
           '<div class="tl"><b>Today</b><span>First email, personalised from their profile</span></div>'+
           days.map(function(d,i){ return '<div class="tl"><b>Day '+d+'</b><span>'+['Gentle bump','More context, offer the JD','"Maybe later?" option','Last note'][i]+'</span></div>'; }).join('')+
@@ -1018,7 +1021,8 @@ function bCard(c){
   if (c.stage === 'followup' && c.sequence) tags.push('<span class="btag">'+esc(String(c.sequence.status_text||'').replace(/^Contacted · /,'').slice(0,34))+'</span>');
   // where the profile came from and whether there is an email always show; other tags after them
   var head = ['<span class="bsrc" title="Found on '+esc(c.source||'the web')+'">'+esc(String(c.source||'Web').replace('Google / Open Web','Open web'))+'</span>',
-    c.finding ? '<span class="btag"><span class="spin" style="display:inline-block;width:9px;height:9px;vertical-align:-1px;margin-right:4px"></span>Finding email…</span>' : c.email ? '<span class="bmail" title="'+esc(c.email+(c.contact_source ? ' · '+c.contact_source : ''))+'">Email ✓</span>' : (['found','shortlisted'].indexOf(c.stage) !== -1 ? '<span class="btag">No email yet</span>' : '')].filter(Boolean);
+    c.finding ? '<span class="btag"><span class="spin" style="display:inline-block;width:9px;height:9px;vertical-align:-1px;margin-right:4px"></span>Finding email…</span>' : c.email ? (guessEmail(c) ? '<span class="bmail guess" title="'+esc(c.email+' · '+c.contact_source+'. A guess from the company\'s email format: it may bounce.')+'">Email (unverified)</span>' : '<span class="bmail" title="'+esc(c.email+(c.contact_source ? ' · '+c.contact_source : ''))+'">Email ✓</span>')
+      : (/^lookup:none:/.test(c.contact_source||'') ? '<span class="btag" title="'+esc(missText(c))+'">No email found</span>' : (['found','shortlisted'].indexOf(c.stage) !== -1 ? '<span class="btag">No email yet</span>' : ''))].filter(Boolean);
   var shown = head.join('') + tags.slice(0,1).join('') + (tags.length > 1 ? '<span class="btag" title="'+esc(tags.slice(1).map(function(t){ return t.replace(/<[^>]+>/g,''); }).join(', '))+'">+'+(tags.length-1)+'</span>' : '');
   // the role on one line, the current company (and city) on the next, then the top skills
   var title = String(c.title||''), company = String(c.company||'');
@@ -1052,7 +1056,8 @@ function renderBoard(){
     var extra = '';
     if (col[0]==='found' && run.status==='running') extra = '<div class="muted" style="font-size:12px">'+esc(['','Searching your channels','Scoring every profile','Checking location and emails','Almost done'][Math.min(4, +run.stage||1)])+'</div>';
     if (col[0]==='shortlisted') { var od = list.filter(function(c){ return c.overdue; }).length; if (od) extra = '<span class="bwarn" style="align-self:flex-start">'+od+' waiting more than 2 days</span>';
-      var ne = list.filter(function(c){ return !c.email; }).length; if (ne && !B.newRole) extra += '<button type="button" class="bmore" id="bFindEmails" style="align-self:flex-start" title="Looks up emails again, e.g. after Apollo or Hunter credits are added. Uses one credit per person.">'+(B.findingAll ? 'Looking up…' : 'Find emails for '+ne+' without one')+'</button>'; }
+      var ne = list.filter(function(c){ return !c.email && !(/^lookup:none:/.test(c.contact_source||'') && missText(c) && (Date.now() - new Date(String(c.contact_source).slice(12,22))) < 30*864e5); }).length;
+      if (ne && !B.newRole) extra += '<button type="button" class="bmore" id="bFindEmails" style="align-self:flex-start" title="Looks up emails again, e.g. after Apollo or Hunter credits are added. People Apollo and Hunter had no email for in the last 30 days are skipped.">'+(B.findingAll ? 'Looking up…' : 'Find emails for '+Math.min(ne,10)+' · up to '+Math.min(ne,10)+' credit'+(Math.min(ne,10)===1?'':'s'))+'</button>'; }
     var ghost = '';
     if (col[0]==='shortlisted' && list.length >= 2 && !B.newRole && run.status !== 'running') ghost = '<button type="button" class="ghost" id="bLike"><b style="font-size:13px">Find more like these '+list.length+'</b><span class="muted" style="font-size:12px">Searches again using their titles and companies: '+esc(lookalike(list).companies.slice(0,3).join(', ') || 'similar profiles')+'</span></button>';
     if (col[0]==='interview' && list.length) extra += '<div class="win"><b style="font-size:13px">'+list.length+' in interviews</b><span style="color:#D4D4D8">From a brief to a conversation. Open a card for interview questions.</span></div>';
@@ -1316,13 +1321,13 @@ el('bWrap').addEventListener('click', function(e){
 el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) { approveAll(b); return; }
   if (e.target.closest('#bDoneX')) { B.justDone = false; renderBoard(); return; }
   if (e.target.closest('#bFindEmails')) { if (B.findingAll) return;
-    var miss = ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'shortlisted' && !c.email; }).slice(0, 10);
+    var miss = ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'shortlisted' && !c.email && !(/^lookup:none:/.test(c.contact_source||'') && (Date.now() - new Date(String(c.contact_source).slice(12,22))) < 30*864e5); }).slice(0, 10);
     if (!miss.length) return; B.findingAll = true; miss.forEach(function(c){ c.finding = true; }); renderBoard();
     toast('Looking up emails for ' + miss.length + ' shortlisted ' + (miss.length === 1 ? 'person' : 'people') + '…');
     call('find_email', { run_id: B.runId, keys: miss.map(function(c){ return c.dedupe_key; }) }).then(function(j){
-      var got = 0; (j.found||[]).forEach(function(f){ var c = cardOf(f.dedupe_key); if (c && f.email && !c.email) { c.email = f.email; c.contact_source = f.email_source || ''; got++; } });
+      var got = 0, guessed = 0; (j.found||[]).forEach(function(f){ var c = cardOf(f.dedupe_key); if (!c) return; if (f.email && !c.email) { c.email = f.email; c.contact_source = f.email_source || ''; got++; if (f.guessed) guessed++; } else if (!f.email && /^No email found/.test(f.note||'')) c.contact_source = 'lookup:none:' + new Date().toISOString().slice(0,10) + ':'; });
       var why = (j.found||[]).filter(function(f){ return !f.email && f.note; }).map(function(f){ return (f.note.match(/\(([^)]+)\)/)||[])[1]; }).filter(Boolean)[0];
-      toast(got ? 'Found ' + got + ' of ' + miss.length + ' emails.' + (got < miss.length && why ? ' For the rest: ' + why + '.' : '') : 'No new emails' + (why ? ': ' + why : '') + '.');
+      toast(got ? 'Found ' + got + ' of ' + miss.length + ' emails' + (guessed ? ' (' + guessed + ' unverified guesses, shown in amber)' : '') + '.' + (got < miss.length && why ? ' For the rest: ' + why + '.' : '') : 'No new emails' + (why ? ': ' + why : '') + '.');
     }).catch(function(err){ if (err.message!=='locked') toast(err.message); })
       .then(function(){ B.findingAll = false; miss.forEach(function(c){ c.finding = false; }); renderBoard(); });
     return; }
@@ -1351,8 +1356,8 @@ function saveCard(c, patch, done){
     if (done && !looking) done();
     if (looking && !j.email && !j.email_note && done) done();
     // shortlisting looks up an email (Apollo, then Hunter) when the person has none
-    if (j.email && !c.email) { c.email = j.email; c.contact_source = j.email_source || ''; renderBoard(); toast(c.name + ' → ' + (STAGE_NAME[c.stage] || c.stage) + '. Email found: ' + j.email + ' (' + (j.email_source || 'lookup') + ').'); }
-    else if (j.email_note && !c.email) toast(j.email_note); })
+    if (j.email && !c.email) { c.email = j.email; c.contact_source = j.email_source || ''; renderBoard(); toast('Email found for ' + c.name + ': ' + j.email + ' (' + (j.email_source || 'lookup') + ').' + emailWhy(j.email_source)); }
+    else if (j.email_note && !c.email) { if (/^No email found|Already looked up/.test(j.email_note)) c.contact_source = 'lookup:none:' + new Date().toISOString().slice(0,10) + ':'; toast(j.email_note); } })
     .catch(function(e){ if (c.finding) { c.finding = false; renderBoard(); } if (e.message!=='locked') toast(e.message); });
 }
 function moveCard(key, stage){
@@ -1403,7 +1408,7 @@ function openCard(key, keep){
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Owner</span><select id="dOwner"><option value="">Nobody</option>'+team.map(function(n){ return '<option'+(c.owner===n?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select></label></div>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Note for the team</span><textarea id="dNote" rows="3" placeholder="What did you learn?">'+esc(c.note)+'</textarea></label>'+
     '<label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Not now, bring back on</span><input id="dSnooze" type="date" value="'+esc(c.snooze_until)+'" style="max-width:200px"></label>'+
-    '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">(from '+esc(c.contact_source||'search')+')</span>':'No email found yet')+'</p>'+(links?'<p style="margin:4px 0 0">'+links+'</p>':'')+'</div>';
+    '<div><span class="lbl">Contact</span><p style="margin:4px 0 0">'+(c.email?esc(c.email)+' <span class="muted">(from '+esc(c.contact_source||'search')+')'+esc(emailWhy(c.contact_source))+'</span>':esc(missText(c)||'No email found yet'))+'</p>'+(links?'<p style="margin:4px 0 0">'+links+'</p>':'')+'</div>';
   else if (B.tab === 'reply') body = replyPanel(c);
   else if (B.tab === 'interview') body = kitPanel(c);
   else body = hist.length ? hist.map(function(h){ return '<div class="hist"><span><b>'+esc(h.by||'')+'</b> '+esc(h.kind==='stage' ? 'moved them to ' + (STAGE_NAME[h.to_stage]||h.to_stage) : h.detail)+'</span><span class="muted" style="font-size:12px">'+esc(ago(h.at))+'</span></div>'; }).join('') : '<p class="muted" style="margin:0">Nobody has changed anything yet. Stage moves, notes and replies show here.</p>';
