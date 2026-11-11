@@ -160,7 +160,10 @@ tr.cand:hover td{background:#FAFAFB}
 @media (max-width:640px){.frow{grid-template-columns:1fr}}
 main.wide{max-width:none;padding-left:24px;padding-right:24px}
 /* review view: everyone found, strongest first (list + profile panel) */
-.rv{display:flex;flex-direction:column;gap:12px;width:100%;min-width:0}
+.rv{flex:1 1 760px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.seg{display:inline-flex;gap:0;margin-right:10px;border:1px solid #D4D4D8;border-radius:999px;padding:2px;background:#fff}.seg .f{border:0;margin:0}
+.rvside{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #E4E4E7;border-radius:12px;font-size:13.5px}
+.rvact2{display:flex;gap:8px;flex-wrap:wrap}.rvact2 button{min-height:38px;padding:0 14px;border-radius:9px;border:1px solid #E4E4E7;background:#F6F6F7;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--char);cursor:pointer}
 .rvtiers{display:flex;gap:10px;flex-wrap:wrap}
 .rvtier{min-width:170px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:10px 14px;border:1px solid #E4E4E7;border-radius:12px;background:#fff;font:inherit;color:var(--char);cursor:pointer;text-align:left}
 .rvtier.on{border:2px solid var(--red2);padding:9px 13px}
@@ -171,14 +174,14 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 .rvsrc{height:34px;padding:0 12px;border:1px solid #E4E4E7;border-radius:8px;background:#F6F6F7;font-family:inherit;font-size:13px;font-weight:500;color:#3F3F46;cursor:pointer}.rvsrc.on{background:var(--char);color:#fff;border-color:var(--char)}
 .rvhint{font-size:12px;color:var(--muted);margin-left:auto}
 .rvbody{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
-.rvlist{flex:1 1 520px;min-width:0;background:#fff;border:1px solid #E4E4E7;border-radius:12px;overflow:auto;max-height:calc(100vh - 280px)}
+.rvlist{flex:1 1 440px;min-width:0;background:#fff;border:1px solid #E4E4E7;border-radius:12px;overflow:auto;max-height:calc(100vh - 280px)}
 .rvrow{display:flex;gap:12px;align-items:flex-start;width:100%;padding:11px 16px;border:0;border-bottom:1px solid #F0F0F2;background:#fff;font:inherit;color:var(--char);text-align:left;cursor:pointer}
 .rvrow:hover{background:#FAFAFA}.rvrow.on{background:#FFF6F5;box-shadow:inset 3px 0 0 var(--red2)}.rvrow.rvdone{opacity:.55}
 .rvfit{width:44px;flex:none;font-weight:700;font-size:14.5px}.rvfit.hi{color:#1F7A47}
 .rvmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .rvmain b{font-size:14.5px}.rvmain span{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rvchips{display:flex;gap:6px;flex:none;align-items:center}
-.rvpanel{flex:1 1 420px;min-width:0;position:sticky;top:12px;background:#fff;border:1px solid #E4E4E7;border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:16px}
+.rvpanel{flex:1 1 380px;min-width:0;position:sticky;top:12px;background:#fff;border:1px solid #E4E4E7;border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:16px}
 .rvhead{display:flex;gap:14px;align-items:center}.rvhead .cav{width:52px;height:52px;border-radius:26px;font-size:17px}
 .rvwhy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .rvwhy>div{display:block;padding:10px 12px;border-radius:10px;background:#F6F6F7;font-size:13px;line-height:1.4}
@@ -1071,16 +1074,15 @@ function renderBoard(){
   el('bRole').innerHTML = (j.roles||[]).map(function(r){ return '<option value="'+esc(r.run_id)+'"'+(String(r.run_id)===B.runId&&!B.newRole?' selected':'')+'>'+esc((r.role||'Search')+(r.location?' · '+r.location:''))+(r.status==='running'?' (searching)':'')+'</option>'; }).join('') || '<option>No roles yet</option>';
   var cards = (j.cards||[]).filter(bVisible);
   var nf = cards.filter(function(c){ return c.stage === 'not_fit'; }).length, sn = cards.filter(function(c){ return c.snoozed && c.stage !== 'not_fit'; }).length;
-  el('bFilters').innerHTML = [['all','Everyone'],['mine','Mine'],['strong','80%+'],['email','Has email']].map(function(f){ return '<button type="button" class="f'+(B.filter===f[0]?' on':'')+'" data-bf="'+f[0]+'">'+f[1]+'</button>'; }).join('') +
+  el('bFilters').innerHTML = (B.newRole ? '' : '<span class="seg" role="group" aria-label="View"><button type="button" class="f'+(B.view==='review'?' on':'')+'" data-bf="review" aria-pressed="'+(B.view==='review')+'">Review list</button><button type="button" class="f'+(!B.view?' on':'')+'" data-bf="pipeline" aria-pressed="'+(!B.view)+'">Pipeline</button></span>') + [['all','Everyone'],['mine','Mine'],['strong','80%+'],['email','Has email']].map(function(f){ return '<button type="button" class="f'+(B.filter===f[0]?' on':'')+'" data-bf="'+f[0]+'">'+f[1]+'</button>'; }).join('') +
     '<button type="button" class="f'+(B.showOut?' on':'')+'" data-bf="out">Not a fit '+nf+' · Not now '+sn+'</button>'+
     '<button type="button" class="f'+(B.view==='map'?' on':'')+'" data-bf="map" aria-pressed="'+(B.view==='map')+'">Map</button>'+
-    '<span style="flex:1"></span><button type="button" class="f'+(B.view==='review'?' on':'')+'" data-bf="review" aria-pressed="'+(B.view==='review')+'">Review list</button>'+
-    '<button type="button" class="f'+(!B.view?' on':'')+'" data-bf="pipeline" aria-pressed="'+(!B.view)+'">Pipeline</button>';
+'';
   renderPulse(cards);
   var html = '<section class="bcol bbrief" aria-label="Brief">'+briefPanel()+'</section>';
 
   if (!B.viewSet && !B.newRole && cards.filter(function(c){ return c.stage === 'found'; }).length > 30) B.view = 'review';
-  if (B.view === 'review' && !B.newRole) { el('bWrap').innerHTML = renderReview(cards); return; }
+  if (B.view === 'review' && !B.newRole) { el('bWrap').innerHTML = html + renderReview(cards); return; }
   if (B.view === 'map' && !B.newRole) { el('bWrap').innerHTML = html + renderMap(cards); if (B.open) openCard(B.open, true); return; }
   COLS.forEach(function(col){
     var list = cards.filter(function(c){ return c.stage === col[0] && (B.showOut || !c.snoozed); }).sort(function(a,b){ return bPct(b)-bPct(a); });
@@ -1334,6 +1336,13 @@ el('bWrap').addEventListener('click', function(e){
   var rs = e.target.closest('[data-rvs]'); if (rs) { B.rsrc = rs.dataset.rvs || null; B.rv = null; renderBoard(); return; }
   var ra = e.target.closest('[data-rva]'); if (ra) { rvAct(ra.dataset.rva); return; }
   var ro = e.target.closest('[data-rvo]'); if (ro) { openCard(ro.dataset.rvo); return; }
+  var pl = e.target.closest('.rvside [data-bf="pipeline"]'); if (pl) { B.view = ''; B.viewSet = true; renderBoard(); return; }
+  var rx = e.target.closest('[data-rvx]'); if (rx) { var c0 = cardOf(B.rv); if (!c0) return;
+    if (rx.dataset.rvx === 'approve') { approveCard(c0); return; }
+    if (rx.dataset.rvx === 'later') { var d0 = new Date(Date.now() + 90*86400000).toISOString().slice(0,10), k0 = c0.dedupe_key; rvNext(); saveCard(c0, { snooze_until: d0 }, function(){ toast(c0.name + ' is parked until ' + d0 + '.'); }); return; }
+    if (rx.dataset.rvx === 'email') { c0.finding = true; renderBoard(); toast('Looking up an email for ' + c0.name + '…');
+      call('find_email', { run_id: B.runId, dedupe_key: c0.dedupe_key }).then(function(j){ c0.finding = false; if (j.email) { c0.email = j.email; c0.contact_source = j.email_source || ''; toast('Email found for ' + c0.name + ': ' + j.email + ' (' + (j.email_source||'lookup') + ').' + emailWhy(j.email_source)); } else toast(j.email_note || 'No email found.'); renderBoard(); })
+        .catch(function(err){ c0.finding = false; renderBoard(); if (err.message!=='locked') toast(err.message); }); return; } }
   var t;
   if ((t = e.target.closest('[data-mv]'))) { var a = t.dataset.mv.split(':'), nb = B.nb, from = nb[a[0]], to = a[0]==='must' ? nb.nice : nb.must; to.push(from.splice(+a[1],1)[0]); renderBrief(); return; }
   if ((t = e.target.closest('[data-ch]'))) { var p = t.dataset.ch, sel = B.newRole ? B.nb.sources : B.srcSel, i = sel.indexOf(p); if (i===-1) sel.push(p); else sel.splice(i,1); if (B.newRole) B.nb.touchedSrc = true; renderBrief(); return; }
@@ -1411,7 +1420,12 @@ function renderReview(cards){
       '<span class="rvmain"><b>'+esc(niceName(c.name))+'</b><span>'+esc([c.title, c.company].filter(Boolean).join(' · ') || 'Role not shown')+'</span><span>'+esc([String(c.location||'').split(',')[0], String(c.key_skills||'').split(/[,;|]/).slice(0,3).join(', ')].filter(Boolean).join(' · '))+'</span></span>'+
       '<span class="rvchips">'+st+mail+'<span class="bsrc">'+esc(srcOf(c))+'</span></span></button>'; }).join('') + (list.length > 150 ? '<p class="muted" style="padding:12px 16px;font-size:13px">Showing 150 of '+list.length+'. Search or pick a source to narrow.</p>' : '') +
     (!list.length ? '<p class="muted" style="padding:20px 16px">Nobody here'+(B.rq||B.rsrc ? ' with this search' : '')+'.</p>' : '');
-  return '<section class="rv" aria-label="Review">'+'<div class="rvtiers">'+tiers+'</div>'+tools+'<div class="rvbody"><div class="rvlist" role="list">'+rows+'</div>'+rvPanel(cardOf(B.rv), list)+'</div></section>';
+  var sl = cards.filter(function(c){ return c.stage === 'shortlisted'; }), ne = sl.filter(function(c){ return !c.email && !(/^lookup:none:/.test(c.contact_source||'') && (Date.now() - new Date(String(c.contact_source).slice(12,22))) < 30*864e5); }).length;
+  var side = '<div class="rvside"><b>'+sl.length+' shortlisted</b>'+(sl.filter(function(c){ return c.email; }).length ? '<span class="muted">· '+sl.filter(function(c){ return c.email; }).length+' with an email</span>' : '')+
+    (ne ? '<button type="button" class="bmore" id="bFindEmails">'+(B.findingAll ? 'Looking up…' : 'Find emails for '+Math.min(ne,10)+' · up to '+Math.min(ne,10)+' credit'+(Math.min(ne,10)===1?'':'s'))+'</button>' : '')+
+    (sl.length >= 2 && (((B.data||{}).run||{}).status !== 'running') ? '<button type="button" class="bmore" id="bLike">Find more like these '+sl.length+'</button>' : '')+
+    '<button type="button" class="bmore" data-bf="pipeline" style="margin-left:auto">Open the pipeline →</button></div>';
+  return '<section class="rv" aria-label="Review">'+'<div class="rvtiers">'+tiers+'</div>'+side+tools+'<div class="rvbody"><div class="rvlist" role="list">'+rows+'</div>'+rvPanel(cardOf(B.rv), list)+'</div></section>';
 }
 function rvPanel(c, list){
   if (!c) return '<aside class="rvpanel"><p class="muted">Pick someone on the left.</p></aside>';
@@ -1423,7 +1437,10 @@ function rvPanel(c, list){
       '<div style="font-size:14px;color:#3F3F46">'+esc([c.title, c.company].filter(Boolean).join(' at ') || 'Role not shown')+(c.location ? ' · '+esc(String(c.location).split(',')[0]) : '')+'</div></div>'+
       '<div style="text-align:right"><div style="font-size:28px;font-weight:700;color:'+(p>=90?'#1F7A47':'var(--char)')+'">'+p+'%</div><div class="muted" style="font-size:12px">'+(i+1)+' of '+list.length+'</div></div></div>'+
     '<div class="ctags"><span class="bsrc">'+esc(srcOf(c))+'</span>'+mail+(c.open_to_work?'<span class="bdup">Open to work</span>':'')+(reviewed(c)?'<span class="btag">'+esc(STAGE_NAME[c.stage]||c.stage)+'</span>':'')+'</div>'+
-    '<div class="rvact"><button type="button" class="go" data-rva="shortlisted">Shortlist<kbd>S</kbd></button><button type="button" data-rva="not_fit">Not a fit<kbd>X</kbd></button><button type="button" data-rva="skip">Skip<kbd>N</kbd></button></div>'+
+    '<div class="rvact"><button type="button" class="go" data-rva="shortlisted">'+(c.stage==='shortlisted'?'Shortlisted ✓':'Shortlist')+'<kbd>S</kbd></button><button type="button" data-rva="not_fit">Not a fit<kbd>X</kbd></button><button type="button" data-rva="skip">Skip<kbd>N</kbd></button></div>'+
+    '<div class="rvact2">'+(c.email && ['found','shortlisted'].indexOf(c.stage) !== -1 ? '<button type="button" data-rvx="approve">Approve and email</button>' : '')+
+      (!c.email ? '<button type="button" data-rvx="email">Find email</button>' : '')+
+      '<button type="button" data-rvx="later">Not now (90 days)</button><button type="button" data-rvo="'+esc(c.dedupe_key)+'">Note, owner, LinkedIn draft…</button></div>'+
     (w.parts.length ? '<div class="rvwhy">'+w.parts.map(function(x){ return '<div class="'+x.cls+'"><b>'+esc(x.mark)+': '+esc(x.c)+'</b>'+esc(x.e || '')+'</div>'; }).join('')+'</div>' : '')+
     (w.text ? '<p style="margin:0;font-size:14px;line-height:1.55;color:#3F3F46">'+esc(w.text)+'</p>' : '')+
     '<div style="display:flex;gap:14px;align-items:center;font-size:14px">'+links+'<button type="button" class="bmore" data-rvo="'+esc(c.dedupe_key)+'" style="margin-left:auto">Full profile ↵</button></div>'+
