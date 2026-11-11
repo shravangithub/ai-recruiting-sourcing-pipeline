@@ -6837,7 +6837,7 @@ return { json: {
   need_apollo: !!canLook,
   apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs({ linkedin_url: li, name: name, organization_name: company, reveal_personal_emails: 'false' }),
   // name + company is how Hunter finds most emails; its LinkedIn lookup only knows profiles it has seen
-  hunter_url: 'https://api.hunter.io/v2/email-finder?' + (name.indexOf(' ') > 0 && company ? qs({ full_name: name, company: company }) : qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '' }))
+  hunter_url: 'https://api.hunter.io/v2/email-finder?' + (name.indexOf(' ') > 0 && company ? qs({ full_name: name, company: company, max_duration: '5' }) : qs({ linkedin_handle: handle, full_name: name.indexOf(' ') > 0 ? name : '', max_duration: '5' }))
 } };
 });
 """

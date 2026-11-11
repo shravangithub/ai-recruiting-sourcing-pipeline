@@ -1969,11 +1969,11 @@ test('R45: Apollo first; out of credits -> Hunter; the found email is saved and 
   const p = await r45prep(r45person);
   assert.equal(p.need_apollo, true);
   assert.match(p.apollo_url, /linkedin_url=https%3A%2F%2Fin\.linkedin\.com%2Fin%2Fravi-menon-12/); assert.match(p.apollo_url, /organization_name=Acme%20Payments/);
-  assert.equal(p.hunter_url, 'https://api.hunter.io/v2/email-finder?full_name=Ravi%20Menon&company=Acme%20Payments', 'name + company when both are known');
+  assert.equal(p.hunter_url, 'https://api.hunter.io/v2/email-finder?full_name=Ravi%20Menon&company=Acme%20Payments&max_duration=5', 'name + company when both are known');
   const noCo = await r45prep(Object.assign({}, r45person, { company: '' }));
   assert.match(noCo.hunter_url, /linkedin_handle=ravi-menon-12/);
   const india = await r45prep(Object.assign({}, r45person, { company: 'Accenture in India' }));
-  assert.match(india.hunter_url, /company=Accenture$/);
+  assert.match(india.hunter_url, /company=Accenture&/);
   const [a] = await runNode('Apollo Says', [{ error: { message: '422 - {"error":"insufficient credits","error_code":"BILLING.LIMIT.CREDITS_EXHAUSTED"}' } }], { 'Lookup Prep': [p] });
   assert.equal(a.need_hunter, true); assert.equal(a.apollo_note, 'Apollo is out of credits');
   const [res] = await runNode('Lookup Result', [{ data: { email: 'ravi.menon@acmepay.example', score: 91, verification: { status: 'valid' } } }], { 'Apollo Says': [a] });

@@ -1018,7 +1018,7 @@ function bCard(c){
   if (c.stage === 'followup' && c.sequence) tags.push('<span class="btag">'+esc(String(c.sequence.status_text||'').replace(/^Contacted · /,'').slice(0,34))+'</span>');
   // where the profile came from and whether there is an email always show; other tags after them
   var head = ['<span class="bsrc" title="Found on '+esc(c.source||'the web')+'">'+esc(String(c.source||'Web').replace('Google / Open Web','Open web'))+'</span>',
-    c.email ? '<span class="bmail" title="'+esc(c.email+(c.contact_source ? ' · '+c.contact_source : ''))+'">Email ✓</span>' : (['found','shortlisted'].indexOf(c.stage) !== -1 ? '<span class="btag">No email yet</span>' : '')].filter(Boolean);
+    c.finding ? '<span class="btag"><span class="spin" style="display:inline-block;width:9px;height:9px;vertical-align:-1px;margin-right:4px"></span>Finding email…</span>' : c.email ? '<span class="bmail" title="'+esc(c.email+(c.contact_source ? ' · '+c.contact_source : ''))+'">Email ✓</span>' : (['found','shortlisted'].indexOf(c.stage) !== -1 ? '<span class="btag">No email yet</span>' : '')].filter(Boolean);
   var shown = head.join('') + tags.slice(0,1).join('') + (tags.length > 1 ? '<span class="btag" title="'+esc(tags.slice(1).map(function(t){ return t.replace(/<[^>]+>/g,''); }).join(', '))+'">+'+(tags.length-1)+'</span>' : '');
   // the role on one line, the current company (and city) on the next, then the top skills
   var title = String(c.title||''), company = String(c.company||'');
@@ -1051,7 +1051,8 @@ function renderBoard(){
     var head = col[0]==='found' && run.status==='running' ? '<span class="spin" style="width:10px;height:10px"></span>Found<span class="n">searching…</span>' : esc(col[1])+'<span class="n">'+list.length+'</span>';
     var extra = '';
     if (col[0]==='found' && run.status==='running') extra = '<div class="muted" style="font-size:12px">'+esc(['','Searching your channels','Scoring every profile','Checking location and emails','Almost done'][Math.min(4, +run.stage||1)])+'</div>';
-    if (col[0]==='shortlisted') { var od = list.filter(function(c){ return c.overdue; }).length; if (od) extra = '<span class="bwarn" style="align-self:flex-start">'+od+' waiting more than 2 days</span>'; }
+    if (col[0]==='shortlisted') { var od = list.filter(function(c){ return c.overdue; }).length; if (od) extra = '<span class="bwarn" style="align-self:flex-start">'+od+' waiting more than 2 days</span>';
+      var ne = list.filter(function(c){ return !c.email; }).length; if (ne && !B.newRole) extra += '<button type="button" class="bmore" id="bFindEmails" style="align-self:flex-start" title="Looks up emails again, e.g. after Apollo or Hunter credits are added. Uses one credit per person.">'+(B.findingAll ? 'Looking up…' : 'Find emails for '+ne+' without one')+'</button>'; }
     var ghost = '';
     if (col[0]==='shortlisted' && list.length >= 2 && !B.newRole && run.status !== 'running') ghost = '<button type="button" class="ghost" id="bLike"><b style="font-size:13px">Find more like these '+list.length+'</b><span class="muted" style="font-size:12px">Searches again using their titles and companies: '+esc(lookalike(list).companies.slice(0,3).join(', ') || 'similar profiles')+'</span></button>';
     if (col[0]==='interview' && list.length) extra += '<div class="win"><b style="font-size:13px">'+list.length+' in interviews</b><span style="color:#D4D4D8">From a brief to a conversation. Open a card for interview questions.</span></div>';
@@ -1314,6 +1315,17 @@ el('bWrap').addEventListener('click', function(e){
 });
 el('bPulse').addEventListener('click', function(e){ var b = e.target.closest('#bApproveAll'); if (b) { approveAll(b); return; }
   if (e.target.closest('#bDoneX')) { B.justDone = false; renderBoard(); return; }
+  if (e.target.closest('#bFindEmails')) { if (B.findingAll) return;
+    var miss = ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'shortlisted' && !c.email; }).slice(0, 10);
+    if (!miss.length) return; B.findingAll = true; miss.forEach(function(c){ c.finding = true; }); renderBoard();
+    toast('Looking up emails for ' + miss.length + ' shortlisted ' + (miss.length === 1 ? 'person' : 'people') + '…');
+    call('find_email', { run_id: B.runId, keys: miss.map(function(c){ return c.dedupe_key; }) }).then(function(j){
+      var got = 0; (j.found||[]).forEach(function(f){ var c = cardOf(f.dedupe_key); if (c && f.email && !c.email) { c.email = f.email; c.contact_source = f.email_source || ''; got++; } });
+      var why = (j.found||[]).filter(function(f){ return !f.email && f.note; }).map(function(f){ return (f.note.match(/\(([^)]+)\)/)||[])[1]; }).filter(Boolean)[0];
+      toast(got ? 'Found ' + got + ' of ' + miss.length + ' emails.' + (got < miss.length && why ? ' For the rest: ' + why + '.' : '') : 'No new emails' + (why ? ': ' + why : '') + '.');
+    }).catch(function(err){ if (err.message!=='locked') toast(err.message); })
+      .then(function(){ B.findingAll = false; miss.forEach(function(c){ c.finding = false; }); renderBoard(); });
+    return; }
   if (e.target.closest('#bShortStrong')) { B.justDone = false; ((B.data||{}).cards||[]).filter(function(c){ return c.stage === 'found' && bPct(c) >= 80; }).forEach(function(c){ moveCard(c.dedupe_key, 'shortlisted'); }); return; }
   var r = e.target.closest('[data-rail]'); if (!r) return; if (window.innerWidth <= 640) { B.pcol = r.dataset.rail; renderBoard(); return; } var col = document.querySelector('#bWrap [data-col="'+r.dataset.rail+'"]'); if (!col) return;
   col.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' });
@@ -1331,13 +1343,17 @@ function saveCard(c, patch, done){
   var prev = { stage: c.stage, owner: c.owner, note: c.note, snooze_until: c.snooze_until };
   var next = Object.assign({ run_id: B.runId, dedupe_key: c.dedupe_key, name: c.name }, prev, patch);
   Object.assign(c, patch); if (patch.snooze_until !== undefined) c.snoozed = patch.snooze_until && new Date(patch.snooze_until) > new Date();
+  var looking = (patch.stage === 'shortlisted' || patch.stage === 'approved') && prev.stage !== patch.stage && !c.email;
+  if (looking) { c.finding = true; toast(c.name + ' → ' + (STAGE_NAME[patch.stage] || patch.stage) + '. Looking up their email (Apollo, then Hunter)…'); }
   renderBoard();
-  return call('update_card', { card: next, prev: prev }).then(function(j){ if (!j.ok) { toast(j.error || 'Could not save.'); loadBoard(B.runId); return; }
-    if (done) done();
+  return call('update_card', { card: next, prev: prev }).then(function(j){ if (c.finding) { c.finding = false; renderBoard(); }
+    if (!j.ok) { toast(j.error || 'Could not save.'); loadBoard(B.runId); return; }
+    if (done && !looking) done();
+    if (looking && !j.email && !j.email_note && done) done();
     // shortlisting looks up an email (Apollo, then Hunter) when the person has none
     if (j.email && !c.email) { c.email = j.email; c.contact_source = j.email_source || ''; renderBoard(); toast(c.name + ' → ' + (STAGE_NAME[c.stage] || c.stage) + '. Email found: ' + j.email + ' (' + (j.email_source || 'lookup') + ').'); }
     else if (j.email_note && !c.email) toast(j.email_note); })
-    .catch(function(e){ if (e.message!=='locked') toast(e.message); });
+    .catch(function(e){ if (c.finding) { c.finding = false; renderBoard(); } if (e.message!=='locked') toast(e.message); });
 }
 function moveCard(key, stage){
   var c = cardOf(key); if (!c || c.stage === stage) return;
