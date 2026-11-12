@@ -7873,3 +7873,60 @@ def apply_round53(nodes, conns):
       "$('Load Seq Opt-outs').all().forEach(function(i){ const o = i.json || {}; const e = String(o.email",
       "$('Load Seq Opt-outs').all().forEach(function(i){ const o = i.json || {}; if (o.error) throw new Error('opt-out list unreadable'); const e = String(o.email")
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 54
+# Test mode: run the pipeline with sample data and never email a real candidate.
+# When on, every first email goes to a test address (subject tagged [TEST]);
+# those sequences are marked 'test' and follow-ups are paused for everyone, so
+# nothing reaches a real person. Turn it off to run for real.
+
+def apply_round54(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round54 %s: anchor: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    # 1. settings plumbing (App Gate): keys, what the app reads, validation, save
+    R("App Gate", "'allow_unverified', 'retention_months'];", "'allow_unverified', 'retention_months', 'test_mode', 'test_email'];")
+    R("App Gate", "first_cap: Number(settings.first_cap) || 30, allow_unverified: settings.allow_unverified === 'true',",
+      "first_cap: Number(settings.first_cap) || 30, allow_unverified: settings.allow_unverified === 'true',\n"
+      "  test_mode: settings.test_mode === 'true', test_email: settings.test_email || '',")
+    R("App Gate", "  vals.first_cap = String(fc); vals.allow_unverified = s.allow_unverified === undefined ? (settings.allow_unverified === 'true' ? 'true' : 'false') : (s.allow_unverified === true ? 'true' : 'false'); vals.retention_months = String(rm);",
+      "  vals.first_cap = String(fc); vals.allow_unverified = s.allow_unverified === undefined ? (settings.allow_unverified === 'true' ? 'true' : 'false') : (s.allow_unverified === true ? 'true' : 'false'); vals.retention_months = String(rm);\n"
+      "  const tm = s.test_mode === true || s.test_mode === 'true';\n"
+      "  const te = String(s.test_email || '').trim().toLowerCase();\n"
+      "  if (tm && !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(te)) return reply({ ok: false, error: 'Test mode needs a valid test email address to send to.' });\n"
+      "  vals.test_mode = tm ? 'true' : 'false'; vals.test_email = te;")
+
+    # 2. first email: in test mode the recipient is the test address, subject tagged
+    R("Filter Outreach Queue", "const FIRST_CAP = parseInt(sets.first_cap, 10) > 0 ? parseInt(sets.first_cap, 10) : 30;",
+      "const TEST_ON = sets.test_mode === 'true';\n"
+      "const TEST_TO = String(sets.test_email || '').toLowerCase().trim();\n"
+      "const FIRST_CAP = TEST_ON ? 100000 : (parseInt(sets.first_cap, 10) > 0 ? parseInt(sets.first_cap, 10) : 30);")
+    R("Filter Outreach Queue", "const ALLOW_UNVERIFIED = sets.allow_unverified === 'true';",
+      "const ALLOW_UNVERIFIED = TEST_ON || sets.allow_unverified === 'true';")
+    R("Filter Outreach Queue", "{ _pixel: pixel(i.json) }, (function(){ const e = String(i.json['Email']",
+      "{ _pixel: pixel(i.json) }, { _test: TEST_ON, _to: TEST_ON ? TEST_TO : String(i.json['Email'] || '').toLowerCase().trim(), _subj_prefix: TEST_ON ? '[TEST] ' : '' }, (function(){ const e = String(i.json['Email']")
+    m = N["Send Outreach Email"]["parameters"]
+    assert m["sendTo"] == "={{ $json.Email }}"
+    m["sendTo"] = "={{ $json._to || $json.Email }}"
+    assert m["subject"].startswith("={{ $json['Search Role'] }} role")
+    m["subject"] = m["subject"].replace("={{ $json['Search Role'] }} role", "={{ ($json._subj_prefix || '') + $json['Search Role'] }} role", 1)
+
+    # 3. a test first-email starts a 'test' sequence (never followed up)
+    R("Start Sequence", "    status: 'active',\n", "    status: r._test ? 'test' : 'active',\n")
+    R("Start Sequence", "status_text: 'Contacted · follow-up 1 of ' + OFFSETS.length + ' on ' + nice(due),",
+      "status_text: r._test ? 'Test contact · no follow-ups' : ('Contacted · follow-up 1 of ' + OFFSETS.length + ' on ' + nice(due)),")
+
+    # 4. while test mode is on, follow-ups are paused for everyone (real ones protected)
+    R("Due Follow-ups", "const _HM = /^([01]\\d|2",
+      "if (_S.test_mode === 'true') return [];\nconst _HM = /^([01]\\d|2")
+
+    # 5. a banner on the board so test mode is never a surprise
+    R("Board Reply", "recontact_days: days, team: g.team || [],",
+      "recontact_days: days, team: g.team || [], test_mode: sets.test_mode === 'true', test_email: sets.test_email || '',")
+
+    return nodes, conns
