@@ -2349,3 +2349,12 @@ test('R54: settings carry test mode; the board knows so it can warn', async () =
   assert.match(NODES['App Gate'].parameters.jsCode, /Test mode needs a valid test email/);
   assert.match(NODES['Board Reply'].parameters.jsCode, /test_mode: sets\.test_mode === 'true', test_email:/);
 });
+
+// ------------------------------------------------------------ Round 55: Apollo reveal on shortlist only
+test('R55: find-email reveals the real Apollo email; bulk search never spends credits', () => {
+  const lp = NODES['Lookup Prep'].parameters.jsCode;
+  const reveals = [...lp.matchAll(/reveal_personal_emails: '(\w+)'/g)].map((m) => m[1]);
+  assert.ok(reveals.length >= 2 && reveals.every((v) => v === 'true'), 'find-email path reveals');
+  const bulk = NODES['Apollo Enrich'].parameters.queryParameters.parameters.find((x) => x.name === 'reveal_personal_emails');
+  assert.equal(bulk.value, 'false', 'bulk enrichment stays credit-free');
+});
