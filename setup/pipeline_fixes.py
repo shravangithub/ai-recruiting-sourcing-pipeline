@@ -6864,7 +6864,7 @@ return { json: {
   base: base, run_id: S(q.run_id), dedupe_key: key, name: name, company: company, linkedin: li, row_found: found,
   had_email: has, email: has ? S(r.email) : '', email_source: has ? S(r.contact_source) : '',
   need_apollo: !!apolloOk, hunter_ok: !!hunterOk, asked_on: recent ? miss[1] : '', said_none: saidNone,
-  apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs(apolloId ? { id: apolloId, reveal_personal_emails: 'false' } : { linkedin_url: li, name: full ? name : '', organization_name: company, reveal_personal_emails: 'false' }),
+  apollo_url: 'https://api.apollo.io/api/v1/people/match?' + qs(apolloId ? { id: apolloId, reveal_personal_emails: 'true' } : { linkedin_url: li, name: full ? name : '', organization_name: company, reveal_personal_emails: 'true' }),
   // name + company is how Hunter finds most emails; its LinkedIn lookup only knows profiles it has seen
   hunter_url: 'https://api.hunter.io/v2/email-finder?' + (full && company ? qs({ full_name: name, company: company, max_duration: '5' }) : qs({ linkedin_handle: handle, full_name: full ? name : '', max_duration: '5' }))
 } };
