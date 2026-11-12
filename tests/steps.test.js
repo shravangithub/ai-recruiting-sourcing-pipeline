@@ -959,7 +959,7 @@ test('R29: sending settings are checked, saved and used by the follow-ups', asyn
   assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '19:00', window_end: '09:00', daily_cap: 50 } }, ctx)).response.error, /sending window/);
   assert.match((await gate29({ action: 'save_settings', token: s.token, settings: { window_start: '09:00', window_end: '18:00', daily_cap: 999 } }, ctx)).response.error, /between 1 and 200/);
   const ok = await gate29({ action: 'save_settings', token: s.token, settings: { signature: 'Kumar\nTalent team', window_start: '10:00', window_end: '17:00', daily_cap: 2, weekdays_only: true } }, ctx);
-  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days', 'open_tracking', 'public_url', 'first_cap', 'allow_unverified', 'retention_months']);
+  assert.deepEqual(ok.writes.settings.map((x) => x.key), ['signature', 'window_start', 'window_end', 'daily_cap', 'weekdays_only', 'recontact_days', 'open_tracking', 'public_url', 'first_cap', 'allow_unverified', 'retention_months', 'test_mode', 'test_email']);
   const [w] = await runNode('Settings Writes', [{}], { 'App Gate': [ok] });
   assert.equal(w.key, 'signature');
   const got = await gate29({ action: 'settings', token: s.token }, Object.assign({ settings: ok.writes.settings }, ctx));
@@ -2296,4 +2296,56 @@ test('R53: the senders never share a tick, and a FAILED opt-out read (error item
   at('2026-10-28T11:00:00');
   const out = await runNode('Due Follow-ups', [{}], { 'Load Seq Settings': [{}], 'Load Sequences': [seq], 'Load Templates': [{}], 'Load Seq Opt-outs': err });
   assert.equal(out.length, 0, 'follow-ups hold');
+});
+
+// ------------------------------------------------------------ Round 54: test mode
+const tmRefs = (over = {}) => Object.assign({ 'Load Contact Settings': [{ key: 'test_mode', value: 'true' }, { key: 'test_email', value: 'qa@talentrubric.example' }],
+  'Load Recent Contacts': [{}], 'Load Opt-outs': [{}] }, over);
+
+test('R54: test mode redirects the first email to the test address and tags the subject', async () => {
+  const [o] = await runNode('Filter Outreach Queue', [r52row()], tmRefs());
+  assert.equal(o._test, true);
+  assert.equal(o._to, 'qa@talentrubric.example');
+  assert.equal(o._subj_prefix, '[TEST] ');
+  // real candidate address is never the recipient in test mode
+  assert.notEqual(o._to, String(r52row().Email).toLowerCase());
+  assert.equal(NODES['Send Outreach Email'].parameters.sendTo, '={{ $json._to || $json.Email }}');
+  assert.match(NODES['Send Outreach Email'].parameters.subject, /\(\$json\._subj_prefix \|\| ''\) \+ \$json\['Search Role'\]/);
+  // a guessed email and a low daily cap don't block a test send
+  const [g] = await runNode('Filter Outreach Queue', [r52row({ 'Contact Source': 'Apollo · guessed, not verified', 'Dedupe Key': 'k9' })],
+    tmRefs({ 'Load Contact Settings': [{ key: 'test_mode', value: 'true' }, { key: 'test_email', value: 'qa@x.example' }, { key: 'first_cap', value: '1' }] }));
+  assert.equal(g._to, 'qa@x.example');
+});
+
+test('R54: with test mode off, the real candidate is the recipient (nothing changes)', async () => {
+  const [o] = await runNode('Filter Outreach Queue', [r52row()], r52refs());
+  assert.equal(o._test, false);
+  assert.equal(o._to, 'asha@northwind.example');
+  assert.equal(o._subj_prefix, '');
+});
+
+test('R54: a test first-email starts a non-followed-up "test" sequence', async () => {
+  const seqOf = (test) => runNode('Start Sequence', [{}], {
+    'Send Outreach Email': [{ id: 'm1', threadId: 't1' }],
+    'Filter Outreach Queue': [{ 'Dedupe Key': 'url:a|req:x', Email: 'qa@x.example', Name: 'Sample One', 'Search Role': 'DevOps', 'Search Location': 'Pune', _test: test }] });
+  const [t] = await seqOf(true);
+  assert.equal(t.status, 'test'); assert.match(t.status_text, /Test contact/);
+  const [r] = await seqOf(false);
+  assert.equal(r.status, 'active'); assert.match(r.status_text, /follow-up 1 of/);
+});
+
+test('R54: follow-ups are paused for everyone while test mode is on', async () => {
+  const seq = { contact_key: 'url:a|req:x', email: 'a@x.example', status: 'active', message_id: 'm1', step: 1, next_due_at: '2026-10-25T04:00:00Z', started_at: '2026-10-23T04:00:00Z', first_name: 'A' };
+  at('2026-10-28T11:00:00');
+  const on = await runNode('Due Follow-ups', [{}], { 'Load Seq Settings': [{ key: 'test_mode', value: 'true' }], 'Load Sequences': [seq], 'Load Templates': [{}], 'Load Seq Opt-outs': [{}] });
+  assert.equal(on.length, 0, 'nothing goes out in test mode');
+  const off = await runNode('Due Follow-ups', [{}], { 'Load Seq Settings': [{}], 'Load Sequences': [seq], 'Load Templates': [{}], 'Load Seq Opt-outs': [{}] });
+  assert.equal(off.length, 1, 'normal mode still sends real follow-ups');
+});
+
+test('R54: settings carry test mode; the board knows so it can warn', async () => {
+  assert.match(NODES['App Gate'].parameters.jsCode, /'test_mode', 'test_email'\]/);
+  assert.match(NODES['App Gate'].parameters.jsCode, /test_mode: settings\.test_mode === 'true'/);
+  assert.match(NODES['App Gate'].parameters.jsCode, /Test mode needs a valid test email/);
+  assert.match(NODES['Board Reply'].parameters.jsCode, /test_mode: sets\.test_mode === 'true', test_email:/);
 });

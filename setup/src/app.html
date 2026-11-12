@@ -382,6 +382,7 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
 <main id="app" class="hide">
   <!-- new search -->
   <!-- board: the whole workflow for one role -->
+  <div id="testBanner" class="hide" role="status" style="margin:0 0 10px;background:#8A5A00;color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;font-weight:600">🧪 Test mode is on — every email goes to <span id="testWho" style="text-decoration:underline"></span>, never to candidates.</div>
   <section id="v-board" class="hide" style="display:flex;flex-direction:column;gap:14px">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
       <h1 style="font-size:26px;font-weight:800" id="bTitle">Board</h1>
@@ -469,6 +470,8 @@ main.wide{max-width:none;padding-left:24px;padding-right:24px}
       <div class="frow"><div><b>Weekdays only</b></div><div><button type="button" class="tog on" id="snWk" aria-pressed="true" aria-label="Weekdays only"><i></i></button></div></div>
       <div class="frow"><div><b>Never email the same person twice within</b><div class="help">Across all roles. Protects your sender reputation.</div></div><div style="display:flex;gap:8px;align-items:center"><input id="snRe" type="text" inputmode="numeric" style="max-width:90px"><span class="muted">days</span></div></div>
       <div class="frow"><div><b>Open tracking</b><div class="help">Adds an invisible image to each email to see opens. It can push emails into spam, and it only works when your n8n has a public https address. Off by default. The same public address makes apply pages reachable.</div></div><div style="display:flex;flex-direction:column;gap:8px;max-width:440px"><button type="button" class="tog" id="snOpen" aria-pressed="false" aria-label="Open tracking"><i></i></button><input id="snUrl" type="text" placeholder="https://your-n8n.example.com"></div></div>
+      <div class="frow" style="background:#FFF4DB;border-radius:10px;padding:10px 12px;margin-bottom:4px"><div><b>Test mode</b><div class="help">On: every outreach email goes to the test address below (subject tagged [TEST]), never to a candidate — use it to try the pipeline with sample data. Follow-ups pause while it's on. Turn it off to run for real.</div></div><div><button type="button" class="tog" id="snTest" aria-pressed="false" aria-label="Test mode"><i></i></button></div></div>
+      <div class="frow"><div><b>Test address</b><div class="help">Where test emails land while Test mode is on.</div></div><input id="snTestEmail" type="text" inputmode="email" placeholder="you@example.com" style="max-width:220px"></div>
       <div class="frow"><div><b>New people emailed per day</b><div class="help">First emails only (1–200). Keeps a new mailbox out of spam.</div></div><input id="snFirst" type="text" inputmode="numeric" style="max-width:120px"></div>
       <div class="frow"><div><b>Email unverified addresses</b><div class="help">Off: guessed or unverified emails wait until someone checks them. On: they go out like the rest and may bounce.</div></div><div><button type="button" class="tog" id="snUnv" aria-pressed="false" aria-label="Email unverified addresses"><i></i></button></div></div>
       <div class="frow"><div><b>Delete people nobody contacted after</b><div class="help">Removes found people nobody shortlisted or emailed, every night. 0 keeps them. India's DPDP Act expects personal data to be kept only as long as you need it.</div></div><div style="display:flex;gap:8px;align-items:center"><input id="snRet" type="text" inputmode="numeric" style="max-width:90px"><span class="muted">months</span></div></div>
@@ -1025,6 +1028,7 @@ function loadBoard(runId){
     if (!j.ok) { toast(j.error || 'Could not load the board.'); return; }
     var was = B.data && B.data.run && B.data.run.status === 'running' && String(B.data.run.run_id) === String((j.run||{}).run_id);
     B.data = j; B.runId = String((j.run && j.run.run_id) || runId || '');
+    var _tb = el('testBanner'); if (_tb) { if (j.test_mode) { el('testWho').textContent = j.test_email || 'your test address'; _tb.classList.remove('hide'); } else { _tb.classList.add('hide'); } }
     if (was && j.run && j.run.status === 'done') { B.justDone = true; confetti(); }
     if (B.pastFor !== B.runId && j.run && j.run.status !== 'running' && (j.roles||[]).length > 1) { B.pastFor = B.runId; B.past = null; var cr0 = j.criteria || {}; loadPast(B, { role: j.run.role || cr0.role || '', must: bList(cr0.must || j.run.must), city: j.run.location || '', run_id: B.runId }); }
     var cr = j.criteria || {};
@@ -1826,18 +1830,19 @@ el('tmRows').addEventListener('click', function(e){
 });
 function loadSending(){
   var admin = ME.role==='admin';
-  ['snSig','snStart','snEnd','snCap','snSave','snRe','snUrl','snFirst','snRet'].forEach(function(id){ el(id).disabled = !admin; });
+  ['snSig','snStart','snEnd','snCap','snSave','snRe','snUrl','snFirst','snRet','snTestEmail'].forEach(function(id){ el(id).disabled = !admin; });
   el('snMsg').textContent = admin ? '' : 'Only admins can change these.';
   call('settings').then(function(j){ if (!j.ok) return; var s=j.settings;
     el('snSig').value=s.signature; el('snStart').value=s.window_start; el('snEnd').value=s.window_end; el('snCap').value=s.daily_cap;
     el('snWk').classList.toggle('on', !!s.weekdays_only); el('snWk').setAttribute('aria-pressed', s.weekdays_only?'true':'false');
     el('snRe').value = s.recontact_days || 90; el('snUrl').value = s.public_url || ''; el('snOpen').classList.toggle('on', !!s.open_tracking); el('snOpen').setAttribute('aria-pressed', s.open_tracking?'true':'false');
-    el('snFirst').value = s.first_cap || 30; el('snRet').value = s.retention_months == null ? 12 : s.retention_months; el('snUnv').classList.toggle('on', !!s.allow_unverified); el('snUnv').setAttribute('aria-pressed', s.allow_unverified?'true':'false'); }).catch(function(){}); }
+    el('snFirst').value = s.first_cap || 30; el('snRet').value = s.retention_months == null ? 12 : s.retention_months; el('snUnv').classList.toggle('on', !!s.allow_unverified); el('snUnv').setAttribute('aria-pressed', s.allow_unverified?'true':'false'); el('snTestEmail').value = s.test_email || ''; el('snTest').classList.toggle('on', !!s.test_mode); el('snTest').setAttribute('aria-pressed', s.test_mode?'true':'false'); }).catch(function(){}); }
 el('snOpen').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
+el('snTest').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snUnv').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snWk').onclick = function(){ if (ME.role!=='admin') return; var on=!this.classList.contains('on'); this.classList.toggle('on', on); this.setAttribute('aria-pressed', on?'true':'false'); };
 el('snSave').onclick = function(){ var b=this; el('snMsg').textContent='Saving…';
-  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on'), recontact_days: el('snRe').value.trim(), open_tracking: el('snOpen').classList.contains('on'), public_url: el('snUrl').value.trim(), first_cap: el('snFirst').value.trim(), allow_unverified: el('snUnv').classList.contains('on'), retention_months: el('snRet').value.trim() } })
+  call('save_settings', { settings: { signature: el('snSig').value, window_start: el('snStart').value.trim(), window_end: el('snEnd').value.trim(), daily_cap: el('snCap').value.trim(), weekdays_only: el('snWk').classList.contains('on'), recontact_days: el('snRe').value.trim(), open_tracking: el('snOpen').classList.contains('on'), public_url: el('snUrl').value.trim(), first_cap: el('snFirst').value.trim(), allow_unverified: el('snUnv').classList.contains('on'), retention_months: el('snRet').value.trim(), test_mode: el('snTest').classList.contains('on'), test_email: el('snTestEmail').value.trim() } })
     .then(function(j){ el('snMsg').textContent = j.ok ? 'Saved. The next follow-ups use these settings.' : j.error; }).catch(function(e){ if (e.message!=='locked') el('snMsg').textContent=e.message; }); };
 function loadServices(){
   var render = function(){ el('svRows').innerHTML = (S.services||[]).map(function(s){ return '<tr><td><b>'+esc(s.name)+'</b></td><td class="muted">'+esc(s.uses)+'</td><td>'+(s.last_ok?'<span class="st ok">✓ '+esc(ago(s.last_ok))+'</span>':'<span class="st">Not used yet</span>')+'</td></tr>'; }).join(''); };
