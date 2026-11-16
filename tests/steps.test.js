@@ -2358,3 +2358,57 @@ test('R55: find-email reveals the real Apollo email; bulk search never spends cr
   const bulk = NODES['Apollo Enrich'].parameters.queryParameters.parameters.find((x) => x.name === 'reveal_personal_emails');
   assert.equal(bulk.value, 'false', 'bulk enrichment stays credit-free');
 });
+
+// ------------------------------------------------------------ Round 56: companies that use the stack
+const stackPick = (companies) => [{ output: [{ content: [{ text: JSON.stringify({ companies }) }] }] }];
+
+test('R56: the role\'s tools become a StackShare search and a case-study search', async () => {
+  const qs = await runNode('Stack Company Queries', [{}], { 'Search Criteria': [criteria({ 'Target Role': 'Senior DevOps Engineer', 'Primary Skills': 'Kubernetes, Terraform, DevOps, AWS' })] });
+  assert.equal(qs.length, 2);
+  assert.deepEqual(qs[0].tools, ['Kubernetes', 'Terraform', 'AWS'], 'a skill that is just the job title is not a tool');
+  assert.equal(qs[0].serper_body.q, 'site:stackshare.io "Kubernetes" "Terraform" -jobs');
+  assert.match(qs[1].serper_body.q, /^\("case study" OR "customer story"\) "Kubernetes" "Terraform"/);
+  const none = await runNode('Stack Company Queries', [{}], { 'Search Criteria': [criteria({ 'Primary Skills': '' })] });
+  assert.deepEqual(none, [{ skip: true, tools: [] }]);
+  const noLi = await runNode('Stack Company Queries', [{}], { 'Search Criteria': [criteria({ 'Target Platforms': ['GitHub'] })] });
+  assert.equal(noLi[0].skip, true, 'only when LinkedIn is searched');
+});
+
+test('R56: the model reads the results; vendors, listing sites and repeats are dropped', async () => {
+  const [p] = await runNode('Stack Company Prompt', [
+    { searchParameters: { q: 'site:stackshare.io "Kubernetes" "Terraform" -jobs' }, organic: [{ title: 'Northwind - Tech Stack', snippet: 'Northwind uses Kubernetes, Terraform', link: 'https://stackshare.io/northwind/northwind' }] },
+    { searchParameters: { q: '("case study" OR "customer story") "Kubernetes"' }, organic: [{ title: 'How Contoso scaled', snippet: 'customer story', link: 'https://example.com/contoso' }] }],
+    { 'Stack Company Queries': [{ tools: ['Kubernetes', 'Terraform'] }] });
+  assert.equal(p.found, 2);
+  assert.match(p.prompt, /\[StackShare\] Northwind - Tech Stack/); assert.match(p.prompt, /\[case study\] How Contoso scaled/);
+  assert.match(p.system, /CUSTOMER in a case study/);
+  const refs = { 'Stack Company Queries': [{ tools: ['Kubernetes', 'Terraform'] }],
+    'Stack Company Pick': stackPick([{ name: 'Northwind', source: 'StackShare', why: 'stack page' }, { name: 'northwind', source: 'StackShare' }, { name: 'Kubernetes', source: 'case study' },
+      { name: 'StackShare', source: 'StackShare' }, { name: 'Contoso', source: 'case study', why: 'customer story' }, { name: 'A Very Long Agency Name That Is Not A Company At All Really', source: 'case study' }]) };
+  const [c] = await runNode('Stack Companies', [{}], refs);
+  assert.deepEqual(c.stack_companies.map((x) => x.name + '/' + x.source), ['Northwind/StackShare', 'Contoso/case study']);
+  const [skipped] = await runNode('Stack Companies', [{ skip: true }], {});
+  assert.deepEqual(skipped.stack_companies, [], 'nothing found or skipped: the search still goes on');
+  const [bad] = await runNode('Stack Companies', [{}], { 'Stack Company Queries': [{ tools: ['X'] }], 'Stack Company Pick': [{ error: { message: 'timeout' } }] });
+  assert.deepEqual(bad.stack_companies, []);
+});
+
+test('R56: each stack company gets one LinkedIn search; companies the recruiter named are not repeated', async () => {
+  const sc = [{ stack_companies: [{ name: 'Northwind', source: 'StackShare' }, { name: 'Contoso Labs', source: 'case study' }, { name: 'Infosys', source: 'case study' }], tools: ['Kubernetes'] }];
+  const q = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria({ 'Current Employer': 'Infosys, Wipro' })], 'Stack Companies': sc });
+  const stack = q.filter((x) => x.kind === 'stack-company-profiles');
+  assert.equal(stack.length, 2);
+  assert.match(stack[0].q, /^site:linkedin\.com\/in Northwind /); assert.match(stack[1].q, /"Contoso Labs"/);
+  assert.ok(stack.every((x) => x.page === 1));
+  const plain = await runNode('Build Search Query', [{}], { 'Search Criteria': [criteria()] });
+  assert.equal(plain.filter((x) => x.kind === 'stack-company-profiles').length, 0, 'without the lookup nothing changes');
+});
+
+test('R56: the stack lookup sits only in front of the Google search, and never stops it', () => {
+  const next = (n) => (WF.connections[n].main || []).map((b) => (b || []).map((t) => t.node));
+  assert.ok(next('Load CRM Rows')[0].includes('Stack Company Queries')); assert.ok(!next('Load CRM Rows')[0].includes('Build Search Query'));
+  assert.equal(next('Load CRM Rows')[0].length, 13, 'the other twelve sources are untouched');
+  assert.deepEqual(next('Stack Search?'), [['Stack Company Search'], ['Stack Companies']]);
+  assert.deepEqual(next('Stack Companies'), [['Build Search Query']]);
+  for (const n of ['Stack Company Search', 'Stack Company Pick']) { assert.equal(NODES[n].onError, 'continueRegularOutput'); assert.equal(NODES[n].alwaysOutputData, true); }
+});

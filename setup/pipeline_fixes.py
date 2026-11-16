@@ -7930,3 +7930,153 @@ def apply_round54(nodes, conns):
       "recontact_days: days, team: g.team || [], test_mode: sets.test_mode === 'true', test_email: sets.test_email || '',")
 
     return nodes, conns
+
+
+# ---------------------------------------------------------------- Round 56
+# Stack companies: a source most recruiters never search. Before the Google
+# queries are built, find companies that USE the role's main tools (their
+# published stack on StackShare, or a vendor's case study naming them as a
+# customer), let the model pull out the real employer names, then run one
+# LinkedIn search per company. Tech detection is not proof a person uses the
+# tool, so everyone found this way is still scored against the must-haves.
+
+STACK_QUERIES_JS = r"""
+// Which tools define this role, and where to look for companies that run them.
+const form = $('Search Criteria').first().json;
+let platforms = form['Target Platforms'];
+if (!Array.isArray(platforms)) platforms = platforms ? String(platforms).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+const onLinkedIn = platforms.some(function(p){ return /linkedin/i.test(String(p)); });
+const role = String(form['Target Role'] || '').toLowerCase();
+const tools = String(form['Primary Skills'] || '').replace(/[()"]/g, ' ').split(/,|\s+(?:OR|AND)\s+/i)
+  .map(function(s){ return s.trim(); })
+  .filter(function(s){ return s && s.length <= 30 && s.split(/\s+/).length <= 3 && role.indexOf(s.toLowerCase()) === -1; })
+  .slice(0, 3);
+if (!onLinkedIn || !tools.length) return [{ json: { skip: true, tools: [] } }];
+const quoted = function(s){ return '"' + s + '"'; };
+return [
+  { json: { skip: false, src: 'StackShare', tools: tools, serper_body: { q: 'site:stackshare.io ' + tools.slice(0, 2).map(quoted).join(' ') + ' -jobs', num: 20 } } },
+  { json: { skip: false, src: 'case study', tools: tools, serper_body: { q: '("case study" OR "customer story") ' + quoted(tools[0]) + (tools[1] ? ' ' + quoted(tools[1]) : '') + ' -jobs -careers', num: 20 } } }
+];
+"""
+
+STACK_PROMPT_JS = r"""
+// The search results, laid out for the model to read company names from.
+let tools = []; try { tools = $('Stack Company Queries').first().json.tools || []; } catch (e) {}
+const rows = [];
+$input.all().forEach(function(i){
+  const j = i.json || {};
+  const src = /stackshare\.io/i.test(String((j.searchParameters || {}).q || '')) ? 'StackShare' : 'case study';
+  (Array.isArray(j.organic) ? j.organic : []).slice(0, 20).forEach(function(o){
+    rows.push('[' + src + '] ' + String(o.title || '').slice(0, 140) + ' | ' + String(o.snippet || '').slice(0, 220) + ' | ' + String(o.link || '').slice(0, 120));
+  });
+});
+return [{ json: { tools: tools, found: rows.length,
+  system: 'You read web search results and list EMPLOYERS that use the named tools in production. Reply with JSON only: {"companies":[{"name":"...","source":"StackShare"|"case study","why":"..."}]}. '
+    + 'Include a company only if the result shows it runs the tool itself: its own stack page, or it is the CUSTOMER in a case study or customer story. '
+    + 'Never include: the vendor that makes the tool, agencies, consultancies, staffing or training firms, job boards, review or listing sites, or generic words. '
+    + 'Use the short name people write on a LinkedIn profile ("Acme", not "Acme Technologies Pvt Ltd"). At most 8, the clearest first. If none are clear, return {"companies":[]}.',
+  prompt: 'Tools: ' + tools.join(', ') + '\n\nSearch results:\n' + (rows.length ? rows.slice(0, 40).join('\n') : '(none)') } }];
+"""
+
+STACK_COMPANIES_JS = r"""
+// The companies to search, cleaned up. Always one item out, so the search goes on
+// whether or not any were found.
+let tools = [], list = [];
+try { tools = $('Stack Company Queries').first().json.tools || []; } catch (e) {}
+try {
+  const raw = $('Stack Company Pick').first().json.output[0].content[0].text;
+  const p = JSON.parse(String(raw).replace(/^```(json)?|```$/g, '').trim());
+  if (p && Array.isArray(p.companies)) list = p.companies;
+} catch (e) {}
+const NOT_EMPLOYERS = /^(stackshare|g2|builtwith|wappalyzer|linkedin|github|gitlab|google|medium|youtube|reddit|capterra|quora|wikipedia|glassdoor|indeed|naukri)$/i;
+const seen = {}, out = [];
+list.forEach(function(c){
+  const name = String((c && c.name) || '').replace(/["()]/g, '').replace(/\s+/g, ' ').trim();
+  const k = name.toLowerCase();
+  if (!name || name.length > 40 || name.split(' ').length > 4 || NOT_EMPLOYERS.test(name) || seen[k]) return;
+  if (tools.some(function(t){ return String(t).toLowerCase() === k; })) return;   // the tool's own maker
+  seen[k] = true;
+  out.push({ name: name, source: /stack/i.test(String(c.source || '')) ? 'StackShare' : 'case study', why: String(c.why || '').slice(0, 140) });
+});
+return [{ json: { stack_companies: out.slice(0, 6), tools: tools } }];
+"""
+
+
+def apply_round56(nodes, conns):
+    N = {n["name"]: n for n in nodes}
+
+    def R(name, old, newv):
+        p = N[name]["parameters"]
+        assert p["jsCode"].count(old) == 1, "round56 %s: anchor: %s" % (name, old[:70])
+        p["jsCode"] = p["jsCode"].replace(old, newv, 1)
+
+    def link(a, b, idx=0):
+        conns.setdefault(a, {"main": [[]]})
+        while len(conns[a]["main"]) <= idx:
+            conns[a]["main"].append([])
+        conns[a]["main"][idx].append({"node": b, "type": "main", "index": 0})
+
+    x, y = N["Build Search Query"]["position"]
+    y0 = y - 260
+    new = [
+        _node("Stack Company Queries", "n8n-nodes-base.code", 2, [x - 1320, y0], {"jsCode": STACK_QUERIES_JS}),
+        _node("Stack Search?", "n8n-nodes-base.if", 2.2, [x - 1100, y0], {
+            "conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "loose", "version": 2},
+                           "conditions": [{"id": "r56-go", "leftValue": "={{ $json.skip !== true }}", "rightValue": True,
+                                           "operator": {"type": "boolean", "operation": "true", "singleValue": True}}], "combinator": "and"},
+            "options": {}}),
+    ]
+    search = json.loads(json.dumps(N["Serper Search"]))
+    search.update({"name": "Stack Company Search", "id": "fix-stack-company-search", "position": [x - 880, y0 - 80],
+                   "alwaysOutputData": True, "onError": "continueRegularOutput"})
+    new.append(search)
+    new.append(_node("Stack Company Prompt", "n8n-nodes-base.code", 2, [x - 660, y0 - 80], {"jsCode": STACK_PROMPT_JS}))
+    pick = json.loads(json.dumps(N["Intake Agent"]))
+    pick.update({"name": "Stack Company Pick", "id": "fix-stack-company-pick", "position": [x - 440, y0 - 80],
+                 "alwaysOutputData": True, "onError": "continueRegularOutput"})
+    pick["parameters"]["jsonBody"] = ("={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0, text: { format: { type: 'json_object' } }, "
+                                      "input: [{ role: 'system', content: $json.system }, { role: 'user', content: $json.prompt }] }) }}")
+    new.append(pick)
+    new.append(_node("Stack Companies", "n8n-nodes-base.code", 2, [x - 220, y0], {"jsCode": STACK_COMPANIES_JS}))
+    nodes.extend(new)
+
+    # Load CRM Rows -> [queries] -> Build Search Query (the other twelve builders are untouched)
+    outs = conns["Load CRM Rows"]["main"][0]
+    assert sum(1 for o in outs if o["node"] == "Build Search Query") == 1
+    for o in outs:
+        if o["node"] == "Build Search Query":
+            o["node"] = "Stack Company Queries"
+    link("Stack Company Queries", "Stack Search?")
+    link("Stack Search?", "Stack Company Search", 0)
+    link("Stack Search?", "Stack Companies", 1)
+    link("Stack Company Search", "Stack Company Prompt")
+    link("Stack Company Prompt", "Stack Company Pick")
+    link("Stack Company Pick", "Stack Companies")
+    link("Stack Companies", "Build Search Query")
+
+    # one LinkedIn search per company that runs this stack
+    R("Build Search Query", "const out = [];\nfor (const qq of queries) {",
+      "// Companies that run this stack (StackShare, vendor case studies): one LinkedIn search each.\n"
+      "let stackCos = [];\n"
+      "try { stackCos = $('Stack Companies').first().json.stack_companies || []; } catch (e) {}\n"
+      "if (has(/linkedin/i) && stackCos.length) {\n"
+      "  const given = employerList.map(function(e){ return String(e).replace(/\"/g, '').toLowerCase(); });\n"
+      "  stackCos.filter(function(co){ return given.indexOf(String(co.name).toLowerCase()) === -1; }).slice(0, 6).forEach(function(co){\n"
+      "    queries.push({ kind: 'stack-company-profiles', pages: 1, q: fit([['site:linkedin.com/in'], [q(co.name)], roleOpts.concat(['']), locOpts.concat(['']), exclOpts, ['-intitle:jobs -inurl:jobs', '']]) });\n"
+      "  });\n"
+      "}\n"
+      "const out = [];\nfor (const qq of queries) {")
+
+    # say so in the results, and count what it cost
+    R("Results Note", "['Message a model'].forEach(", "['Message a model', 'Stack Company Pick'].forEach(")
+    R("Results Note", "const serper = n('Serper Search') + n('Resume Search') + n('Serper Retry');",
+      "let stackSearches = 0; try { stackSearches = $('Stack Company Search').all().filter(function(i){ return Array.isArray((i.json || {}).organic); }).length; } catch (e) {}\n"
+      "  const serper = n('Serper Search') + n('Resume Search') + n('Serper Retry') + stackSearches;")
+    R("Results Note", "let reviewed = 0; try { reviewed = Number($('Merge Pages').first().json.results_count) || 0; } catch (e) {}",
+      "let stackCos = [], stackTools = [];\n"
+      "try { const sc = $('Stack Companies').first().json; stackCos = (sc.stack_companies || []).map(function(c){ return c.name; }); stackTools = sc.tools || []; } catch (e) {}\n"
+      "if (stackCos.length) cost.stack = { tools: stackTools.slice(0, 2), companies: stackCos };\n"
+      "const stack_line = stackCos.length ? 'Also searched people at companies that use ' + stackTools.slice(0, 2).join(' and ') + ' (from StackShare and vendor case studies): ' + stackCos.join(', ') + '.' : '';\n"
+      "let reviewed = 0; try { reviewed = Number($('Merge Pages').first().json.results_count) || 0; } catch (e) {}")
+    R("Results Note", "+ top_html + (cost.serper ?", "+ top_html + (stack_line ? '<p style=\"color:#555\">' + esc(stack_line) + '</p>' : '') + (cost.serper ?")
+    return nodes, conns
